@@ -45,14 +45,66 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const userPrompt = `Analyze this medical document for a patient in ${state}. 
+    const userPromptText = `Analyze this medical document for a patient in ${state}. 
 Document type: ${documentType || 'unknown'}
 Output language: ${language === 'en' ? 'English' : language === 'es' ? 'Spanish' : language === 'zh' ? 'Simplified Chinese' : language === 'ar' ? 'Arabic' : language === 'hi' ? 'Hindi' : 'English'}
 
-Document content:
-${documentContent}
+Provide a comprehensive analysis in the specified language. Remember to use simple, non-medical language and be reassuring.
+Output ONLY valid JSON matching the required structure.`;
 
-Provide a comprehensive analysis in the specified language. Remember to use simple, non-medical language and be reassuring.`;
+    // Build messages based on content type
+    let messages: any[];
+    
+    // Check if documentContent is a data URL (image or PDF)
+    if (documentContent.startsWith('data:image/')) {
+      // For images, use vision capabilities
+      const base64Data = documentContent.split(',')[1];
+      const mimeType = documentContent.split(';')[0].split(':')[1];
+      
+      messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { 
+          role: 'user', 
+          content: [
+            { type: 'text', text: userPromptText },
+            { 
+              type: 'image_url', 
+              image_url: { 
+                url: `data:${mimeType};base64,${base64Data}` 
+              } 
+            }
+          ]
+        }
+      ];
+    } else if (documentContent.startsWith('data:application/pdf')) {
+      // For PDFs, we need to tell the model we have a PDF
+      // Gemini can handle PDF base64 data
+      const base64Data = documentContent.split(',')[1];
+      
+      messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { 
+          role: 'user', 
+          content: [
+            { type: 'text', text: userPromptText + '\n\n[Note: This is a PDF document being provided for analysis]' },
+            { 
+              type: 'image_url', 
+              image_url: { 
+                url: `data:application/pdf;base64,${base64Data}` 
+              } 
+            }
+          ]
+        }
+      ];
+    } else {
+      // For plain text content
+      messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `${userPromptText}\n\nDocument content:\n${documentContent}` }
+      ];
+    }
+
+    console.log('Sending request with message type:', documentContent.startsWith('data:') ? 'multimodal' : 'text');
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -62,11 +114,7 @@ Provide a comprehensive analysis in the specified language. Remember to use simp
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.3,
+        messages,
       }),
     });
 
@@ -91,10 +139,19 @@ Provide a comprehensive analysis in the specified language. Remember to use simp
     }
 
     const data = await response.json();
+    console.log('AI response data:', JSON.stringify(data, null, 2));
+    
     const content = data.choices?.[0]?.message?.content;
     
     if (!content) {
-      throw new Error('No content in AI response');
+      console.error('Full AI response:', JSON.stringify(data, null, 2));
+      // Try alternative response structures
+      const alternativeContent = data.content || data.message || data.result;
+      if (alternativeContent) {
+        console.log('Using alternative content structure');
+      } else {
+        throw new Error('No content in AI response');
+      }
     }
 
     // Extract JSON from the response (handle markdown code blocks)
