@@ -7,6 +7,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppState, UploadedFile, Language, AnalysisResult } from '@/types';
 import { toast } from 'sonner';
 
+// Helper to ensure value is always an array
+const ensureArray = (value: any): any[] => {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string') return [value];
+  if (typeof value === 'object') return Object.values(value);
+  return [value];
+};
+
 const Index = () => {
   const [state, setState] = useState<AppState>({
     currentStep: 'upload',
@@ -125,32 +134,30 @@ const Index = () => {
         issuer: aiAnalysis.issuer || 'Unknown Provider',
         dateOfService: aiAnalysis.dateOfService || 'Not specified',
         documentPurpose: aiAnalysis.documentPurpose || 'This document contains medical billing or healthcare information.',
-        charges: (aiAnalysis.lineItems || aiAnalysis.charges || []).map((item: any, index: number) => ({
+        charges: ensureArray(aiAnalysis.lineItems || aiAnalysis.charges).map((item: any, index: number) => ({
           id: item.id || `item-${index + 1}`,
           description: item.description || 'Item',
-          amount: typeof item.amount === 'number' ? item.amount : parseFloat(item.amount) || 0,
+          amount: typeof item.amount === 'number' ? item.amount : parseFloat(String(item.amount).replace(/[^0-9.-]/g, '')) || 0,
           explanation: item.explanation || 'No additional details available.',
         })),
-        medicalCodes: (aiAnalysis.medicalCodes || []).map((code: any) => ({
+        medicalCodes: ensureArray(aiAnalysis.medicalCodes).map((code: any) => ({
           code: code.code || 'Unknown',
           type: (code.type?.toUpperCase() || 'CPT') as 'CPT' | 'ICD' | 'HCPCS',
           description: code.description || 'Medical procedure code',
           typicalPurpose: code.typicalPurpose || code.description || 'Standard medical procedure',
-          commonQuestions: code.commonQuestions || [],
+          commonQuestions: ensureArray(code.commonQuestions),
         })),
-        faqs: (aiAnalysis.faqs || []).map((faq: any) => ({
+        faqs: ensureArray(aiAnalysis.faqs).map((faq: any) => ({
           question: faq.question || 'Question',
           answer: faq.answer || 'Answer not available.',
         })),
-        possibleIssues: (aiAnalysis.potentialIssues || aiAnalysis.possibleIssues || []).map((issue: any) => ({
+        possibleIssues: ensureArray(aiAnalysis.potentialIssues || aiAnalysis.possibleIssues).map((issue: any) => ({
           issue: issue.title || issue.issue || 'Note',
           explanation: issue.description || issue.explanation || 'No details available.',
         })),
-        financialAssistance: Array.isArray(aiAnalysis.financialAssistance) 
-          ? aiAnalysis.financialAssistance 
-          : [aiAnalysis.financialAssistance?.overview || 'Contact your healthcare provider for financial assistance options.'],
-        patientRights: aiAnalysis.patientProtections || aiAnalysis.patientRights || [],
-        actionPlan: (aiAnalysis.actionPlan || []).map((step: any, index: number) => ({
+        financialAssistance: ensureArray(aiAnalysis.financialAssistance),
+        patientRights: ensureArray(aiAnalysis.patientProtections || aiAnalysis.patientRights),
+        actionPlan: ensureArray(aiAnalysis.actionPlan).map((step: any, index: number) => ({
           step: step.step || index + 1,
           action: step.action || 'Review your options',
           description: step.details || step.description || 'Consider your next steps carefully.',
