@@ -11,15 +11,32 @@ interface FileUploaderProps {
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+const ACCEPTED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/jpg', 
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/tiff',
+  'image/bmp',
+  'image/heic',
+  'image/heif',
+];
+const ACCEPTED_TYPES = ['application/pdf', ...ACCEPTED_IMAGE_TYPES];
 
 export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const validateFile = (file: File): string | null => {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      return 'Please upload a PDF, JPG, or PNG file.';
+    // Check file extension for HEIC files (browser may not recognize MIME type)
+    const fileName = file.name.toLowerCase();
+    const isHeic = fileName.endsWith('.heic') || fileName.endsWith('.heif');
+    const isAcceptedByType = ACCEPTED_TYPES.includes(file.type);
+    const isAcceptedByExtension = /\.(pdf|jpe?g|png|gif|webp|tiff?|bmp|heic|heif)$/i.test(fileName);
+    
+    if (!isAcceptedByType && !isAcceptedByExtension && !isHeic) {
+      return 'Please upload a PDF or image file (JPG, PNG, GIF, WEBP, TIFF, BMP, or HEIC).';
     }
     if (file.size > MAX_FILE_SIZE) {
       return 'File size must be less than 20MB.';
@@ -35,7 +52,9 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
     }
 
     setError(null);
-    const fileType = file.type === 'application/pdf' ? 'pdf' : 'image';
+    const fileName = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
+    const fileType = isPdf ? 'pdf' : 'image';
     const preview = URL.createObjectURL(file);
     
     onFileSelect({
@@ -125,7 +144,7 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
       >
         <input
           type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
+          accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.tiff,.tif,.bmp,.heic,.heif"
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
@@ -148,7 +167,7 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
             Drag and drop or click to browse
           </p>
           <p className="text-xs text-muted-foreground">
-            PDF, JPG, or PNG • Maximum 20MB
+            PDF or images (JPG, PNG, HEIC, GIF, WEBP, TIFF, BMP) • Maximum 20MB
           </p>
         </div>
       </div>

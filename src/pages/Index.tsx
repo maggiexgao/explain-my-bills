@@ -86,16 +86,44 @@ const Index = () => {
     try {
       // Extract file content
       let documentContent: string;
+      const file = state.uploadedFile.file;
+      const fileName = file.name.toLowerCase();
       
-      if (state.uploadedFile.file.type.startsWith('image/')) {
-        // For images, convert to base64
+      // Determine if this is an image (check MIME type and extension for HEIC)
+      const isImage = file.type.startsWith('image/') || 
+                      fileName.endsWith('.heic') || 
+                      fileName.endsWith('.heif') ||
+                      fileName.endsWith('.webp') ||
+                      fileName.endsWith('.tiff') ||
+                      fileName.endsWith('.tif') ||
+                      fileName.endsWith('.bmp') ||
+                      fileName.endsWith('.gif');
+      
+      const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
+      
+      if (isImage) {
+        // For images, convert to base64 with proper MIME type detection
         documentContent = await new Promise((resolve) => {
           const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(state.uploadedFile!.file);
+          reader.onload = () => {
+            let result = reader.result as string;
+            // If MIME type is missing or empty, try to detect from extension
+            if (result.startsWith('data:;base64,') || result.startsWith('data:application/octet-stream;base64,')) {
+              let mimeType = 'image/jpeg'; // default
+              if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) mimeType = 'image/heic';
+              else if (fileName.endsWith('.webp')) mimeType = 'image/webp';
+              else if (fileName.endsWith('.png')) mimeType = 'image/png';
+              else if (fileName.endsWith('.gif')) mimeType = 'image/gif';
+              else if (fileName.endsWith('.tiff') || fileName.endsWith('.tif')) mimeType = 'image/tiff';
+              else if (fileName.endsWith('.bmp')) mimeType = 'image/bmp';
+              result = result.replace(/^data:[^;]*;/, `data:${mimeType};`);
+            }
+            resolve(result);
+          };
+          reader.readAsDataURL(file);
         });
-      } else {
-        // For PDFs, also convert to base64
+      } else if (isPdf) {
+        // For PDFs, convert to base64
         documentContent = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = () => {
@@ -103,9 +131,16 @@ const Index = () => {
               new Uint8Array(reader.result as ArrayBuffer)
                 .reduce((data, byte) => data + String.fromCharCode(byte), '')
             );
-            resolve(`data:${state.uploadedFile!.file.type};base64,${base64}`);
+            resolve(`data:application/pdf;base64,${base64}`);
           };
-          reader.readAsArrayBuffer(state.uploadedFile!.file);
+          reader.readAsArrayBuffer(file);
+        });
+      } else {
+        // For other files, read as data URL
+        documentContent = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
         });
       }
       
