@@ -26,6 +26,21 @@ export interface BoundingBox {
   referenceId: string;
 }
 
+// CPT Code with enhanced structure
+export interface CPTCode {
+  code: string;
+  shortLabel: string;
+  explanation: string;
+  category: 'evaluation' | 'lab' | 'radiology' | 'surgery' | 'medicine' | 'other';
+  whereUsed: string;
+  complexityLevel: 'simple' | 'moderate' | 'complex';
+  commonQuestions: {
+    question: string;
+    answer: string;
+    callWho: 'billing' | 'insurance' | 'either';
+  }[];
+}
+
 export interface MedicalCode {
   code: string;
   type: 'CPT' | 'ICD' | 'HCPCS';
@@ -42,11 +57,112 @@ export interface ChargeItem {
   boundingBox?: BoundingBox;
 }
 
+// Visit walkthrough step
+export interface VisitStep {
+  order: number;
+  description: string;
+  relatedCodes?: string[];
+}
+
+// Common questions about codes
+export interface CodeQuestion {
+  cptCode: string;
+  question: string;
+  answer: string;
+  suggestCall: 'billing' | 'insurance' | 'either';
+}
+
+// EOB-specific data
+export interface EOBData {
+  claimNumber?: string;
+  processedDate?: string;
+  billedAmount: number;
+  allowedAmount: number;
+  insurancePaid: number;
+  patientResponsibility: number;
+  deductibleApplied: number;
+  coinsurance: number;
+  copay: number;
+  discrepancies: {
+    type: 'overbilled' | 'underpaid' | 'mismatch' | 'duplicate';
+    description: string;
+    billedValue?: number;
+    eobValue?: number;
+  }[];
+}
+
+// Billing education content
+export interface BillingEducation {
+  billedVsAllowed: string;
+  deductibleExplanation: string;
+  copayCoinsurance: string;
+  eobSummary?: string; // Enhanced when EOB present
+}
+
+// State-specific financial help
+export interface StateFinancialHelp {
+  state: string;
+  medicaidInfo: {
+    description: string;
+    eligibilityLink: string;
+  };
+  chipInfo?: {
+    description: string;
+    eligibilityLink: string;
+  };
+  debtProtections: string[];
+  reliefPrograms: {
+    name: string;
+    description: string;
+    link?: string;
+  }[];
+}
+
+// Hospital/provider assistance
+export interface ProviderAssistance {
+  providerName: string;
+  providerType: 'hospital' | 'clinic' | 'lab' | 'other';
+  charityCareSummary: string;
+  financialAssistanceLink?: string;
+  eligibilityNotes: string;
+}
+
+// Red flags / issues to review
+export interface BillingIssue {
+  type: 'duplicate' | 'upcoding' | 'mismatch' | 'missing_modifier' | 'eob_discrepancy';
+  title: string;
+  description: string;
+  suggestedQuestion: string;
+  severity: 'info' | 'warning' | 'important';
+  relatedCodes?: string[];
+}
+
+// Financial assistance opportunity
+export interface FinancialOpportunity {
+  title: string;
+  description: string;
+  eligibilityHint: string;
+  effortLevel: 'quick_call' | 'short_form' | 'detailed_application';
+  link?: string;
+}
+
+// Call/email templates
+export interface ContactTemplate {
+  target: 'billing' | 'insurance';
+  purpose: string;
+  template: string;
+  whenToUse: string;
+}
+
+// Main analysis result - restructured
 export interface AnalysisResult {
+  // Document basics
   documentType: DocumentType;
   issuer: string;
   dateOfService: string;
   documentPurpose: string;
+  
+  // Legacy fields for backward compatibility
   charges: ChargeItem[];
   medicalCodes: MedicalCode[];
   faqs: { question: string; answer: string }[];
@@ -54,11 +170,33 @@ export interface AnalysisResult {
   financialAssistance: string[];
   patientRights: string[];
   actionPlan: { step: number; action: string; description: string }[];
+
+  // === SECTION 1: EXPLAINER ===
+  cptCodes: CPTCode[];
+  visitWalkthrough: VisitStep[];
+  codeQuestions: CodeQuestion[];
+
+  // === SECTION 2: BILLING & NEXT STEPS ===
+  // A. Things to know
+  billingEducation: BillingEducation;
+  stateHelp: StateFinancialHelp;
+  providerAssistance: ProviderAssistance;
+  debtAndCreditInfo: string[];
+
+  // B. Next steps
+  billingIssues: BillingIssue[];
+  financialOpportunities: FinancialOpportunity[];
+  billingTemplates: ContactTemplate[];
+  insuranceTemplates: ContactTemplate[];
+
+  // EOB data (optional - present when EOB uploaded)
+  eobData?: EOBData;
 }
 
 export interface AppState {
   currentStep: 'upload' | 'analysis';
   uploadedFile: UploadedFile | null;
+  eobFile: UploadedFile | null; // Optional EOB
   selectedState: string;
   selectedLanguage: Language;
   analysisResult: AnalysisResult | null;

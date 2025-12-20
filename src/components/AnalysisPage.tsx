@@ -10,9 +10,10 @@ interface AnalysisPageProps {
   analysis: AnalysisResult | null;
   isAnalyzing: boolean;
   onBack: () => void;
+  hasEOB?: boolean;
 }
 
-export function AnalysisPage({ file, analysis, isAnalyzing, onBack }: AnalysisPageProps) {
+export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = false }: AnalysisPageProps) {
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
 
   if (isAnalyzing) {
@@ -74,6 +75,7 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack }: AnalysisPa
             <ExplanationPanel 
               analysis={analysis} 
               onHoverCharge={setActiveHighlight}
+              hasEOB={hasEOB}
             />
           </div>
         </div>

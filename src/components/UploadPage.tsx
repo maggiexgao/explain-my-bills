@@ -1,4 +1,5 @@
 import { FileUploader } from '@/components/FileUploader';
+import { EOBUploader } from '@/components/EOBUploader';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -12,18 +13,24 @@ import { UploadedFile, US_STATES } from '@/types';
 
 interface UploadPageProps {
   uploadedFile: UploadedFile | null;
+  eobFile: UploadedFile | null;
   selectedState: string;
   onFileSelect: (file: UploadedFile) => void;
   onRemoveFile: () => void;
+  onEOBSelect: (file: UploadedFile) => void;
+  onRemoveEOB: () => void;
   onStateChange: (state: string) => void;
   onAnalyze: () => void;
 }
 
 export function UploadPage({
   uploadedFile,
+  eobFile,
   selectedState,
   onFileSelect,
   onRemoveFile,
+  onEOBSelect,
+  onRemoveEOB,
   onStateChange,
   onAnalyze,
 }: UploadPageProps) {
@@ -45,12 +52,25 @@ export function UploadPage({
           </div>
 
           {/* Upload Card */}
-          <div className="bg-card rounded-2xl shadow-card border border-border/50 p-6 md:p-8 mb-8 animate-slide-up">
+          <div className="bg-card rounded-2xl shadow-card border border-border/50 p-6 md:p-8 mb-4 animate-slide-up">
             <div className="space-y-6">
-              <FileUploader
-                uploadedFile={uploadedFile}
-                onFileSelect={onFileSelect}
-                onRemoveFile={onRemoveFile}
+              {/* Primary: Medical Bill Upload */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Upload Medical Bill
+                </label>
+                <FileUploader
+                  uploadedFile={uploadedFile}
+                  onFileSelect={onFileSelect}
+                  onRemoveFile={onRemoveFile}
+                />
+              </div>
+
+              {/* Secondary: Optional EOB Upload */}
+              <EOBUploader
+                uploadedFile={eobFile}
+                onFileSelect={onEOBSelect}
+                onRemoveFile={onRemoveEOB}
               />
 
               {/* State Selector */}
