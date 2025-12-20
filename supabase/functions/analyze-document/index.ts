@@ -6,247 +6,269 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are a medical bill analysis assistant that explains medical bills in simple, friendly language for non-experts.
+const SYSTEM_PROMPT = `You are an AI that explains U.S. medical bills in plain language for patients.
+For every uploaded medical bill PDF (and optional EOB), you must produce two main accordion sections only:
+1. Explainer
+2. Billing & Next Steps
 
-Your main job: take CPT codes from a user's bill and turn them into clear explanations, basic checks, and actionable next steps.
+Never give clinical advice or legal/financial advice; focus on education and actionable questions the patient can ask.
 
-CORE GOALS:
-1. Help users understand what actually happened during their visit
-2. Help users spot obvious red flags or possible billing errors
-3. Provide CPT "decoder + glossary" explanations
-4. Teach users how to use this understanding for future visits
+## SECTION 1: "Explainer"
+This section is only about what happened in the visit, not money.
 
-IMPORTANT RULES:
-- Write at a 6th-8th grade reading level. Avoid jargon.
-- Never assume a diagnosis or clinical details beyond what the code description supports
-- Never promise exact insurance payments, allowed amounts, or what the physician "earns"
-- Do not criticize specific doctors or insurers; give the user language to ask questions
-- Be concise but clear: users are stressed and want quick understanding
-- You provide educational information ONLY, not medical or legal advice
-- Frame red flags as questions, not accusations
+### 1A. CPT Codes Explained
+For each CPT (and major HCPCS if present):
+- Show compact rows: Code – Friendly label – One-sentence explanation
+- Rewrite description at 6th–8th grade reading level
+- If there is a modifier, add a short phrase explaining it
+- Include where the code is commonly used and typical complexity
 
-CPT CODE CATEGORIES:
-- evaluation: 99201-99499 - Office/hospital visits (E/M)
-- lab: 80000-89999 - Lab tests and pathology
-- radiology: 70000-79999 - X-rays, CT, MRI, ultrasound
-- surgery: 10000-69999 - Surgical procedures
-- medicine: 90000-99199 - Vaccines, therapy, other medical services
-- other: Anything else
+### 1B. "What your visit likely looked like"
+Generate a short, ordered walkthrough (4–7 bullets) of what the visit probably involved:
+- Group codes into logical sequence: Check-in/visit (E/M), Labs/tests, Imaging, Procedures/treatments, Other services
+- Keep language generic and conservative. Do not infer diagnoses or outcomes.
 
-For each document, analyze and provide this JSON structure:
+### 1C. Common questions about these codes
+For each main CPT, include 1–3 Q&As reflecting what patients often ask:
+- "Why am I being charged for both a visit code and a test code?"
+- "Is this code normal for a routine check-up?"
+- "Why is there a separate bill from the lab?"
+Answers should stay high-level, neutral, and suggest when to ask billing vs insurer.
 
+## SECTION 2: "Billing & Next Steps"
+This section explains how billing works, identifies possible issues, and suggests next steps.
+
+### 2A. Things to Know About Your Bill
+
+#### 2A-1. How the bill and insurance work
+Explain in simple terms:
+- Billed charge vs "allowed amount" vs insurance payment vs patient responsibility
+- How deductibles, copays, and coinsurance typically apply
+- If EOB provided, use actual values and point out any mismatches
+
+#### 2A-2. State-specific protections and medical-debt rules
+Using the patient's state, summarize key protections (2-5 bullets) based on:
+- Commonwealth Fund "State Protections Against Medical Debt" report and map
+- Limits on interest, wage garnishment, home liens, or credit reporting
+- Collection practices and billing transparency rules
+- Special protections for low-income or uninsured patients
+- Include reference links for that state
+
+#### 2A-3. Medicaid/CHIP and state coverage options
+Surface the correct state program name and website (2-3 bullets):
+- Who may qualify (low income, children, pregnant, disability)
+- Link to "Apply / Learn more" page
+- Mark as informational, not eligibility determination
+
+#### 2A-4. Hospital and provider financial-assistance programs
+Based on Hilltop Institute hospital community-benefit resources:
+- Explain what "financial assistance" or "charity care" is
+- If hospital identifiable, link to their financial-assistance policy
+- Include 2-4 bullets on what patients can ask for: discounts, charity care, payment plans
+
+### 2B. Next Steps (personalized and action-oriented)
+
+#### 2B-1. Possible errors or inconsistencies to review
+Flag as a checklist:
+- Potential duplicates (same CPT, same date, no clear modifier)
+- Unusually high visit levels (frame as "worth asking about")
+- Mismatches between bill and EOB amounts
+
+#### 2B-2. Financial assistance you might qualify for
+Based on state, provider type, and bill hints:
+- State Medicaid/CHIP program (name + link)
+- State medical-debt protections
+- Hospital charity-care expectations
+- Make clear this is not a guarantee of eligibility
+
+#### 2B-3. Templates: questions to ask
+Provide two sets of copy-and-paste templates:
+
+**To billing department:**
+- Ask for itemized bill with codes
+- Ask about duplicate or high-complexity codes
+- Ask about payment plans and financial assistance
+
+**To insurance company:**
+- Ask how allowed amount was calculated
+- Ask about deductible and out-of-pocket calculations
+- Ask to reconcile EOB vs provider bill differences
+
+Keep templates 2-5 sentences, polite, plain language.
+
+## OUTPUT FORMAT
+You must return valid JSON with this exact structure:
 {
-  "documentType": "bill | eob | chart | denial | unknown",
-  "issuer": "Who issued the document (hospital/clinic name)",
-  "dateOfService": "Date(s) of service",
-  "documentPurpose": "Brief explanation of what this document is for",
-
+  "documentType": "bill",
+  "issuer": "Provider name",
+  "dateOfService": "Date",
+  "totalAmount": number,
+  "summary": "Brief overview of what this bill is for",
+  "state": "Two-letter state code",
+  
   "cptCodes": [
     {
-      "code": "CPT code (e.g., 99213)",
-      "shortLabel": "Short 2-5 word label (e.g., 'Follow-up doctor visit')",
-      "explanation": "One sentence explanation in plain English",
-      "category": "evaluation | lab | radiology | surgery | medicine | other",
-      "whereUsed": "Where this code is commonly used (e.g., 'Primary care, urgent care visits')",
-      "complexityLevel": "simple | moderate | complex",
-      "commonQuestions": [
-        {
-          "question": "Common patient question about this code",
-          "answer": "Simple answer",
-          "callWho": "billing | insurance | either"
-        }
-      ]
+      "code": "99213",
+      "label": "Follow-up doctor visit",
+      "explanation": "A short visit to check on an existing issue and adjust treatment if needed.",
+      "category": "E/M",
+      "commonlyUsedIn": "Primary care, specialty follow-ups",
+      "complexity": "Low to moderate complexity"
     }
   ],
-
+  
   "visitWalkthrough": [
     {
-      "order": 1,
-      "description": "You checked in and saw your doctor.",
-      "relatedCodes": ["99213"]
+      "step": 1,
+      "description": "You checked in and had a follow-up visit with your doctor."
     }
   ],
-
+  
   "codeQuestions": [
     {
-      "cptCode": "99213",
-      "question": "Common question about this specific code",
-      "answer": "Simple answer",
-      "suggestCall": "billing | insurance | either"
+      "code": "99213",
+      "question": "Why am I being charged for both a visit and a test?",
+      "answer": "These are separate services. The visit covers time with your doctor; the test is the actual lab work. Ask billing if unclear.",
+      "askWho": "billing"
     }
   ],
-
+  
   "billingEducation": {
-    "billedVsAllowed": "Explanation of billed amount vs allowed amount in context of this bill",
-    "deductibleExplanation": "Explanation of how deductibles work",
-    "copayCoinsurance": "Explanation of copay vs coinsurance",
-    "eobSummary": "If EOB is present, summarize what it shows (optional)"
+    "howBillingWorks": "Simple explanation of billed charge vs allowed amount vs patient responsibility...",
+    "deductibleExplanation": "How deductibles, copays, and coinsurance factor in..."
   },
-
+  
   "stateHelp": {
-    "state": "State abbreviation",
-    "medicaidInfo": {
-      "description": "Brief description of Medicaid/CHIP in this state",
-      "eligibilityLink": "URL to check eligibility"
-    },
-    "chipInfo": {
-      "description": "CHIP info if applicable",
-      "eligibilityLink": "URL"
-    },
-    "debtProtections": ["State-specific medical debt protections"],
-    "reliefPrograms": [
+    "state": "CA",
+    "stateName": "California",
+    "protections": [
       {
-        "name": "Program name",
-        "description": "What it offers",
-        "link": "URL if available"
+        "title": "Medical Debt Credit Reporting",
+        "description": "California limits when medical debt can be reported to credit bureaus.",
+        "link": "https://..."
       }
-    ]
+    ],
+    "medicaidProgram": {
+      "name": "Medi-Cal",
+      "description": "California's Medicaid program for low-income residents.",
+      "eligibility": "Low income, children, pregnant, disability",
+      "applyLink": "https://www.dhcs.ca.gov/services/medi-cal"
+    }
   },
-
+  
   "providerAssistance": {
-    "providerName": "Hospital/clinic name from bill",
-    "providerType": "hospital | clinic | lab | other",
-    "charityCareSummary": "Explanation of charity care and when it applies",
-    "financialAssistanceLink": "URL to provider's financial assistance page if identifiable",
-    "eligibilityNotes": "Who typically qualifies"
+    "providerType": "hospital",
+    "providerName": "Memorial Hospital",
+    "charityCareExplanation": "Many hospitals offer financial assistance or 'charity care' programs...",
+    "financialAssistanceLink": "https://...",
+    "whatToAskFor": ["Itemized bill", "Financial assistance application", "Payment plan options", "Charity care eligibility"]
   },
-
-  "debtAndCreditInfo": [
-    "Key fact about medical debt and credit in this state"
-  ],
-
+  
+  "debtAndCreditInfo": {
+    "stateRules": "In [state], medical debt cannot be reported to credit bureaus until...",
+    "federalRules": "Under federal law, medical debt under $500 cannot appear on credit reports.",
+    "consumerGuideLink": "https://..."
+  },
+  
   "billingIssues": [
     {
-      "type": "duplicate | upcoding | mismatch | missing_modifier | eob_discrepancy",
-      "title": "Short title of the issue",
-      "description": "Why this might be worth asking about",
-      "suggestedQuestion": "Exact question to ask billing/insurance",
-      "severity": "info | warning | important",
-      "relatedCodes": ["CPT codes involved"]
+      "type": "duplicate",
+      "title": "Possible duplicate charge",
+      "description": "Code 99213 appears twice on the same date.",
+      "suggestedQuestion": "Can you explain why this code was billed twice on the same day?",
+      "severity": "warning"
     }
   ],
-
+  
   "financialOpportunities": [
     {
-      "title": "Name of opportunity",
-      "description": "What it offers",
-      "eligibilityHint": "Who might qualify",
-      "effortLevel": "quick_call | short_form | detailed_application",
-      "link": "URL if available"
+      "title": "Hospital Financial Assistance",
+      "description": "You may qualify for the hospital's financial assistance program.",
+      "eligibility": "Based on income and family size",
+      "effort": "Short online form",
+      "link": "https://..."
     }
   ],
-
+  
   "billingTemplates": [
     {
-      "purpose": "What this template is for",
-      "template": "Exact words to say when calling the billing department",
-      "whenToUse": "When to use this template"
+      "purpose": "Request itemized bill",
+      "template": "Hello, I received a bill dated [DATE] for $[AMOUNT]. Could you please send me an itemized statement showing all CPT codes, descriptions, and individual charges? Thank you.",
+      "context": "Use this first to understand what you're being charged for."
     }
   ],
-
+  
   "insuranceTemplates": [
     {
-      "purpose": "What this template is for",
-      "template": "Exact words to say when calling insurance",
-      "whenToUse": "When to use this template"
+      "purpose": "Clarify allowed amount",
+      "template": "Hello, I'm calling about claim [NUMBER] from [DATE]. Can you explain how the allowed amount was calculated and break down my patient responsibility? Thank you.",
+      "context": "Use when EOB seems unclear or amounts don't match your bill."
     }
   ],
-
-  "lineItems": [
-    {
-      "id": "item-1",
-      "description": "Service description",
-      "amount": 0.00,
-      "explanation": "Plain English explanation"
-    }
-  ],
-
-  "medicalCodes": [
-    {
-      "code": "CPT code",
-      "type": "CPT | HCPCS | ICD",
-      "description": "Description",
-      "typicalPurpose": "Why typically billed",
-      "commonQuestions": ["Question 1", "Question 2"]
-    }
-  ],
-
-  "faqs": [
-    {
-      "question": "Common question",
-      "answer": "Answer"
-    }
-  ],
-
-  "potentialIssues": [
-    {
-      "title": "Issue title",
-      "description": "Description"
-    }
-  ],
-
-  "financialAssistance": ["Assistance option 1", "Assistance option 2"],
-
-  "patientProtections": ["Protection 1", "Protection 2"],
-
-  "actionPlan": [
-    {
-      "step": 1,
-      "action": "Action title",
-      "details": "Action details"
-    }
-  ]
+  
+  "eobData": null
 }
 
-VISIT WALKTHROUGH GUIDELINES:
-- Generate 4-7 ordered steps describing what likely happened
-- Keep it conservative and generic - no diagnoses, just actions
-- Base it on the CPT codes present
-- Example: "You checked in and saw your doctor for a follow-up visit." "They drew blood for lab tests." "You had a chest X-ray taken."
+## STYLE RULES
+- Reading level: 6th–8th grade, short sentences, minimal jargon
+- Clearly distinguish between what codes mean (explainer) vs how billing works (billing & next steps)
+- Always name the state when describing protections or programs (e.g., "In Virginia, …")
+- When uncertain, say "may," "often," or "you can ask"
+- Always provide concrete, respectful questions users can ask
 
-BILLING ISSUES TO FLAG:
-1. Duplicate charges: Same code appearing multiple times
-2. Upcoding: High-complexity E/M codes (99214, 99215) for what might be a simple visit
-3. Mismatch: Codes that don't match typical treatment patterns
-4. EOB discrepancy: If EOB provided, flag mismatches between bill and EOB amounts
-
-TEMPLATES GUIDELINES:
-- Write in everyday, respectful language
-- Be specific to the codes/amounts on this bill
-- Give 2-3 billing templates and 2-3 insurance templates
-
-Output ONLY valid JSON matching this structure.`;
+## STATE RESOURCES TO REFERENCE
+Base state-specific content on:
+- Commonwealth Fund "State Protections Against Medical Debt" report and map
+- Hilltop Institute hospital community-benefit resources and state law profiles
+- Official state Medicaid/CHIP websites
+- Reputable sources on state medical-debt protections`;
 
 const EOB_PROMPT_ADDITION = `
 
-IMPORTANT: An Explanation of Benefits (EOB) document has also been provided.
+## ADDITIONAL EOB ANALYSIS
+An EOB (Explanation of Benefits) has also been provided. You must:
 
-When analyzing with EOB present:
-1. Extract the claim number, processed date, billed amount, allowed amount, insurance paid, and patient responsibility
-2. Compare EOB amounts to the bill amounts and flag any discrepancies
-3. In billingEducation.eobSummary, provide a specific breakdown like: "Your plan allowed $X, paid $Y, and says you owe $Z"
-4. In billingIssues, add any eob_discrepancy items where the bill and EOB don't match
-5. In templates, reference specific claim numbers and amounts from the EOB
+1. Extract EOB data into the eobData field:
+   - allowedAmount: What the insurance allowed
+   - planPaid: What insurance paid
+   - patientResponsibility: What patient owes per EOB
+   - claimNumber: The claim reference number
+   - processedDate: When the claim was processed
 
-Add this to your response:
-"eobData": {
-  "claimNumber": "Claim number from EOB",
-  "processedDate": "Date EOB was processed",
-  "billedAmount": 0.00,
-  "allowedAmount": 0.00,
-  "insurancePaid": 0.00,
-  "patientResponsibility": 0.00,
-  "deductibleApplied": 0.00,
-  "coinsurance": 0.00,
-  "copay": 0.00,
-  "discrepancies": [
-    {
-      "type": "overbilled | underpaid | mismatch | duplicate",
-      "description": "Description of the discrepancy",
-      "billedValue": 0.00,
-      "eobValue": 0.00
-    }
-  ]
+2. In billingEducation, use actual EOB values:
+   "Your insurer allowed $X, paid $Y, and says you owe $Z."
+
+3. In billingIssues, flag any discrepancies:
+   - If billed amount differs significantly from allowed amount
+   - If provider bill doesn't match EOB patient responsibility
+   - Any services that were denied or adjusted
+
+4. In templates, include specific references:
+   - Claim number
+   - EOB date
+   - Specific dollar amounts for discrepancies
+
+5. Update eobData in your response:
+{
+  "eobData": {
+    "claimNumber": "Claim number",
+    "processedDate": "Date",
+    "billedAmount": number,
+    "allowedAmount": number,
+    "planPaid": number,
+    "patientResponsibility": number,
+    "deductibleApplied": number,
+    "coinsurance": number,
+    "copay": number,
+    "discrepancies": [
+      {
+        "type": "mismatch",
+        "description": "Bill shows $X but EOB says you owe $Y",
+        "billValue": number,
+        "eobValue": number
+      }
+    ]
+  }
 }`;
 
 serve(async (req) => {
@@ -267,24 +289,24 @@ serve(async (req) => {
     const hasEOB = !!eobContent;
     const systemPrompt = hasEOB ? SYSTEM_PROMPT + EOB_PROMPT_ADDITION : SYSTEM_PROMPT;
 
-    const userPromptText = `Analyze this medical document for a patient in ${state}. 
-Document type: ${documentType || 'unknown'}
+    const userPromptText = `Analyze this medical document for a patient in ${state || 'an unspecified U.S. state'}. 
+Document type: ${documentType || 'medical bill'}
 Output language: ${language === 'en' ? 'English' : language === 'es' ? 'Spanish' : language === 'zh' ? 'Simplified Chinese' : language === 'ar' ? 'Arabic' : language === 'hi' ? 'Hindi' : 'English'}
-${hasEOB ? '\nIMPORTANT: An EOB (Explanation of Benefits) is also provided. Use it to enhance the analysis with actual insurance payment details.' : ''}
+${hasEOB ? '\nIMPORTANT: An EOB (Explanation of Benefits) is also provided. Use it to enhance the analysis with actual insurance payment details and flag any discrepancies.' : ''}
 
 CRITICAL INSTRUCTIONS:
 1. Extract ALL CPT/HCPCS codes visible in the document
-2. For each code, provide plain-English explanations structured in cptCodes array
+2. For each code, provide plain-English explanations in the cptCodes array
 3. Generate a visitWalkthrough of 4-7 steps describing what happened
 4. Generate codeQuestions for the major codes
 5. Check for potential billing errors and add to billingIssues
-6. Provide billingEducation with context for this specific bill
-7. Include state-specific help for ${state} in stateHelp
+6. Provide billingEducation explaining how this bill works
+7. Include state-specific help for ${state || 'the patient\'s state'} in stateHelp
 8. Generate 2-3 billingTemplates and 2-3 insuranceTemplates specific to this bill
 9. Identify financialOpportunities based on the bill size and provider
 ${hasEOB ? '10. Extract EOB data and flag any discrepancies between bill and EOB' : ''}
 
-Remember: Write simply, avoid medical jargon, be reassuring but help identify potential issues worth asking about.
+Remember: Write simply at 6th-8th grade level, avoid jargon, be reassuring but help identify potential issues worth asking about.
 
 Output ONLY valid JSON matching the required structure.`;
 
@@ -382,7 +404,7 @@ Output ONLY valid JSON matching the required structure.`;
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', content.substring(0, 500));
       // Return a structured fallback
-      analysis = createFallbackAnalysis(state, hasEOB);
+      analysis = createFallbackAnalysis(state || 'US', hasEOB);
     }
 
     return new Response(JSON.stringify({ analysis }), {
@@ -405,65 +427,73 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
     documentType: 'bill',
     issuer: 'Healthcare Provider',
     dateOfService: 'See document',
-    documentPurpose: 'This document contains medical billing information.',
+    totalAmount: 0,
+    summary: 'This document contains medical billing information. We were unable to fully parse it - please try uploading a clearer image.',
+    state: state,
     
     cptCodes: [],
+    
     visitWalkthrough: [
-      { order: 1, description: 'You received medical services from the provider.', relatedCodes: [] },
-      { order: 2, description: 'The provider documented the services and assigned billing codes.', relatedCodes: [] },
-      { order: 3, description: 'This bill was generated based on those services.', relatedCodes: [] }
+      { step: 1, description: 'You received medical services from the provider.' },
+      { step: 2, description: 'The provider documented the services and assigned billing codes.' },
+      { step: 3, description: 'This bill was generated based on those services.' }
     ],
+    
     codeQuestions: [],
     
     billingEducation: {
-      billedVsAllowed: 'The billed amount is what the provider charges. The allowed amount is the maximum your insurance will pay for that service - often lower than the billed amount.',
-      deductibleExplanation: 'Your deductible is the amount you pay out-of-pocket before insurance starts covering costs. If you haven\'t met it yet, you may owe more.',
-      copayCoinsurance: 'A copay is a fixed amount per visit. Coinsurance is a percentage of the allowed amount you pay after meeting your deductible.',
-      eobSummary: hasEOB ? 'Unable to parse EOB details. Please compare amounts manually.' : undefined
+      howBillingWorks: 'The billed amount is what the provider charges. If you have insurance, they negotiate an "allowed amount" - often lower than the billed amount. Your insurance pays their share, and you pay the rest (your "patient responsibility").',
+      deductibleExplanation: 'Your deductible is the amount you pay out-of-pocket before insurance starts covering costs. A copay is a fixed amount per visit. Coinsurance is a percentage of the allowed amount you pay after meeting your deductible.'
     },
     
     stateHelp: {
       state: state,
-      medicaidInfo: {
-        description: 'Medicaid provides health coverage for eligible low-income individuals.',
-        eligibilityLink: 'https://www.medicaid.gov/about-us/beneficiary-resources/index.html'
-      },
-      debtProtections: [],
-      reliefPrograms: []
+      stateName: state,
+      protections: [],
+      medicaidProgram: {
+        name: 'Medicaid',
+        description: 'Government health coverage for low-income individuals and families.',
+        eligibility: 'Varies by state - typically based on income, family size, disability, and other factors.',
+        applyLink: 'https://www.healthcare.gov/medicaid-chip/'
+      }
     },
     
     providerAssistance: {
+      providerType: 'unknown',
       providerName: 'Your Healthcare Provider',
-      providerType: 'hospital',
-      charityCareSummary: 'Many providers offer financial assistance programs for patients who cannot afford their bills. Contact the billing department to ask about options.',
-      eligibilityNotes: 'Eligibility typically depends on income and family size.'
+      charityCareExplanation: 'Many hospitals and clinics offer financial assistance programs (sometimes called "charity care") for patients who cannot afford their bills. These programs may reduce or eliminate your bill based on your income.',
+      financialAssistanceLink: null,
+      whatToAskFor: ['Itemized bill with CPT codes', 'Financial assistance application', 'Payment plan options', 'Charity care eligibility information']
     },
     
-    debtAndCreditInfo: [
-      'Medical debt under $500 typically cannot appear on your credit report.',
-      'You have at least 12 months before most medical debt can be reported to credit bureaus.'
-    ],
+    debtAndCreditInfo: {
+      stateRules: 'Medical debt protections vary by state. Contact your state attorney general\'s office for specific rules.',
+      federalRules: 'Under federal law, medical debt under $500 cannot appear on credit reports, and paid medical debt must be removed.',
+      consumerGuideLink: 'https://www.consumerfinance.gov/consumer-tools/debt-collection/'
+    },
     
     billingIssues: [],
+    
     financialOpportunities: [
       {
         title: 'Ask About Financial Assistance',
-        description: 'Many providers offer charity care or sliding scale discounts.',
-        eligibilityHint: 'Based on income and family size.',
-        effortLevel: 'quick_call'
+        description: 'Many providers offer charity care or sliding scale discounts for patients with financial need.',
+        eligibility: 'Based on income and family size',
+        effort: 'Quick phone call',
+        link: null
       }
     ],
     
     billingTemplates: [
       {
         purpose: 'Request an itemized bill',
-        template: 'Hi, I\'m calling about my account. Can you please send me a fully itemized bill showing each charge with the CPT codes?',
-        whenToUse: 'Before paying any bill'
+        template: 'Hello, I\'m calling about my account. Can you please send me a fully itemized bill showing each charge with the CPT codes and descriptions?',
+        context: 'Use this first to understand what you\'re being charged for.'
       },
       {
         purpose: 'Ask about financial assistance',
-        template: 'I\'m having difficulty paying this bill. Can you tell me about any financial assistance programs that might be available?',
-        whenToUse: 'When the amount is more than you can afford'
+        template: 'I\'m having difficulty paying this bill. Can you tell me about any financial assistance programs or payment plans that might be available?',
+        context: 'Use when the amount is more than you can afford.'
       }
     ],
     
@@ -471,22 +501,21 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
       {
         purpose: 'Verify what you owe',
         template: 'I received a bill for a recent visit. Can you confirm what my actual patient responsibility is after insurance?',
-        whenToUse: 'To confirm the bill matches what insurance says you owe'
+        context: 'Use to confirm the bill matches what insurance says you owe.'
       }
     ],
     
-    lineItems: [],
-    medicalCodes: [],
-    faqs: [
-      { question: 'What should I do if I have questions?', answer: 'Call the billing department using the phone number on your statement.' }
-    ],
-    potentialIssues: [],
-    financialAssistance: ['Contact your healthcare provider to ask about financial assistance programs, payment plans, or charity care options.'],
-    patientProtections: ['You have the right to request an itemized bill and dispute any charges you believe are incorrect.'],
-    actionPlan: [
-      { step: 1, action: 'Review the document', details: 'Look for any charges or codes that seem unclear.' },
-      { step: 2, action: 'Request an itemized bill', details: 'Call billing to get a detailed breakdown.' },
-      { step: 3, action: 'Ask about assistance', details: 'Inquire about payment plans or financial assistance if needed.' }
-    ]
+    eobData: hasEOB ? {
+      claimNumber: 'Unable to parse',
+      processedDate: null,
+      billedAmount: 0,
+      allowedAmount: 0,
+      planPaid: 0,
+      patientResponsibility: 0,
+      deductibleApplied: 0,
+      coinsurance: 0,
+      copay: 0,
+      discrepancies: []
+    } : null
   };
 }
