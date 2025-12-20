@@ -20,6 +20,7 @@ const Index = () => {
   const [state, setState] = useState<AppState>({
     currentStep: 'upload',
     uploadedFile: null,
+    eobFile: null,
     selectedState: '',
     selectedLanguage: 'en',
     analysisResult: null,
@@ -38,6 +39,17 @@ const Index = () => {
     setState((prev) => ({ ...prev, uploadedFile: null }));
   }, [state.uploadedFile]);
 
+  const handleEOBSelect = useCallback((file: UploadedFile) => {
+    setState((prev) => ({ ...prev, eobFile: file }));
+  }, []);
+
+  const handleRemoveEOB = useCallback(() => {
+    if (state.eobFile?.preview) {
+      URL.revokeObjectURL(state.eobFile.preview);
+    }
+    setState((prev) => ({ ...prev, eobFile: null }));
+  }, [state.eobFile]);
+
   const handleStateChange = useCallback((selectedState: string) => {
     setState((prev) => ({ ...prev, selectedState }));
   }, []);
@@ -46,36 +58,48 @@ const Index = () => {
     setState((prev) => ({ ...prev, selectedLanguage }));
   }, []);
 
-  const extractTextFromFile = async (file: File): Promise<string> => {
-    // For images, we'll convert to base64 and let the AI analyze visually
-    if (file.type.startsWith('image/')) {
-      return new Promise((resolve, reject) => {
+  const fileToBase64 = async (file: File): Promise<string> => {
+    const fileName = file.name.toLowerCase();
+    const isImage = file.type.startsWith('image/') || 
+                    fileName.endsWith('.heic') || 
+                    fileName.endsWith('.heif');
+    const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
+
+    if (isImage) {
+      return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = () => {
-          const base64 = reader.result as string;
-          resolve(`[IMAGE DATA]\nBase64 encoded image: ${base64}`);
+          let result = reader.result as string;
+          if (result.startsWith('data:;base64,') || result.startsWith('data:application/octet-stream;base64,')) {
+            let mimeType = 'image/jpeg';
+            if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) mimeType = 'image/heic';
+            else if (fileName.endsWith('.webp')) mimeType = 'image/webp';
+            else if (fileName.endsWith('.png')) mimeType = 'image/png';
+            result = result.replace(/^data:[^;]*;/, `data:${mimeType};`);
+          }
+          resolve(result);
         };
-        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    } else if (isPdf) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = btoa(
+            new Uint8Array(reader.result as ArrayBuffer)
+              .reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+          resolve(`data:application/pdf;base64,${base64}`);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    } else {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
         reader.readAsDataURL(file);
       });
     }
-    
-    // For PDFs and other files, extract text
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = reader.result as string;
-        // For PDF, we'll send as base64 since we can't parse it client-side
-        if (file.type === 'application/pdf') {
-          const base64 = btoa(text);
-          resolve(`[PDF DOCUMENT]\nBase64 encoded PDF content. Please analyze this medical document.`);
-        } else {
-          resolve(text);
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsText(file);
-    });
   };
 
   const handleAnalyze = useCallback(async () => {
@@ -84,145 +108,140 @@ const Index = () => {
     setState((prev) => ({ ...prev, currentStep: 'analysis', isAnalyzing: true }));
     
     try {
-      // Extract file content
-      let documentContent: string;
-      const file = state.uploadedFile.file;
-      const fileName = file.name.toLowerCase();
-      
-      // Determine if this is an image (check MIME type and extension for HEIC)
-      const isImage = file.type.startsWith('image/') || 
-                      fileName.endsWith('.heic') || 
-                      fileName.endsWith('.heif') ||
-                      fileName.endsWith('.webp') ||
-                      fileName.endsWith('.tiff') ||
-                      fileName.endsWith('.tif') ||
-                      fileName.endsWith('.bmp') ||
-                      fileName.endsWith('.gif');
-      
-      const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
-      
-      if (isImage) {
-        // For images, convert to base64 with proper MIME type detection
-        documentContent = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            let result = reader.result as string;
-            // If MIME type is missing or empty, try to detect from extension
-            if (result.startsWith('data:;base64,') || result.startsWith('data:application/octet-stream;base64,')) {
-              let mimeType = 'image/jpeg'; // default
-              if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) mimeType = 'image/heic';
-              else if (fileName.endsWith('.webp')) mimeType = 'image/webp';
-              else if (fileName.endsWith('.png')) mimeType = 'image/png';
-              else if (fileName.endsWith('.gif')) mimeType = 'image/gif';
-              else if (fileName.endsWith('.tiff') || fileName.endsWith('.tif')) mimeType = 'image/tiff';
-              else if (fileName.endsWith('.bmp')) mimeType = 'image/bmp';
-              result = result.replace(/^data:[^;]*;/, `data:${mimeType};`);
-            }
-            resolve(result);
-          };
-          reader.readAsDataURL(file);
-        });
-      } else if (isPdf) {
-        // For PDFs, convert to base64
-        documentContent = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const base64 = btoa(
-              new Uint8Array(reader.result as ArrayBuffer)
-                .reduce((data, byte) => data + String.fromCharCode(byte), '')
-            );
-            resolve(`data:application/pdf;base64,${base64}`);
-          };
-          reader.readAsArrayBuffer(file);
-        });
-      } else {
-        // For other files, read as data URL
-        documentContent = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
+      const documentContent = await fileToBase64(state.uploadedFile.file);
+      let eobContent: string | undefined;
+      if (state.eobFile) {
+        eobContent = await fileToBase64(state.eobFile.file);
       }
       
-      // Call the edge function
       const { data, error } = await supabase.functions.invoke('analyze-document', {
         body: {
           documentContent,
           documentType: state.uploadedFile.file.type,
+          eobContent,
           state: state.selectedState,
           language: state.selectedLanguage,
         },
       });
       
-      if (error) {
-        throw new Error(error.message || 'Failed to analyze document');
-      }
+      if (error) throw new Error(error.message || 'Failed to analyze document');
+      if (data?.error) throw new Error(data.error);
       
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-      
-      // Transform the AI response to match our AnalysisResult type
-      const aiAnalysis = data.analysis;
+      const ai = data.analysis;
       const analysisResult: AnalysisResult = {
-        documentType: aiAnalysis.documentType?.toLowerCase() as any || 'unknown',
-        issuer: aiAnalysis.issuer || 'Unknown Provider',
-        dateOfService: aiAnalysis.dateOfService || 'Not specified',
-        documentPurpose: aiAnalysis.documentPurpose || 'This document contains medical billing or healthcare information.',
-        charges: ensureArray(aiAnalysis.lineItems || aiAnalysis.charges).map((item: any, index: number) => ({
-          id: item.id || `item-${index + 1}`,
+        documentType: ai.documentType?.toLowerCase() as any || 'unknown',
+        issuer: ai.issuer || 'Unknown Provider',
+        dateOfService: ai.dateOfService || 'Not specified',
+        documentPurpose: ai.documentPurpose || 'Medical billing document',
+        charges: ensureArray(ai.lineItems || ai.charges).map((item: any, idx: number) => ({
+          id: item.id || `item-${idx + 1}`,
           description: item.description || 'Item',
           amount: typeof item.amount === 'number' ? item.amount : parseFloat(String(item.amount).replace(/[^0-9.-]/g, '')) || 0,
-          explanation: item.explanation || 'No additional details available.',
+          explanation: item.explanation || '',
         })),
-        medicalCodes: ensureArray(aiAnalysis.medicalCodes).map((code: any) => ({
+        medicalCodes: ensureArray(ai.medicalCodes).map((code: any) => ({
           code: code.code || 'Unknown',
           type: (code.type?.toUpperCase() || 'CPT') as 'CPT' | 'ICD' | 'HCPCS',
-          description: code.description || 'Medical procedure code',
-          typicalPurpose: code.typicalPurpose || code.description || 'Standard medical procedure',
+          description: code.description || '',
+          typicalPurpose: code.typicalPurpose || '',
           commonQuestions: ensureArray(code.commonQuestions),
         })),
-        faqs: ensureArray(aiAnalysis.faqs).map((faq: any) => ({
-          question: faq.question || 'Question',
-          answer: faq.answer || 'Answer not available.',
+        faqs: ensureArray(ai.faqs).map((faq: any) => ({ question: faq.question || '', answer: faq.answer || '' })),
+        possibleIssues: ensureArray(ai.potentialIssues || ai.possibleIssues).map((i: any) => ({ issue: i.title || i.issue || '', explanation: i.description || i.explanation || '' })),
+        financialAssistance: ensureArray(ai.financialAssistance),
+        patientRights: ensureArray(ai.patientProtections || ai.patientRights),
+        actionPlan: ensureArray(ai.actionPlan).map((s: any, idx: number) => ({ step: s.step || idx + 1, action: s.action || '', description: s.details || s.description || '' })),
+        // New structured fields
+        cptCodes: ensureArray(ai.cptCodes).map((c: any) => ({
+          code: c.code || '',
+          shortLabel: c.shortLabel || c.description || '',
+          explanation: c.explanation || '',
+          category: c.category || 'other',
+          whereUsed: c.whereUsed || '',
+          complexityLevel: c.complexityLevel || 'moderate',
+          commonQuestions: ensureArray(c.commonQuestions).map((q: any) => ({ question: q.question || '', answer: q.answer || '', callWho: q.callWho || 'either' })),
         })),
-        possibleIssues: ensureArray(aiAnalysis.potentialIssues || aiAnalysis.possibleIssues).map((issue: any) => ({
-          issue: issue.title || issue.issue || 'Note',
-          explanation: issue.description || issue.explanation || 'No details available.',
+        visitWalkthrough: ensureArray(ai.visitWalkthrough).map((s: any, idx: number) => ({
+          order: s.order || idx + 1,
+          description: s.description || '',
+          relatedCodes: ensureArray(s.relatedCodes),
         })),
-        financialAssistance: ensureArray(aiAnalysis.financialAssistance),
-        patientRights: ensureArray(aiAnalysis.patientProtections || aiAnalysis.patientRights),
-        actionPlan: ensureArray(aiAnalysis.actionPlan).map((step: any, index: number) => ({
-          step: step.step || index + 1,
-          action: step.action || 'Review your options',
-          description: step.details || step.description || 'Consider your next steps carefully.',
+        codeQuestions: ensureArray(ai.codeQuestions).map((q: any) => ({
+          cptCode: q.cptCode || '',
+          question: q.question || '',
+          answer: q.answer || '',
+          suggestCall: q.suggestCall || 'either',
         })),
+        billingEducation: ai.billingEducation || {
+          billedVsAllowed: 'The "billed amount" is what the provider charges. The "allowed amount" is the maximum your insurance will pay for that service.',
+          deductibleExplanation: 'Your deductible is the amount you pay before insurance starts covering costs.',
+          copayCoinsurance: 'A copay is a fixed amount you pay per visit. Coinsurance is a percentage of the allowed amount you pay.',
+          eobSummary: state.eobFile ? ai.billingEducation?.eobSummary : undefined,
+        },
+        stateHelp: ai.stateHelp || {
+          state: state.selectedState,
+          medicaidInfo: { description: 'Medicaid provides health coverage for eligible low-income individuals.', eligibilityLink: 'https://www.medicaid.gov/' },
+          debtProtections: [],
+          reliefPrograms: [],
+        },
+        providerAssistance: ai.providerAssistance || {
+          providerName: ai.issuer || 'Provider',
+          providerType: 'hospital',
+          charityCareSummary: 'Many hospitals offer financial assistance programs for patients who cannot afford their bills.',
+          eligibilityNotes: 'Eligibility typically depends on income and family size.',
+        },
+        debtAndCreditInfo: ensureArray(ai.debtAndCreditInfo),
+        billingIssues: ensureArray(ai.billingIssues).map((i: any) => ({
+          type: i.type || 'mismatch',
+          title: i.title || '',
+          description: i.description || '',
+          suggestedQuestion: i.suggestedQuestion || '',
+          severity: i.severity || 'info',
+          relatedCodes: ensureArray(i.relatedCodes),
+        })),
+        financialOpportunities: ensureArray(ai.financialOpportunities).map((o: any) => ({
+          title: o.title || '',
+          description: o.description || '',
+          eligibilityHint: o.eligibilityHint || '',
+          effortLevel: o.effortLevel || 'short_form',
+          link: o.link,
+        })),
+        billingTemplates: ensureArray(ai.billingTemplates).map((t: any) => ({
+          target: 'billing',
+          purpose: t.purpose || '',
+          template: t.template || '',
+          whenToUse: t.whenToUse || '',
+        })),
+        insuranceTemplates: ensureArray(ai.insuranceTemplates).map((t: any) => ({
+          target: 'insurance',
+          purpose: t.purpose || '',
+          template: t.template || '',
+          whenToUse: t.whenToUse || '',
+        })),
+        eobData: state.eobFile && ai.eobData ? {
+          claimNumber: ai.eobData.claimNumber,
+          processedDate: ai.eobData.processedDate,
+          billedAmount: ai.eobData.billedAmount || 0,
+          allowedAmount: ai.eobData.allowedAmount || 0,
+          insurancePaid: ai.eobData.insurancePaid || 0,
+          patientResponsibility: ai.eobData.patientResponsibility || 0,
+          deductibleApplied: ai.eobData.deductibleApplied || 0,
+          coinsurance: ai.eobData.coinsurance || 0,
+          copay: ai.eobData.copay || 0,
+          discrepancies: ensureArray(ai.eobData.discrepancies),
+        } : undefined,
       };
       
-      setState((prev) => ({
-        ...prev,
-        isAnalyzing: false,
-        analysisResult,
-      }));
-      
+      setState((prev) => ({ ...prev, isAnalyzing: false, analysisResult }));
     } catch (error) {
       console.error('Analysis error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to analyze document. Please try again.');
-      setState((prev) => ({
-        ...prev,
-        isAnalyzing: false,
-        currentStep: 'upload',
-      }));
+      toast.error(error instanceof Error ? error.message : 'Failed to analyze document.');
+      setState((prev) => ({ ...prev, isAnalyzing: false, currentStep: 'upload' }));
     }
-  }, [state.uploadedFile, state.selectedState, state.selectedLanguage]);
+  }, [state.uploadedFile, state.eobFile, state.selectedState, state.selectedLanguage]);
 
   const handleBack = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      currentStep: 'upload',
-      analysisResult: null,
-      isAnalyzing: false,
-    }));
+    setState((prev) => ({ ...prev, currentStep: 'upload', analysisResult: null, isAnalyzing: false }));
   }, []);
 
   return (
@@ -232,14 +251,16 @@ const Index = () => {
         onLanguageChange={handleLanguageChange}
         showLanguageSelector={state.currentStep === 'analysis'}
       />
-
       <main className="flex-1">
         {state.currentStep === 'upload' ? (
           <UploadPage
             uploadedFile={state.uploadedFile}
+            eobFile={state.eobFile}
             selectedState={state.selectedState}
             onFileSelect={handleFileSelect}
             onRemoveFile={handleRemoveFile}
+            onEOBSelect={handleEOBSelect}
+            onRemoveEOB={handleRemoveEOB}
             onStateChange={handleStateChange}
             onAnalyze={handleAnalyze}
           />
@@ -250,11 +271,11 @@ const Index = () => {
               analysis={state.analysisResult}
               isAnalyzing={state.isAnalyzing}
               onBack={handleBack}
+              hasEOB={!!state.eobFile}
             />
           )
         )}
       </main>
-
       <Footer />
     </div>
   );
