@@ -25,138 +25,229 @@ IMPORTANT RULES:
 - You provide educational information ONLY, not medical or legal advice
 - Frame red flags as questions, not accusations
 
-CPT CODE CATEGORIES (use these to classify codes):
-- Evaluation & Management (E/M): 99201-99499 - Office/hospital visits
-- Anesthesia: 00100-01999 - Anesthesia services  
-- Surgery: 10000-69999 - Surgical procedures
-- Radiology: 70000-79999 - X-rays, CT, MRI, ultrasound
-- Pathology/Lab: 80000-89999 - Lab tests and pathology
-- Medicine: 90000-99199 - Vaccines, therapy, other medical services
-- Physical/Occupational Therapy: 97000-97799 - PT/OT services
-
-COMMON CPT CODE PREFIXES:
-- 99xxx = E/M codes (office visits, hospital visits, consultations)
-- 80xxx-89xxx = Lab tests
-- 70xxx-79xxx = Radiology/imaging
-- 96xxx-97xxx = Therapy services
-- 90xxx = Vaccines, injections, psychiatry
-
-MODIFIER EXPLANATIONS:
-- -25: Significant, separately identifiable E/M service
-- -26: Professional component only
-- -TC: Technical component only
-- -50: Bilateral procedure (both sides of body)
-- -51: Multiple procedures
-- -59: Distinct procedural service
-- -76: Repeat procedure by same physician
-- -77: Repeat procedure by different physician
-- -LT/-RT: Left side/Right side
-
-RED FLAGS TO CHECK FOR:
-1. Duplicate charges: Same CPT code appearing multiple times without clear justification
-2. Unbundling: Services that should be billed together being billed separately
-3. Upcoding: Higher-complexity E/M codes (99214, 99215) for what seemed like a simple visit
-4. Missing modifiers: When bilateral or repeat procedures lack proper modifiers
-5. Code/treatment mismatch: CPT codes that don't align with what the patient remembers happening
+CPT CODE CATEGORIES:
+- evaluation: 99201-99499 - Office/hospital visits (E/M)
+- lab: 80000-89999 - Lab tests and pathology
+- radiology: 70000-79999 - X-rays, CT, MRI, ultrasound
+- surgery: 10000-69999 - Surgical procedures
+- medicine: 90000-99199 - Vaccines, therapy, other medical services
+- other: Anything else
 
 For each document, analyze and provide this JSON structure:
 
 {
-  "documentType": "Bill, EOB, chart, denial letter, etc.",
-  "issuer": "Who issued the document",
+  "documentType": "bill | eob | chart | denial | unknown",
+  "issuer": "Who issued the document (hospital/clinic name)",
   "dateOfService": "Date(s) of service",
   "documentPurpose": "Brief explanation of what this document is for",
-  
-  "visitSummary": "A 2-3 sentence narrative in plain English of what likely happened during this visit based on the codes",
-  
+
+  "cptCodes": [
+    {
+      "code": "CPT code (e.g., 99213)",
+      "shortLabel": "Short 2-5 word label (e.g., 'Follow-up doctor visit')",
+      "explanation": "One sentence explanation in plain English",
+      "category": "evaluation | lab | radiology | surgery | medicine | other",
+      "whereUsed": "Where this code is commonly used (e.g., 'Primary care, urgent care visits')",
+      "complexityLevel": "simple | moderate | complex",
+      "commonQuestions": [
+        {
+          "question": "Common patient question about this code",
+          "answer": "Simple answer",
+          "callWho": "billing | insurance | either"
+        }
+      ]
+    }
+  ],
+
+  "visitWalkthrough": [
+    {
+      "order": 1,
+      "description": "You checked in and saw your doctor.",
+      "relatedCodes": ["99213"]
+    }
+  ],
+
+  "codeQuestions": [
+    {
+      "cptCode": "99213",
+      "question": "Common question about this specific code",
+      "answer": "Simple answer",
+      "suggestCall": "billing | insurance | either"
+    }
+  ],
+
+  "billingEducation": {
+    "billedVsAllowed": "Explanation of billed amount vs allowed amount in context of this bill",
+    "deductibleExplanation": "Explanation of how deductibles work",
+    "copayCoinsurance": "Explanation of copay vs coinsurance",
+    "eobSummary": "If EOB is present, summarize what it shows (optional)"
+  },
+
+  "stateHelp": {
+    "state": "State abbreviation",
+    "medicaidInfo": {
+      "description": "Brief description of Medicaid/CHIP in this state",
+      "eligibilityLink": "URL to check eligibility"
+    },
+    "chipInfo": {
+      "description": "CHIP info if applicable",
+      "eligibilityLink": "URL"
+    },
+    "debtProtections": ["State-specific medical debt protections"],
+    "reliefPrograms": [
+      {
+        "name": "Program name",
+        "description": "What it offers",
+        "link": "URL if available"
+      }
+    ]
+  },
+
+  "providerAssistance": {
+    "providerName": "Hospital/clinic name from bill",
+    "providerType": "hospital | clinic | lab | other",
+    "charityCareSummary": "Explanation of charity care and when it applies",
+    "financialAssistanceLink": "URL to provider's financial assistance page if identifiable",
+    "eligibilityNotes": "Who typically qualifies"
+  },
+
+  "debtAndCreditInfo": [
+    "Key fact about medical debt and credit in this state"
+  ],
+
+  "billingIssues": [
+    {
+      "type": "duplicate | upcoding | mismatch | missing_modifier | eob_discrepancy",
+      "title": "Short title of the issue",
+      "description": "Why this might be worth asking about",
+      "suggestedQuestion": "Exact question to ask billing/insurance",
+      "severity": "info | warning | important",
+      "relatedCodes": ["CPT codes involved"]
+    }
+  ],
+
+  "financialOpportunities": [
+    {
+      "title": "Name of opportunity",
+      "description": "What it offers",
+      "eligibilityHint": "Who might qualify",
+      "effortLevel": "quick_call | short_form | detailed_application",
+      "link": "URL if available"
+    }
+  ],
+
+  "billingTemplates": [
+    {
+      "purpose": "What this template is for",
+      "template": "Exact words to say when calling the billing department",
+      "whenToUse": "When to use this template"
+    }
+  ],
+
+  "insuranceTemplates": [
+    {
+      "purpose": "What this template is for",
+      "template": "Exact words to say when calling insurance",
+      "whenToUse": "When to use this template"
+    }
+  ],
+
   "lineItems": [
     {
-      "id": "unique-id",
+      "id": "item-1",
       "description": "Service description",
       "amount": 0.00,
-      "explanation": "Plain English explanation of what this charge is for",
-      "category": "E/M Visit, Lab Test, Imaging, Procedure, Therapy, Supply, Other",
-      "whyTypicallyDone": "Brief explanation of why this service is typically performed"
+      "explanation": "Plain English explanation"
     }
   ],
-  
+
   "medicalCodes": [
     {
-      "code": "CPT/HCPCS code",
-      "type": "CPT, HCPCS, or ICD",
-      "description": "Official short description",
-      "plainEnglish": "Simple one-sentence explanation for a non-medical person",
-      "category": "E/M, Lab, Imaging, Surgery, Therapy, Medicine, etc.",
-      "typicalPurpose": "Why this code is commonly billed",
-      "commonQuestions": ["Questions patients often ask about this code"]
+      "code": "CPT code",
+      "type": "CPT | HCPCS | ICD",
+      "description": "Description",
+      "typicalPurpose": "Why typically billed",
+      "commonQuestions": ["Question 1", "Question 2"]
     }
   ],
-  
-  "redFlags": [
-    {
-      "type": "duplicate, unbundling, upcoding, mismatch, or other",
-      "issue": "Brief description of the potential issue",
-      "question": "Suggested question to ask the billing department"
-    }
-  ],
-  
-  "thingsToAsk": [
-    "Question to ask the billing office or insurer"
-  ],
-  
+
   "faqs": [
     {
-      "question": "Common question about this type of bill",
-      "answer": "Simple answer"
+      "question": "Common question",
+      "answer": "Answer"
     }
   ],
-  
+
   "potentialIssues": [
     {
       "title": "Issue title",
-      "description": "Worth asking about because..."
+      "description": "Description"
     }
   ],
-  
-  "financialAssistance": [
-    "Information about charity care, sliding scale, prompt-pay discounts, payment plans"
-  ],
-  
-  "patientProtections": [
-    "Relevant state and federal protections that may apply"
-  ],
-  
+
+  "financialAssistance": ["Assistance option 1", "Assistance option 2"],
+
+  "patientProtections": ["Protection 1", "Protection 2"],
+
   "actionPlan": [
     {
       "step": 1,
-      "action": "First step to take",
-      "details": "More specific guidance"
+      "action": "Action title",
+      "details": "Action details"
     }
-  ],
-  
-  "glossary": {
-    "term": "Simple definition"
-  },
-  
-  "learnForNextTime": [
-    "Tips for understanding future medical bills"
   ]
 }
 
-VISIT SUMMARY GUIDELINES:
-Generate a narrative like: "Based on the codes on this bill, here's what likely happened during this visit: You had a [visit type] with your doctor. They ordered [X] lab tests. You received [Y] procedure(s). [Additional context based on codes]."
+VISIT WALKTHROUGH GUIDELINES:
+- Generate 4-7 ordered steps describing what likely happened
+- Keep it conservative and generic - no diagnoses, just actions
+- Base it on the CPT codes present
+- Example: "You checked in and saw your doctor for a follow-up visit." "They drew blood for lab tests." "You had a chest X-ray taken."
 
-GLOSSARY TERMS TO INCLUDE (when relevant):
-- CPT: Current Procedural Terminology - codes that describe medical services
-- E/M: Evaluation and Management - codes for doctor visits
-- Modifier: An add-on to a code that provides more detail
-- Copay: Your fixed amount to pay at the visit
-- Deductible: Amount you pay before insurance kicks in
-- Coinsurance: Your percentage share of costs
-- Allowed Amount: What insurance agrees to pay for a service
-- EOB: Explanation of Benefits - summary of what insurance paid
+BILLING ISSUES TO FLAG:
+1. Duplicate charges: Same code appearing multiple times
+2. Upcoding: High-complexity E/M codes (99214, 99215) for what might be a simple visit
+3. Mismatch: Codes that don't match typical treatment patterns
+4. EOB discrepancy: If EOB provided, flag mismatches between bill and EOB amounts
+
+TEMPLATES GUIDELINES:
+- Write in everyday, respectful language
+- Be specific to the codes/amounts on this bill
+- Give 2-3 billing templates and 2-3 insurance templates
 
 Output ONLY valid JSON matching this structure.`;
+
+const EOB_PROMPT_ADDITION = `
+
+IMPORTANT: An Explanation of Benefits (EOB) document has also been provided.
+
+When analyzing with EOB present:
+1. Extract the claim number, processed date, billed amount, allowed amount, insurance paid, and patient responsibility
+2. Compare EOB amounts to the bill amounts and flag any discrepancies
+3. In billingEducation.eobSummary, provide a specific breakdown like: "Your plan allowed $X, paid $Y, and says you owe $Z"
+4. In billingIssues, add any eob_discrepancy items where the bill and EOB don't match
+5. In templates, reference specific claim numbers and amounts from the EOB
+
+Add this to your response:
+"eobData": {
+  "claimNumber": "Claim number from EOB",
+  "processedDate": "Date EOB was processed",
+  "billedAmount": 0.00,
+  "allowedAmount": 0.00,
+  "insurancePaid": 0.00,
+  "patientResponsibility": 0.00,
+  "deductibleApplied": 0.00,
+  "coinsurance": 0.00,
+  "copay": 0.00,
+  "discrepancies": [
+    {
+      "type": "overbilled | underpaid | mismatch | duplicate",
+      "description": "Description of the discrepancy",
+      "billedValue": 0.00,
+      "eobValue": 0.00
+    }
+  ]
+}`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -164,112 +255,74 @@ serve(async (req) => {
   }
 
   try {
-    const { documentContent, documentType, state, language } = await req.json();
+    const { documentContent, documentType, eobContent, state, language } = await req.json();
     
-    console.log('Analyzing document:', { documentType, state, language, contentLength: documentContent?.length });
+    console.log('Analyzing document:', { documentType, state, language, contentLength: documentContent?.length, hasEOB: !!eobContent });
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
+    const hasEOB = !!eobContent;
+    const systemPrompt = hasEOB ? SYSTEM_PROMPT + EOB_PROMPT_ADDITION : SYSTEM_PROMPT;
+
     const userPromptText = `Analyze this medical document for a patient in ${state}. 
 Document type: ${documentType || 'unknown'}
 Output language: ${language === 'en' ? 'English' : language === 'es' ? 'Spanish' : language === 'zh' ? 'Simplified Chinese' : language === 'ar' ? 'Arabic' : language === 'hi' ? 'Hindi' : 'English'}
+${hasEOB ? '\nIMPORTANT: An EOB (Explanation of Benefits) is also provided. Use it to enhance the analysis with actual insurance payment details.' : ''}
 
 CRITICAL INSTRUCTIONS:
 1. Extract ALL CPT/HCPCS codes visible in the document
-2. For each code, provide plain-English explanations of what the service is
-3. Check for potential billing errors or red flags:
-   - Duplicate charges (same code billed twice)
-   - Unusually high visit complexity codes for what might be a simple visit
-   - Codes that might not match typical treatment patterns
-4. Group services into categories (Visit, Labs, Imaging, Procedures, etc.)
-5. Create a simple narrative of "what happened" based on the codes
-6. Generate questions the patient should ask their billing department
-7. Include relevant state-specific patient protections for ${state}
+2. For each code, provide plain-English explanations structured in cptCodes array
+3. Generate a visitWalkthrough of 4-7 steps describing what happened
+4. Generate codeQuestions for the major codes
+5. Check for potential billing errors and add to billingIssues
+6. Provide billingEducation with context for this specific bill
+7. Include state-specific help for ${state} in stateHelp
+8. Generate 2-3 billingTemplates and 2-3 insuranceTemplates specific to this bill
+9. Identify financialOpportunities based on the bill size and provider
+${hasEOB ? '10. Extract EOB data and flag any discrepancies between bill and EOB' : ''}
 
 Remember: Write simply, avoid medical jargon, be reassuring but help identify potential issues worth asking about.
 
 Output ONLY valid JSON matching the required structure.`;
 
-    // Build messages based on content type
-    let messages: any[];
+    // Build content array for the message
+    const contentParts: any[] = [{ type: 'text', text: userPromptText }];
     
-    // Check if documentContent is a data URL (image or PDF)
-    if (documentContent.startsWith('data:image/')) {
-      // For images (including HEIC converted to base64), use vision capabilities
-      const base64Data = documentContent.split(',')[1];
-      const mimeType = documentContent.split(';')[0].split(':')[1];
-      
-      console.log('Processing image with MIME type:', mimeType);
-      
-      messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { 
-          role: 'user', 
-          content: [
-            { type: 'text', text: userPromptText },
-            { 
-              type: 'image_url', 
-              image_url: { 
-                url: `data:${mimeType};base64,${base64Data}` 
-              } 
-            }
-          ]
-        }
-      ];
-    } else if (documentContent.startsWith('data:application/pdf')) {
-      // For PDFs, Gemini can handle PDF base64 data
-      const base64Data = documentContent.split(',')[1];
-      
-      console.log('Processing PDF document');
-      
-      messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { 
-          role: 'user', 
-          content: [
-            { type: 'text', text: userPromptText + '\n\n[Note: This is a PDF document being provided for analysis. Please read all text, tables, and CPT codes visible in the document.]' },
-            { 
-              type: 'image_url', 
-              image_url: { 
-                url: `data:application/pdf;base64,${base64Data}` 
-              } 
-            }
-          ]
-        }
-      ];
-    } else if (documentContent.startsWith('data:')) {
-      // For other binary formats (HEIC, TIFF, etc.), try as image
+    // Add bill document
+    if (documentContent.startsWith('data:')) {
       const base64Data = documentContent.split(',')[1];
       const mimeType = documentContent.split(';')[0].split(':')[1] || 'image/jpeg';
-      
-      console.log('Processing binary file with MIME type:', mimeType);
-      
-      messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { 
-          role: 'user', 
-          content: [
-            { type: 'text', text: userPromptText },
-            { 
-              type: 'image_url', 
-              image_url: { 
-                url: `data:${mimeType};base64,${base64Data}` 
-              } 
-            }
-          ]
-        }
-      ];
+      console.log('Processing bill with MIME type:', mimeType);
+      contentParts.push({ 
+        type: 'image_url', 
+        image_url: { url: `data:${mimeType};base64,${base64Data}` } 
+      });
     } else {
-      // For plain text content
-      console.log('Processing text content');
-      messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `${userPromptText}\n\nDocument content:\n${documentContent}` }
-      ];
+      contentParts[0].text += `\n\nBill document content:\n${documentContent}`;
     }
+
+    // Add EOB document if present
+    if (eobContent) {
+      if (eobContent.startsWith('data:')) {
+        const base64Data = eobContent.split(',')[1];
+        const mimeType = eobContent.split(';')[0].split(':')[1] || 'image/jpeg';
+        console.log('Processing EOB with MIME type:', mimeType);
+        contentParts.push({ 
+          type: 'image_url', 
+          image_url: { url: `data:${mimeType};base64,${base64Data}` } 
+        });
+      } else {
+        contentParts[0].text += `\n\nEOB document content:\n${eobContent}`;
+      }
+    }
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: contentParts }
+    ];
 
     console.log('Sending request to AI gateway...');
 
@@ -328,39 +381,8 @@ Output ONLY valid JSON matching the required structure.`;
       console.log('Analysis parsed successfully');
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', content.substring(0, 500));
-      // Return a structured fallback with the raw content for debugging
-      analysis = {
-        documentType: 'Medical Document',
-        issuer: 'Unknown Provider',
-        dateOfService: 'Not specified',
-        documentPurpose: 'This document contains medical billing information.',
-        visitSummary: 'Unable to fully parse the document. Please review the charges carefully.',
-        lineItems: [],
-        medicalCodes: [],
-        redFlags: [],
-        thingsToAsk: [
-          'Can you provide an itemized statement with all CPT codes and descriptions?',
-          'Are there any discounts available for prompt payment?'
-        ],
-        faqs: [
-          { question: 'What should I do if I have questions?', answer: 'Call the billing department using the phone number on your statement.' }
-        ],
-        potentialIssues: [],
-        financialAssistance: ['Contact your healthcare provider to ask about financial assistance programs, payment plans, or charity care options.'],
-        patientProtections: ['You have the right to request an itemized bill and dispute any charges you believe are incorrect.'],
-        actionPlan: [
-          { step: 1, action: 'Review the document carefully', details: 'Look for any charges or codes that seem unclear or unfamiliar.' },
-          { step: 2, action: 'Contact the billing department', details: 'Ask for a detailed explanation of each charge and CPT code.' }
-        ],
-        glossary: {
-          'CPT': 'Current Procedural Terminology - standard codes for medical services',
-          'EOB': 'Explanation of Benefits - document showing what insurance paid'
-        },
-        learnForNextTime: [
-          'Always ask for an itemized bill after any medical visit',
-          'Keep records of what services you received for comparison'
-        ]
-      };
+      // Return a structured fallback
+      analysis = createFallbackAnalysis(state, hasEOB);
     }
 
     return new Response(JSON.stringify({ analysis }), {
@@ -377,3 +399,94 @@ Output ONLY valid JSON matching the required structure.`;
     });
   }
 });
+
+function createFallbackAnalysis(state: string, hasEOB: boolean) {
+  return {
+    documentType: 'bill',
+    issuer: 'Healthcare Provider',
+    dateOfService: 'See document',
+    documentPurpose: 'This document contains medical billing information.',
+    
+    cptCodes: [],
+    visitWalkthrough: [
+      { order: 1, description: 'You received medical services from the provider.', relatedCodes: [] },
+      { order: 2, description: 'The provider documented the services and assigned billing codes.', relatedCodes: [] },
+      { order: 3, description: 'This bill was generated based on those services.', relatedCodes: [] }
+    ],
+    codeQuestions: [],
+    
+    billingEducation: {
+      billedVsAllowed: 'The billed amount is what the provider charges. The allowed amount is the maximum your insurance will pay for that service - often lower than the billed amount.',
+      deductibleExplanation: 'Your deductible is the amount you pay out-of-pocket before insurance starts covering costs. If you haven\'t met it yet, you may owe more.',
+      copayCoinsurance: 'A copay is a fixed amount per visit. Coinsurance is a percentage of the allowed amount you pay after meeting your deductible.',
+      eobSummary: hasEOB ? 'Unable to parse EOB details. Please compare amounts manually.' : undefined
+    },
+    
+    stateHelp: {
+      state: state,
+      medicaidInfo: {
+        description: 'Medicaid provides health coverage for eligible low-income individuals.',
+        eligibilityLink: 'https://www.medicaid.gov/about-us/beneficiary-resources/index.html'
+      },
+      debtProtections: [],
+      reliefPrograms: []
+    },
+    
+    providerAssistance: {
+      providerName: 'Your Healthcare Provider',
+      providerType: 'hospital',
+      charityCareSummary: 'Many providers offer financial assistance programs for patients who cannot afford their bills. Contact the billing department to ask about options.',
+      eligibilityNotes: 'Eligibility typically depends on income and family size.'
+    },
+    
+    debtAndCreditInfo: [
+      'Medical debt under $500 typically cannot appear on your credit report.',
+      'You have at least 12 months before most medical debt can be reported to credit bureaus.'
+    ],
+    
+    billingIssues: [],
+    financialOpportunities: [
+      {
+        title: 'Ask About Financial Assistance',
+        description: 'Many providers offer charity care or sliding scale discounts.',
+        eligibilityHint: 'Based on income and family size.',
+        effortLevel: 'quick_call'
+      }
+    ],
+    
+    billingTemplates: [
+      {
+        purpose: 'Request an itemized bill',
+        template: 'Hi, I\'m calling about my account. Can you please send me a fully itemized bill showing each charge with the CPT codes?',
+        whenToUse: 'Before paying any bill'
+      },
+      {
+        purpose: 'Ask about financial assistance',
+        template: 'I\'m having difficulty paying this bill. Can you tell me about any financial assistance programs that might be available?',
+        whenToUse: 'When the amount is more than you can afford'
+      }
+    ],
+    
+    insuranceTemplates: [
+      {
+        purpose: 'Verify what you owe',
+        template: 'I received a bill for a recent visit. Can you confirm what my actual patient responsibility is after insurance?',
+        whenToUse: 'To confirm the bill matches what insurance says you owe'
+      }
+    ],
+    
+    lineItems: [],
+    medicalCodes: [],
+    faqs: [
+      { question: 'What should I do if I have questions?', answer: 'Call the billing department using the phone number on your statement.' }
+    ],
+    potentialIssues: [],
+    financialAssistance: ['Contact your healthcare provider to ask about financial assistance programs, payment plans, or charity care options.'],
+    patientProtections: ['You have the right to request an itemized bill and dispute any charges you believe are incorrect.'],
+    actionPlan: [
+      { step: 1, action: 'Review the document', details: 'Look for any charges or codes that seem unclear.' },
+      { step: 2, action: 'Request an itemized bill', details: 'Call billing to get a detailed breakdown.' },
+      { step: 3, action: 'Ask about assistance', details: 'Inquire about payment plans or financial assistance if needed.' }
+    ]
+  };
+}
