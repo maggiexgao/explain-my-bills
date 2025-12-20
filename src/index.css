@@ -52,12 +52,12 @@
 
     --radius: 0.75rem;
 
-    /* Custom tokens */
+    /* Custom tokens - Superpower-inspired */
     --gradient-calm: linear-gradient(135deg, hsl(175 45% 95%) 0%, hsl(40 33% 98%) 50%, hsl(200 40% 96%) 100%);
     --gradient-header: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 33% 98%) 100%);
-    --shadow-soft: 0 2px 8px -2px hsl(210 25% 15% / 0.08), 0 4px 16px -4px hsl(210 25% 15% / 0.06);
-    --shadow-card: 0 1px 3px hsl(210 25% 15% / 0.06), 0 4px 12px hsl(210 25% 15% / 0.08);
-    --shadow-elevated: 0 8px 32px -8px hsl(210 25% 15% / 0.12), 0 16px 48px -16px hsl(210 25% 15% / 0.1);
+    --shadow-soft: 0 1px 2px hsl(210 25% 15% / 0.04), 0 2px 6px hsl(210 25% 15% / 0.04);
+    --shadow-card: 0 1px 3px hsl(210 25% 15% / 0.05), 0 4px 12px hsl(210 25% 15% / 0.06);
+    --shadow-elevated: 0 4px 16px hsl(210 25% 15% / 0.08), 0 8px 32px hsl(210 25% 15% / 0.06);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
