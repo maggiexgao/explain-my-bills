@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { UploadPage } from '@/components/UploadPage';
 import { AnalysisPage } from '@/components/AnalysisPage';
+import IntroScreen from '@/components/IntroScreen';
 import { supabase } from '@/integrations/supabase/client';
 import { AppState, UploadedFile, Language, AnalysisResult } from '@/types';
 import { toast } from 'sonner';
@@ -16,7 +17,13 @@ const ensureArray = (value: any): any[] => {
   return [value];
 };
 
+const INTRO_SHOWN_KEY = 'rosetta_intro_shown';
+
 const Index = () => {
+  const [showIntro, setShowIntro] = useState(() => {
+    // Only show intro if not already shown in this session
+    return !sessionStorage.getItem(INTRO_SHOWN_KEY);
+  });
   const [state, setState] = useState<AppState>({
     currentStep: 'upload',
     uploadedFile: null,
@@ -270,6 +277,15 @@ const Index = () => {
   const handleBack = useCallback(() => {
     setState((prev) => ({ ...prev, currentStep: 'upload', analysisResult: null, isAnalyzing: false }));
   }, []);
+
+  const handleIntroComplete = useCallback(() => {
+    sessionStorage.setItem(INTRO_SHOWN_KEY, 'true');
+    setShowIntro(false);
+  }, []);
+
+  if (showIntro) {
+    return <IntroScreen onComplete={handleIntroComplete} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col relative">
