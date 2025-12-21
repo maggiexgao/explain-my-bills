@@ -84,10 +84,10 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
 
   return (
     <div className="space-y-3">
-      {/* Action Plan */}
+      {/* A. Action Plan */}
       <SubcategoryCard
         icon={<CheckSquare className="h-5 w-5 text-mint" />}
-        title="Your Action Plan"
+        title="Action Plan"
         teaser={actionSteps.length > 0 ? `${actionSteps.length} recommended steps` : 'Review and take action'}
         badge={actionSteps.length > 0 ? `${actionSteps.length} steps` : undefined}
         badgeVariant="success"
@@ -108,9 +108,9 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
         </div>
       </SubcategoryCard>
 
-      {/* Call Templates */}
+      {/* B. What to Say When You Call */}
       <SubcategoryCard
-        icon={<Phone className="h-5 w-5 text-mint" />}
+        icon={<Phone className="h-5 w-5 text-purple" />}
         title="What to Say When You Call"
         teaser="Copy-and-paste templates for billing and insurance"
         badge={`${billingTemplates.length + insuranceTemplates.length} templates`}
@@ -138,30 +138,59 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
               ))}
             </div>
           )}
+          
+          {billingTemplates.length === 0 && insuranceTemplates.length === 0 && (
+            <div className="p-4 rounded-xl bg-muted/20 border border-border/30">
+              <p className="text-sm text-muted-foreground">
+                No specific call templates were generated for this bill. Check the action plan for next steps.
+              </p>
+            </div>
+          )}
         </div>
       </SubcategoryCard>
 
-      {/* When to Seek Extra Help */}
-      {whenToSeekHelp.length > 0 && (
-        <SubcategoryCard
-          icon={<LifeBuoy className="h-5 w-5 text-mint" />}
-          title="When to Seek Extra Help"
-          teaser="Resources for additional support"
-          defaultOpen={false}
-        >
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground mb-3">
-              Consider reaching out to these resources if you need more support:
-            </p>
-            {whenToSeekHelp.map((item, idx) => (
+      {/* C. When to Seek Extra Help */}
+      <SubcategoryCard
+        icon={<LifeBuoy className="h-5 w-5 text-coral" />}
+        title="When to Seek Extra Help"
+        teaser="Resources for additional support"
+        defaultOpen={false}
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground mb-3">
+            Consider reaching out to these resources if you need more support:
+          </p>
+          {whenToSeekHelp.length > 0 ? (
+            whenToSeekHelp.map((item, idx) => (
               <div key={idx} className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
-                <ArrowRight className="h-4 w-4 text-mint shrink-0 mt-0.5" />
+                <ArrowRight className="h-4 w-4 text-coral shrink-0 mt-0.5" />
                 <p className="text-sm text-muted-foreground">{item}</p>
               </div>
-            ))}
-          </div>
-        </SubcategoryCard>
-      )}
+            ))
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
+                <ArrowRight className="h-4 w-4 text-coral shrink-0 mt-0.5" />
+                <p className="text-sm text-muted-foreground">
+                  If you receive a collection notice or are being sued for medical debt, consult with a consumer law attorney or legal aid organization.
+                </p>
+              </div>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
+                <ArrowRight className="h-4 w-4 text-coral shrink-0 mt-0.5" />
+                <p className="text-sm text-muted-foreground">
+                  If you believe your insurance wrongly denied a claim, contact your state's insurance commissioner.
+                </p>
+              </div>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
+                <ArrowRight className="h-4 w-4 text-coral shrink-0 mt-0.5" />
+                <p className="text-sm text-muted-foreground">
+                  Many hospitals have patient advocates who can help navigate billing issues and financial assistance applications.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </SubcategoryCard>
     </div>
   );
 }

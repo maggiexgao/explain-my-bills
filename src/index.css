@@ -6,73 +6,90 @@
 
 @layer base {
   :root {
-    /* Soft whimsical palette inspired by abstract art */
-    --background: 45 30% 97%;
-    --foreground: 280 20% 20%;
+    /* Whimsical palette inspired by delicate botanical/organic artwork */
+    --background: 40 35% 97%;
+    --foreground: 280 25% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 280 20% 20%;
+    --card-foreground: 280 25% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 280 20% 20%;
+    --popover-foreground: 280 25% 18%;
 
-    /* Coral/Pink primary */
-    --primary: 350 65% 65%;
+    /* Soft rose/blush primary */
+    --primary: 340 55% 65%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 350 50% 94%;
+    --primary-light: 340 45% 94%;
 
-    /* Lavender secondary */
-    --secondary: 270 40% 94%;
-    --secondary-foreground: 270 30% 30%;
+    /* Soft lavender secondary */
+    --secondary: 280 35% 94%;
+    --secondary-foreground: 280 30% 30%;
 
-    /* Muted cream tones */
-    --muted: 40 25% 92%;
+    /* Warm cream muted */
+    --muted: 35 30% 93%;
     --muted-foreground: 280 15% 45%;
 
-    /* Mint/green accent */
-    --accent: 150 35% 88%;
-    --accent-foreground: 150 40% 30%;
+    /* Sage/mint accent */
+    --accent: 145 30% 88%;
+    --accent-foreground: 145 40% 28%;
 
     /* Status colors */
-    --destructive: 0 65% 55%;
+    --destructive: 0 60% 55%;
     --destructive-foreground: 0 0% 100%;
     
-    --success: 160 50% 45%;
+    --success: 155 45% 42%;
     --success-foreground: 0 0% 100%;
     
-    --warning: 38 85% 55%;
-    --warning-foreground: 38 85% 15%;
+    --warning: 35 80% 52%;
+    --warning-foreground: 35 85% 15%;
     
-    --info: 220 70% 55%;
+    --info: 215 65% 55%;
     --info-foreground: 0 0% 100%;
 
-    /* Purple tones for accents */
-    --purple: 270 50% 65%;
-    --purple-light: 270 40% 92%;
+    /* Orchid purple tones */
+    --purple: 280 45% 68%;
+    --purple-light: 280 35% 94%;
     
-    /* Coral for highlights */
-    --coral: 15 70% 65%;
-    --coral-light: 15 60% 94%;
+    /* Soft coral/peach */
+    --coral: 12 65% 68%;
+    --coral-light: 12 55% 95%;
 
-    /* Mint for success states */
-    --mint: 160 45% 70%;
-    --mint-light: 160 35% 92%;
+    /* Sage/mint green */
+    --mint: 155 40% 65%;
+    --mint-light: 155 30% 93%;
+    
+    /* Blush pink */
+    --blush: 350 50% 78%;
+    --blush-light: 350 40% 96%;
 
-    --border: 280 15% 88%;
-    --input: 280 15% 88%;
-    --ring: 350 65% 65%;
+    --border: 280 12% 90%;
+    --input: 280 12% 90%;
+    --ring: 340 55% 65%;
 
     --radius: 0.75rem;
 
-    /* Gradients inspired by the abstract artwork */
-    --gradient-hero: linear-gradient(135deg, hsl(350 50% 94%) 0%, hsl(45 30% 97%) 30%, hsl(270 40% 94%) 60%, hsl(150 35% 92%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(45 30% 98%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(350 65% 65% / 0.1) 0%, hsl(270 50% 65% / 0.1) 50%, hsl(160 45% 70% / 0.1) 100%);
+    /* Enhanced gradients inspired by the whimsical organic artwork */
+    --gradient-hero: linear-gradient(145deg, 
+      hsl(350 45% 96%) 0%, 
+      hsl(40 35% 97%) 25%, 
+      hsl(280 35% 95%) 50%, 
+      hsl(155 30% 94%) 75%, 
+      hsl(12 50% 96%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 35% 98%) 100%);
+    --gradient-accent: linear-gradient(135deg, 
+      hsl(340 55% 65% / 0.08) 0%, 
+      hsl(280 45% 68% / 0.08) 35%, 
+      hsl(155 40% 65% / 0.08) 70%, 
+      hsl(12 65% 68% / 0.06) 100%);
+    --gradient-subtle: linear-gradient(180deg, 
+      hsl(350 45% 96% / 0.5) 0%, 
+      hsl(280 35% 95% / 0.3) 100%);
     
     /* Shadows */
-    --shadow-soft: 0 1px 2px hsl(280 20% 20% / 0.03), 0 2px 6px hsl(280 20% 20% / 0.04);
-    --shadow-card: 0 2px 8px hsl(280 20% 20% / 0.05), 0 8px 24px hsl(280 20% 20% / 0.06);
-    --shadow-elevated: 0 4px 16px hsl(280 20% 20% / 0.08), 0 12px 40px hsl(280 20% 20% / 0.08);
+    --shadow-soft: 0 1px 2px hsl(280 25% 18% / 0.03), 0 2px 6px hsl(280 25% 18% / 0.04);
+    --shadow-card: 0 2px 8px hsl(280 25% 18% / 0.05), 0 8px 24px hsl(280 25% 18% / 0.06);
+    --shadow-elevated: 0 4px 16px hsl(280 25% 18% / 0.08), 0 12px 40px hsl(280 25% 18% / 0.08);
+    --shadow-glow: 0 0 20px hsl(340 55% 65% / 0.15);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -85,43 +102,55 @@
   }
 
   .dark {
-    --background: 280 20% 10%;
-    --foreground: 45 20% 95%;
+    --background: 280 20% 8%;
+    --foreground: 40 25% 95%;
 
-    --card: 280 20% 12%;
-    --card-foreground: 45 20% 95%;
+    --card: 280 20% 11%;
+    --card-foreground: 40 25% 95%;
 
-    --popover: 280 20% 12%;
-    --popover-foreground: 45 20% 95%;
+    --popover: 280 20% 11%;
+    --popover-foreground: 40 25% 95%;
 
-    --primary: 350 60% 60%;
-    --primary-foreground: 280 20% 10%;
-    --primary-light: 350 40% 20%;
+    --primary: 340 50% 60%;
+    --primary-foreground: 280 20% 8%;
+    --primary-light: 340 35% 18%;
 
-    --secondary: 270 25% 20%;
-    --secondary-foreground: 270 30% 90%;
+    --secondary: 280 22% 18%;
+    --secondary-foreground: 280 30% 90%;
 
-    --muted: 280 20% 18%;
-    --muted-foreground: 280 15% 60%;
+    --muted: 280 18% 16%;
+    --muted-foreground: 280 12% 62%;
 
-    --accent: 150 25% 20%;
-    --accent-foreground: 150 45% 70%;
+    --accent: 155 22% 18%;
+    --accent-foreground: 155 40% 72%;
 
-    --destructive: 0 60% 45%;
+    --destructive: 0 55% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --purple: 270 45% 55%;
-    --purple-light: 270 30% 20%;
+    --purple: 280 40% 58%;
+    --purple-light: 280 28% 18%;
     
-    --coral: 15 60% 55%;
-    --coral-light: 15 40% 20%;
+    --coral: 12 55% 58%;
+    --coral-light: 12 38% 18%;
 
-    --mint: 160 40% 50%;
-    --mint-light: 160 30% 20%;
+    --mint: 155 35% 52%;
+    --mint-light: 155 25% 18%;
+    
+    --blush: 350 45% 62%;
+    --blush-light: 350 32% 18%;
 
-    --border: 280 20% 22%;
-    --input: 280 20% 22%;
-    --ring: 350 60% 60%;
+    --border: 280 18% 20%;
+    --input: 280 18% 20%;
+    --ring: 340 50% 60%;
+
+    --gradient-hero: linear-gradient(145deg, 
+      hsl(280 20% 8%) 0%, 
+      hsl(340 25% 12%) 50%, 
+      hsl(280 20% 10%) 100%);
+    --gradient-accent: linear-gradient(135deg, 
+      hsl(340 50% 60% / 0.1) 0%, 
+      hsl(280 40% 58% / 0.1) 50%, 
+      hsl(155 35% 52% / 0.08) 100%);
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;

@@ -86,7 +86,7 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
         {/* Document Summary Header */}
         <div className="p-5 rounded-2xl accent-gradient border border-border/40">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-foreground">Analysis Results</h2>
+            <h2 className="text-lg font-semibold text-foreground">Rosetta Analysis</h2>
             {hasEOB && (
               <Badge className="bg-mint-light text-mint border-mint/20">
                 <FileCheck className="h-3 w-3 mr-1" />
