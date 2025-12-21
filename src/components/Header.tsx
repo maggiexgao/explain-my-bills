@@ -12,8 +12,8 @@ export function Header() {
             <JewelLogo className="h-full w-full text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-display text-lg font-bold text-foreground/95 tracking-tight">
-              {t('app.title')}
+            <span className="font-logo text-xl text-foreground/95 tracking-widest uppercase">
+              ROSETTA
             </span>
             <span className="text-xs text-muted-foreground hidden sm:block">
               {t('app.subtitle')}

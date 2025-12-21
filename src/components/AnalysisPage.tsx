@@ -31,7 +31,7 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
           </div>
           <div>
             <h2 className="text-2xl font-display font-bold text-foreground mb-2">
-              {t('analysis.loading')}
+              Analyzing
             </h2>
             <p className="text-muted-foreground">
               {t('analysis.loadingDesc')}
@@ -41,14 +41,14 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
             <div 
               className="h-full liquid-loader rounded-full" 
               style={{ 
-                animation: 'loading-progress 2.5s ease-in-out infinite',
+                animation: 'loading-progress 30s ease-out forwards',
               }} 
             />
           </div>
           <style>{`
             @keyframes loading-progress {
               0% { width: 0%; }
-              50% { width: 85%; }
+              90% { width: 90%; }
               100% { width: 100%; }
             }
           `}</style>

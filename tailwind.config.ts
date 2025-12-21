@@ -16,6 +16,7 @@ export default {
       fontFamily: {
         sans: ['Lora', 'Georgia', 'serif'],
         display: ['Lora', 'Georgia', 'serif'],
+        logo: ['Balthazar', 'Georgia', 'serif'],
         mono: ['Courier New', 'Courier', 'monospace'],
       },
       colors: {
