@@ -218,17 +218,6 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
             </a>
           </div>
           
-          {analysis.stateHelp.debtProtections.length > 0 && (
-            <div className="space-y-2">
-              <h5 className="text-xs font-medium text-foreground">{t('billing.stateHelp.debtProtections')}</h5>
-              {analysis.stateHelp.debtProtections.map((protection, idx) => (
-                <div key={idx} className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-sm text-muted-foreground">{protection}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          
           {analysis.stateHelp.reliefPrograms.map((program, idx) => (
             <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/30">
               <p className="text-xs font-medium text-foreground mb-2">{program.name}</p>
@@ -313,27 +302,45 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
 
       <SubcategoryCard
         icon={<Scale className="h-5 w-5 text-primary" />}
-        title={`${t('billing.debtCredit')} - ${analysis.stateHelp.state}`}
+        title={`Medical Debt in ${analysis.stateHelp.state}`}
         teaser={`What you should know about medical debt in ${analysis.stateHelp.state}`}
         defaultOpen={false}
       >
-        <div className="space-y-3">
-          {analysis.debtAndCreditInfo.length > 0 ? (
-            <ul className="space-y-2">
-              {analysis.debtAndCreditInfo.map((info, idx) => (
-                <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <span className="text-primary shrink-0">•</span>
-                  {info}
-                </li>
+        <div className="space-y-4">
+          {/* State Debt Protections */}
+          {analysis.stateHelp.debtProtections.length > 0 && (
+            <div className="space-y-2">
+              <h5 className="text-xs font-medium text-foreground flex items-center gap-2">
+                <Shield className="h-3 w-3 text-success" />
+                State Debt Protections
+              </h5>
+              {analysis.stateHelp.debtProtections.map((protection, idx) => (
+                <div key={idx} className="p-3 rounded-lg bg-success/5 border border-success/20">
+                  <p className="text-sm text-muted-foreground">{protection}</p>
+                </div>
               ))}
-            </ul>
-          ) : (
-            <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-              <p className="text-sm text-muted-foreground">
-                Medical debt over $500 that's at least 12 months past due may appear on your credit report.
-              </p>
             </div>
           )}
+          
+          {/* General Debt & Credit Info */}
+          <div className="space-y-2">
+            {analysis.debtAndCreditInfo.length > 0 ? (
+              <ul className="space-y-2">
+                {analysis.debtAndCreditInfo.map((info, idx) => (
+                  <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
+                    <span className="text-primary shrink-0">•</span>
+                    {info}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+                <p className="text-sm text-muted-foreground">
+                  Medical debt over $500 that's at least 12 months past due may appear on your credit report.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </SubcategoryCard>
     </div>
