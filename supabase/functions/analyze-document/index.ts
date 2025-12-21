@@ -82,7 +82,59 @@ For each issue found, provide:
 - category: MUST be one of: evaluation | lab | radiology | surgery | medicine | other
 - whereUsed: Standard location phrase: "Doctor's office", "Hospital", "Lab", "Imaging center", etc.
 - complexityLevel: MUST be one of: simple | moderate | complex
-- commonQuestions: 1-3 Q&As using standard question patterns
+- commonQuestions: 2-4 Q&As that are SPECIFIC to this CPT code (see CPT-SPECIFIC COMMON QUESTIONS below)
+
+### CPT-SPECIFIC COMMON QUESTIONS
+For EACH CPT code, generate commonQuestions based on what REAL PATIENTS actually ask about that specific code on forums like Reddit, health Q&A sites, and patient advocacy forums.
+
+QUESTION GENERATION APPROACH:
+1. Think about common patient concerns for THIS SPECIFIC CPT code:
+   - For lab/pathology codes (88xxx): "Why is there a separate lab bill?", "Why is pathology so expensive?", "Is this biopsy charge normal?"
+   - For E&M codes (992xx): "Why is my office visit coded this level?", "Is this visit level accurate for what happened?"
+   - For radiology (7xxxx): "Why am I getting separate bills for reading and facility?", "Is this imaging code correct for my scan?"
+   - For surgery (1xxxx-6xxxx): "Why are there so many codes for one procedure?", "What are these assistant surgeon charges?"
+   - For anesthesia (0xxxx): "Why is anesthesia billed separately?", "How is anesthesia time calculated?"
+
+2. Use these common patient question patterns:
+   - "Why do I have a separate [type] bill for this?"
+   - "Is CPT [code] normal for [procedure/visit type]?"
+   - "Why is [code] so expensive / why wasn't it covered?"
+   - "Why am I seeing multiple charges with the same code?"
+   - "What does this [code] actually mean I received?"
+   - "Should this have been billed differently?"
+
+3. For each question, provide:
+   - question: The actual patient question in plain language (specific to this CPT)
+   - answer: 2-4 sentence explanation that:
+     * Explains the issue at a patient level
+     * Avoids medical/clinical advice
+     * Suggests who to ask (billing office vs insurer) if still unsure
+
+4. FALLBACK for rare CPT codes with little patient-facing content:
+   - Use more generic but still code-specific questions like:
+     * "Why is there a separate bill for this test/service?"
+     * "Is this usually done in a hospital versus an outpatient setting?"
+     * "How do I know if this was billed correctly?"
+
+EXAMPLES BY CODE TYPE:
+
+For CPT 88305 (Pathology - Tissue exam):
+- "Why is there a separate pathology bill when I already paid the doctor?"
+- "Is $200+ for a biopsy reading normal?"
+- "Why was this tissue sent to a different lab than my doctor's office?"
+
+For CPT 99214 (Office visit - Established, moderate):
+- "My visit was only 10 minutes - why is this coded as 'moderate complexity'?"
+- "What makes this a Level 4 visit instead of Level 3?"
+- "Should I question if my quick follow-up is coded 99214?"
+
+For CPT 71046 (Chest X-ray):
+- "Why are there two charges - one for the X-ray and one for reading it?"
+- "Is it normal to have separate facility and professional fees for an X-ray?"
+
+For CPT 43239 (Upper GI endoscopy with biopsy):
+- "Why are there so many separate charges for one endoscopy?"
+- "What's the difference between the facility fee and the doctor's fee?"
 
 ### visitWalkthrough - Generate 4-6 steps in chronological order:
 - order: Step number (1, 2, 3...)
@@ -91,8 +143,8 @@ For each issue found, provide:
 
 ### codeQuestions - One Q&A per major CPT code:
 - cptCode: The code
-- question: Standard patient question about billing
-- answer: 2-3 sentence plain language answer
+- question: Standard patient question about billing SPECIFIC to this code
+- answer: 2-3 sentence plain language answer based on what real patients commonly ask
 - suggestCall: "billing" | "insurance" | "either"
 
 ## SECTION 3: BILLING
