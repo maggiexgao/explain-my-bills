@@ -38,8 +38,20 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
             </p>
           </div>
           <div className="w-64 h-2 rounded-full bg-muted/50 mx-auto overflow-hidden">
-            <div className="h-full liquid-loader rounded-full animate-pulse-soft" style={{ width: '60%' }} />
+            <div 
+              className="h-full liquid-loader rounded-full" 
+              style={{ 
+                animation: 'loading-progress 2.5s ease-in-out infinite',
+              }} 
+            />
           </div>
+          <style>{`
+            @keyframes loading-progress {
+              0% { width: 0%; }
+              50% { width: 85%; }
+              100% { width: 100%; }
+            }
+          `}</style>
         </div>
       </div>
     );
