@@ -77,6 +77,7 @@ export type TranslationKey =
   | 'billing.eobComparison.copay'
   | 'billing.eobComparison.discrepancies'
   | 'nextSteps.actionPlan'
+  | 'nextSteps.contactTemplates'
   | 'nextSteps.billingTemplates'
   | 'nextSteps.insuranceTemplates'
   | 'nextSteps.whenToSeekHelp'
@@ -186,6 +187,7 @@ export const translations: TranslationDictionary = {
     'billing.eobComparison.copay': 'Copay',
     'billing.eobComparison.discrepancies': 'Discrepancies Found',
     'nextSteps.actionPlan': 'Action Plan',
+    'nextSteps.contactTemplates': 'Contact Templates',
     'nextSteps.billingTemplates': 'Billing Department Templates',
     'nextSteps.insuranceTemplates': 'Insurance Templates',
     'nextSteps.whenToSeekHelp': 'When to Seek Professional Help',
@@ -288,6 +290,7 @@ export const translations: TranslationDictionary = {
     'billing.eobComparison.copay': 'Copago',
     'billing.eobComparison.discrepancies': 'Discrepancias encontradas',
     'nextSteps.actionPlan': 'Plan de acción',
+    'nextSteps.contactTemplates': 'Plantillas de contacto',
     'nextSteps.billingTemplates': 'Plantillas para facturación',
     'nextSteps.insuranceTemplates': 'Plantillas para el seguro',
     'nextSteps.whenToSeekHelp': 'Cuándo buscar ayuda profesional',
@@ -390,6 +393,7 @@ export const translations: TranslationDictionary = {
     'billing.eobComparison.copay': '共付额',
     'billing.eobComparison.discrepancies': '发现差异',
     'nextSteps.actionPlan': '行动计划',
+    'nextSteps.contactTemplates': '联系模板',
     'nextSteps.billingTemplates': '账单部门模板',
     'nextSteps.insuranceTemplates': '保险模板',
     'nextSteps.whenToSeekHelp': '何时寻求专业帮助',
@@ -492,6 +496,7 @@ export const translations: TranslationDictionary = {
     'billing.eobComparison.copay': '共付額',
     'billing.eobComparison.discrepancies': '發現差異',
     'nextSteps.actionPlan': '行動計劃',
+    'nextSteps.contactTemplates': '聯絡模板',
     'nextSteps.billingTemplates': '帳單部門模板',
     'nextSteps.insuranceTemplates': '保險模板',
     'nextSteps.whenToSeekHelp': '何時尋求專業幫助',
@@ -594,6 +599,7 @@ export const translations: TranslationDictionary = {
     'billing.eobComparison.copay': 'المشاركة في الدفع',
     'billing.eobComparison.discrepancies': 'التناقضات المكتشفة',
     'nextSteps.actionPlan': 'خطة العمل',
+    'nextSteps.contactTemplates': 'نماذج الاتصال',
     'nextSteps.billingTemplates': 'نماذج قسم الفواتير',
     'nextSteps.insuranceTemplates': 'نماذج التأمين',
     'nextSteps.whenToSeekHelp': 'متى تطلب المساعدة المهنية',

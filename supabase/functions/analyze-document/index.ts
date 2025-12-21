@@ -171,12 +171,6 @@ For CPT 43239 (Upper GI endoscopy with biopsy):
 2. "You have at least 12 months before most medical debt can be reported to credit bureaus."
 3. "Paid medical debt must be removed from credit reports within 45 days."
 
-### financialOpportunities - Include 2-4 options:
-- Payment Plans (effortLevel: quick_call)
-- Financial Assistance Application (effortLevel: detailed_application)
-- Prompt Pay Discount (effortLevel: quick_call)
-- Itemized Bill Review (effortLevel: short_form)
-
 ## SECTION 4: NEXT STEPS
 ### actionSteps - ALWAYS generate 3-5 specific action items with ACTUAL details from the bill:
 Generate actionSteps as an array of objects with this EXACT structure:
@@ -215,9 +209,27 @@ Generate actionSteps as an array of objects with this EXACT structure:
 
 CRITICAL: actionSteps MUST NOT be empty. Always generate at least 3 actionable steps with specific details from the bill.
 
-### billingTemplates - ALWAYS include exactly 2 templates with ACTUAL details from the bill
+### billingTemplates - ALWAYS include exactly ONE consolidated template:
+Generate a SINGLE professional billing department template that consolidates ALL issues, discrepancies, and questions to raise. Structure it as:
+{
+  "target": "billing",
+  "purpose": "Consolidated Billing Department Inquiry",
+  "template": "Hello, I am calling about my bill for services on [DATE OF SERVICE] with account number [ACCOUNT NUMBER].\\n\\nI have reviewed my statement and have the following items I would like to discuss:\\n\\n[LIST ALL ISSUES NUMBERED: 1. Issue description 2. Issue description etc.]\\n\\nFor each of these items, I would appreciate:\\n- An explanation of why this charge appears\\n- Confirmation that it was billed correctly\\n- Any adjustments that may apply\\n\\nI would also like to request:\\n- An itemized bill if not already received\\n- Information about payment plans or financial assistance programs\\n- A breakdown of any payments already applied\\n\\nCan you please help me understand these charges and confirm the correct amount I owe? Thank you for your assistance.",
+  "templateEnglish": "[Same as template if already in English, or English version if different language selected]",
+  "whenToUse": "Use this template when calling the billing department to address all issues found in your bill at once.",
+  "contactInfo": { "name": "[Provider billing department]", "phone": "[If found on bill]" }
+}
 
-### insuranceTemplates - ALWAYS include exactly 2 templates with ACTUAL details
+### insuranceTemplates - ALWAYS include exactly ONE consolidated template:
+Generate a SINGLE professional insurance company template that consolidates ALL issues, questions about coverage, and EOB discrepancies. Structure it as:
+{
+  "target": "insurance",
+  "purpose": "Consolidated Insurance Inquiry",
+  "template": "Hello, I am calling about a claim for services on [DATE OF SERVICE] from [PROVIDER NAME].\\n\\nI have reviewed my bill and Explanation of Benefits and have the following concerns:\\n\\n[LIST ALL INSURANCE-RELATED ISSUES NUMBERED: 1. Issue description 2. Issue description etc.]\\n\\nI would like to understand:\\n- How each service was processed under my plan\\n- Whether all claims were submitted correctly\\n- If any denials can be appealed\\n- The correct patient responsibility amount according to your records\\n\\nCan you please review my claim and help me understand the coverage decisions? Thank you for your assistance.",
+  "templateEnglish": "[Same as template if already in English, or English version if different language selected]",
+  "whenToUse": "Use this template when calling your insurance company to address coverage questions and verify amounts.",
+  "contactInfo": { "name": "[Insurance company name]", "phone": "[Member services number if found on EOB]" }
+}
 
 ### whenToSeekHelp - ALWAYS include these 4 items:
 1. "If billing errors persist after 2-3 attempts to resolve, contact your state's insurance commissioner."

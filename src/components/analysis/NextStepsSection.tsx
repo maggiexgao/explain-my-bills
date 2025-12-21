@@ -167,32 +167,18 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
 
       <SubcategoryCard
         icon={<Phone className="h-5 w-5 text-purple" />}
-        title={`${t('nextSteps.billingTemplates')} / ${t('nextSteps.insuranceTemplates')}`}
-        teaser="Copy-and-paste templates for calls"
-        badge={`${billingTemplates.length + insuranceTemplates.length} templates`}
+        title={t('nextSteps.contactTemplates')}
+        teaser="Ready-to-use scripts for billing and insurance calls"
+        badge="2 templates"
         defaultOpen={false}
       >
-        <div className="space-y-5">
+        <div className="space-y-4">
           {billingTemplates.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <Building className="h-3 w-3" /> {t('nextSteps.billingTemplates')}
-              </p>
-              {billingTemplates.map((template, idx) => (
-                <TemplateCard key={idx} template={template} />
-              ))}
-            </div>
+            <TemplateCard template={billingTemplates[0]} />
           )}
 
           {insuranceTemplates.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <Shield className="h-3 w-3" /> {t('nextSteps.insuranceTemplates')}
-              </p>
-              {insuranceTemplates.map((template, idx) => (
-                <TemplateCard key={idx} template={template} />
-              ))}
-            </div>
+            <TemplateCard template={insuranceTemplates[0]} />
           )}
           
           {billingTemplates.length === 0 && insuranceTemplates.length === 0 && (

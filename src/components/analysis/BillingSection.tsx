@@ -14,7 +14,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AnalysisResult, BillingIssue, FinancialOpportunity } from '@/types';
+import { AnalysisResult, BillingIssue } from '@/types';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { SubcategoryCard } from './SubcategoryCard';
@@ -72,30 +72,6 @@ function IssueCard({ issue }: { issue: BillingIssue }) {
   );
 }
 
-function FinancialOpportunityCard({ opportunity }: { opportunity: FinancialOpportunity }) {
-  return (
-    <div className="p-4 rounded-xl bg-success/5 border border-success/20">
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <h5 className="text-sm font-medium text-foreground">{opportunity.title}</h5>
-        <Badge variant="outline" className="shrink-0 text-xs capitalize">
-          {opportunity.effortLevel.replace('_', ' ')}
-        </Badge>
-      </div>
-      <p className="text-sm text-muted-foreground mb-2">{opportunity.description}</p>
-      <p className="text-xs text-muted-foreground italic">{opportunity.eligibilityHint}</p>
-      {opportunity.link && (
-        <a
-          href={opportunity.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
-        >
-          Apply now <ExternalLink className="h-3 w-3" />
-        </a>
-      )}
-    </div>
-  );
-}
 
 function BillingEducationPreview({ analysis, hasEOB }: { analysis: AnalysisResult; hasEOB: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -288,15 +264,6 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
               </a>
             )}
           </div>
-          
-          {analysis.financialOpportunities.length > 0 && (
-            <div className="space-y-3">
-              <h5 className="text-sm font-medium text-foreground">{t('billing.financialOpportunities')}</h5>
-              {analysis.financialOpportunities.map((opp, idx) => (
-                <FinancialOpportunityCard key={idx} opportunity={opp} />
-              ))}
-            </div>
-          )}
         </div>
       </SubcategoryCard>
 
