@@ -272,9 +272,12 @@ const Index = () => {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col relative">
+      {/* Aurora Background */}
+      <div className="aurora-bg" />
+      
       <Header />
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         {state.currentStep === 'upload' ? (
           <UploadPage
             uploadedFile={state.uploadedFile}

@@ -29,7 +29,6 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
       const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
       const fileType = isPdf ? 'pdf' : 'image';
       
-      // Convert HEIC files to JPEG for preview
       const conversionResult = await convertFile(file);
       
       const uploadedFileObj: UploadedFile = {
@@ -57,9 +56,11 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
 
   if (isConverting) {
     return (
-      <div className="p-4 rounded-xl border-2 border-primary/30 bg-primary-light/20">
+      <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <Loader2 className="h-5 w-5 text-primary animate-spin" />
+          <div className="liquid-loader rounded-full p-2">
+            <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+          </div>
           <p className="text-sm text-foreground">Converting HEIC image...</p>
         </div>
       </div>
@@ -68,7 +69,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
 
   if (uploadedFile) {
     return (
-      <div className="p-4 rounded-xl border-2 border-success/30 bg-success/5">
+      <div className="p-4 rounded-xl border border-success/30 bg-success/5 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/20">
             <FileCheck className="h-5 w-5 text-success" />
@@ -96,7 +97,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
   }
 
   return (
-    <div className="p-4 rounded-xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-primary/30 hover:bg-muted/30 transition-all">
+    <div className="p-4 rounded-xl border border-dashed border-border/50 bg-background/30 backdrop-blur-sm hover:border-primary/30 hover:bg-background/50 transition-all">
       <label className="cursor-pointer">
         <input
           type="file"
@@ -105,7 +106,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
           onChange={handleFileChange}
         />
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50">
             <Shield className="h-5 w-5 text-muted-foreground" />
           </div>
           <div className="flex-1">
@@ -116,7 +117,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
               For a more accurate breakdown of what insurance paid
             </p>
           </div>
-          <Button variant="outline" size="sm" className="shrink-0" asChild>
+          <Button variant="outline" size="sm" className="shrink-0 border-border/50 bg-background/50 hover:bg-background/80" asChild>
             <span>
               <Upload className="h-4 w-4 mr-1" />
               Upload

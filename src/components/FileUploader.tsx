@@ -31,7 +31,6 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
   const { convertFile, isConverting, isHeicFile } = useHeicConverter();
 
   const validateFile = (file: File): string | null => {
-    // Check file extension for HEIC files (browser may not recognize MIME type)
     const fileName = file.name.toLowerCase();
     const isHeic = fileName.endsWith('.heic') || fileName.endsWith('.heif');
     const isAcceptedByType = ACCEPTED_TYPES.includes(file.type);
@@ -58,13 +57,12 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
     const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
     const fileType = isPdf ? 'pdf' : 'image';
     
-    // Convert HEIC files to JPEG for preview
     const conversionResult = await convertFile(file);
     
     onFileSelect({
       id: crypto.randomUUID(),
       file,
-      preview: conversionResult.originalUrl, // Legacy field, keep for backward compatibility
+      preview: conversionResult.originalUrl,
       previewUrl: conversionResult.previewUrl,
       originalUrl: conversionResult.originalUrl,
       type: fileType,
@@ -103,9 +101,11 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
   if (isConverting) {
     return (
       <div className="animate-scale-in">
-        <div className="relative rounded-xl border-2 border-primary/30 bg-primary-light/30 p-6">
+        <div className="relative rounded-2xl border-2 border-primary/40 bg-primary/10 backdrop-blur-sm p-8">
           <div className="flex items-center justify-center gap-4">
-            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <div className="liquid-loader rounded-full p-3">
+              <Loader2 className="h-8 w-8 text-primary-foreground animate-spin" />
+            </div>
             <div>
               <p className="font-medium text-foreground">Converting HEIC image...</p>
               <p className="text-sm text-muted-foreground">This may take a moment</p>
@@ -119,7 +119,7 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
   if (uploadedFile) {
     return (
       <div className="animate-scale-in">
-        <div className="relative rounded-xl border-2 border-primary/30 bg-primary-light/30 p-6">
+        <div className="relative rounded-2xl border border-primary/30 bg-primary/5 backdrop-blur-sm p-6">
           <Button
             variant="ghost"
             size="icon"
@@ -130,11 +130,11 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
           </Button>
           
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl accent-gradient shadow-glow">
               {uploadedFile.type === 'pdf' ? (
-                <FileText className="h-7 w-7 text-primary" />
+                <FileText className="h-7 w-7 text-primary-foreground" />
               ) : (
-                <Image className="h-7 w-7 text-primary" />
+                <Image className="h-7 w-7 text-primary-foreground" />
               )}
             </div>
             <div className="flex-1 min-w-0">
@@ -162,11 +162,10 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={cn(
-          "relative rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer",
-          "hover:border-primary/50 hover:bg-primary-light/20",
+          "relative rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer",
           isDragging
-            ? "border-primary bg-primary-light/30 scale-[1.02]"
-            : "border-border bg-card",
+            ? "border-primary bg-primary/10 shadow-glow-active scale-[1.02]"
+            : "border-border/60 hover:border-primary/50 hover:bg-primary/5",
           error && "border-destructive/50"
         )}
       >
@@ -179,22 +178,24 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
         
         <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
           <div className={cn(
-            "flex h-16 w-16 items-center justify-center rounded-2xl mb-4 transition-colors",
-            isDragging ? "bg-primary/20" : "bg-muted"
+            "flex h-16 w-16 items-center justify-center rounded-2xl mb-4 transition-all duration-300",
+            isDragging 
+              ? "accent-gradient shadow-glow scale-110" 
+              : "bg-muted/50"
           )}>
             <Upload className={cn(
-              "h-8 w-8 transition-colors",
-              isDragging ? "text-primary" : "text-muted-foreground"
+              "h-8 w-8 transition-all duration-300",
+              isDragging ? "text-primary-foreground" : "text-muted-foreground"
             )} />
           </div>
           
-          <h3 className="text-lg font-medium text-foreground mb-1">
-            {isDragging ? 'Drop your file here' : 'Upload your document'}
+          <h3 className="text-lg font-semibold text-foreground mb-1">
+            {isDragging ? 'Drop your file here' : 'Upload your medical bill'}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
             Drag and drop or click to browse
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground/80">
             PDF or images (JPG, PNG, HEIC, GIF, WEBP, TIFF, BMP) • Maximum 20MB
           </p>
         </div>
