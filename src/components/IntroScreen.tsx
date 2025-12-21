@@ -55,14 +55,14 @@ const IntroScreen = ({ onComplete }: IntroScreenProps) => {
       }`}
     >
       <div className="text-center px-6 max-w-2xl">
-        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 drop-shadow-lg min-h-[1.2em]">
+        <h1 className="font-mono text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 drop-shadow-lg min-h-[1.2em]">
           {displayedText1}
           {displayedText1.length < line1.length && (
             <span className="animate-pulse">|</span>
           )}
         </h1>
         
-        <p className="text-xl md:text-2xl lg:text-3xl text-white/90 font-light drop-shadow-md min-h-[1.5em]">
+        <p className="font-mono text-xl md:text-2xl lg:text-3xl text-white/90 font-light drop-shadow-md min-h-[1.5em]">
           {displayedText2}
           {showSecondLine && displayedText2.length < line2.length && (
             <span className="animate-pulse">|</span>

@@ -16,6 +16,7 @@ export default {
       fontFamily: {
         sans: ['Lato', 'system-ui', 'sans-serif'],
         display: ['Lato', 'system-ui', 'sans-serif'],
+        mono: ['Courier New', 'Courier', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
