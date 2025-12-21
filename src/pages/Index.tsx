@@ -284,48 +284,50 @@ const Index = () => {
     setShowIntro(false);
   }, []);
 
-  if (showIntro) {
-    return <IntroScreen onComplete={handleIntroComplete} language={state.selectedLanguage} />;
-  }
-
+  // Wrap everything in LanguageProvider to avoid context errors
   return (
     <LanguageProvider language={state.selectedLanguage} setLanguage={handleLanguageChange}>
-      <div className="min-h-screen flex flex-col relative">
-        {/* Aurora Background */}
-        <div className="aurora-bg" />
-        
-        <Header />
-        <main className="flex-1 relative z-10">
-          {state.currentStep === 'upload' ? (
-            <UploadPage
-              uploadedFile={state.uploadedFile}
-              eobFile={state.eobFile}
-              selectedState={state.selectedState}
-              selectedLanguage={state.selectedLanguage}
-              onFileSelect={handleFileSelect}
-              onRemoveFile={handleRemoveFile}
-              onEOBSelect={handleEOBSelect}
-              onRemoveEOB={handleRemoveEOB}
-              onStateChange={handleStateChange}
-              onLanguageChange={handleLanguageChange}
-              onAnalyze={handleAnalyze}
-            />
-          ) : (
-            state.uploadedFile && (
-              <AnalysisPage
-                file={state.uploadedFile}
-                analysis={state.analysisResult}
-                isAnalyzing={state.isAnalyzing}
-                onBack={handleBack}
-                hasEOB={!!state.eobFile}
+      {showIntro ? (
+        <IntroScreen onComplete={handleIntroComplete} language={state.selectedLanguage} />
+      ) : (
+        <div className="min-h-screen flex flex-col relative">
+          {/* Aurora Background */}
+          <div className="aurora-bg" />
+          
+          <Header />
+          <main className="flex-1 relative z-10">
+            {state.currentStep === 'upload' ? (
+              <UploadPage
+                uploadedFile={state.uploadedFile}
+                eobFile={state.eobFile}
+                selectedState={state.selectedState}
+                selectedLanguage={state.selectedLanguage}
+                onFileSelect={handleFileSelect}
+                onRemoveFile={handleRemoveFile}
+                onEOBSelect={handleEOBSelect}
+                onRemoveEOB={handleRemoveEOB}
+                onStateChange={handleStateChange}
+                onLanguageChange={handleLanguageChange}
+                onAnalyze={handleAnalyze}
               />
-            )
-          )}
-        </main>
-        <Footer />
-      </div>
+            ) : (
+              state.uploadedFile && (
+                <AnalysisPage
+                  file={state.uploadedFile}
+                  analysis={state.analysisResult}
+                  isAnalyzing={state.isAnalyzing}
+                  onBack={handleBack}
+                  hasEOB={!!state.eobFile}
+                />
+              )
+            )}
+          </main>
+          <Footer />
+        </div>
+      )}
     </LanguageProvider>
   );
+
 };
 
 export default Index;
