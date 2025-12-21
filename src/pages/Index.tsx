@@ -273,21 +273,20 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header
-        selectedLanguage={state.selectedLanguage}
-        onLanguageChange={handleLanguageChange}
-      />
+      <Header />
       <main className="flex-1">
         {state.currentStep === 'upload' ? (
           <UploadPage
             uploadedFile={state.uploadedFile}
             eobFile={state.eobFile}
             selectedState={state.selectedState}
+            selectedLanguage={state.selectedLanguage}
             onFileSelect={handleFileSelect}
             onRemoveFile={handleRemoveFile}
             onEOBSelect={handleEOBSelect}
             onRemoveEOB={handleRemoveEOB}
             onStateChange={handleStateChange}
+            onLanguageChange={handleLanguageChange}
             onAnalyze={handleAnalyze}
           />
         ) : (
