@@ -90,16 +90,28 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        glass: {
+          bg: "var(--glass-bg)",
+          border: "var(--glass-border)",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "calc(var(--radius) + 4px)",
+        "2xl": "calc(var(--radius) + 8px)",
+        "3xl": "calc(var(--radius) + 12px)",
       },
       boxShadow: {
         'soft': 'var(--shadow-soft)',
         'card': 'var(--shadow-card)',
         'elevated': 'var(--shadow-elevated)',
+        'glow': 'var(--shadow-glow)',
+        'glow-active': 'var(--shadow-glow-active)',
+      },
+      backdropBlur: {
+        'glass': 'var(--glass-blur)',
       },
       keyframes: {
         "accordion-down": {
@@ -110,10 +122,24 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-8px)" },
+        },
+        "glow-pulse": {
+          "0%, 100%": { 
+            boxShadow: "0 0 20px hsl(340 72% 58% / 0.2), 0 0 40px hsl(15 80% 60% / 0.1)"
+          },
+          "50%": { 
+            boxShadow: "0 0 30px hsl(340 72% 58% / 0.35), 0 0 60px hsl(15 80% 60% / 0.2)"
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "float": "float 6s ease-in-out infinite",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
       },
     },
   },
