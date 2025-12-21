@@ -14,6 +14,7 @@ import { AnalysisResult, ContactTemplate, ActionStep } from '@/types';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { SubcategoryCard } from './SubcategoryCard';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface NextStepsSectionProps {
   analysis: AnalysisResult;
@@ -21,11 +22,12 @@ interface NextStepsSectionProps {
 
 function TemplateCard({ template }: { template: ContactTemplate }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
 
   const copyTemplate = () => {
     navigator.clipboard.writeText(template.template);
     setCopied(true);
-    toast.success('Template copied to clipboard');
+    toast.success(t('nextSteps.copied'));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -38,7 +40,7 @@ function TemplateCard({ template }: { template: ContactTemplate }) {
           {template.target === 'billing' ? 'Billing' : 'Insurance'}
         </Badge>
       </div>
-      <p className="text-xs text-muted-foreground mb-3">{template.whenToUse}</p>
+      <p className="text-xs text-muted-foreground mb-3">{t('nextSteps.whenToUse')}: {template.whenToUse}</p>
       <div className="p-3 rounded-lg bg-background border border-border/30 mb-3">
         <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
           "{template.template}"
@@ -51,7 +53,7 @@ function TemplateCard({ template }: { template: ContactTemplate }) {
         className="text-xs h-7"
       >
         <Copy className="h-3 w-3 mr-1" />
-        {copied ? 'Copied!' : 'Copy to clipboard'}
+        {copied ? t('nextSteps.copied') : t('nextSteps.copyTemplate')}
       </Button>
     </div>
   );
@@ -77,6 +79,7 @@ function ActionStepCard({ step }: { step: ActionStep }) {
 }
 
 export function NextStepsSection({ analysis }: NextStepsSectionProps) {
+  const { t } = useTranslation();
   const actionSteps = analysis.actionSteps || [];
   const billingTemplates = analysis.billingTemplates || [];
   const insuranceTemplates = analysis.insuranceTemplates || [];
@@ -84,10 +87,9 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
 
   return (
     <div className="space-y-3">
-      {/* A. Action Plan */}
       <SubcategoryCard
         icon={<CheckSquare className="h-5 w-5 text-mint" />}
-        title="Action Plan"
+        title={t('nextSteps.actionPlan')}
         teaser={actionSteps.length > 0 ? `${actionSteps.length} recommended steps` : 'Review and take action'}
         badge={actionSteps.length > 0 ? `${actionSteps.length} steps` : undefined}
         badgeVariant="success"
@@ -101,18 +103,17 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
           ) : (
             <div className="p-4 rounded-xl bg-muted/20 border border-border/30">
               <p className="text-sm text-muted-foreground">
-                Review the billing section for financial assistance options and use the templates below to contact your provider or insurer.
+                Review the billing section for financial assistance options.
               </p>
             </div>
           )}
         </div>
       </SubcategoryCard>
 
-      {/* B. What to Say When You Call */}
       <SubcategoryCard
         icon={<Phone className="h-5 w-5 text-purple" />}
-        title="What to Say When You Call"
-        teaser="Copy-and-paste templates for billing and insurance"
+        title={`${t('nextSteps.billingTemplates')} / ${t('nextSteps.insuranceTemplates')}`}
+        teaser="Copy-and-paste templates for calls"
         badge={`${billingTemplates.length + insuranceTemplates.length} templates`}
         defaultOpen={false}
       >
@@ -120,7 +121,7 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
           {billingTemplates.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <Building className="h-3 w-3" /> To the Billing Department
+                <Building className="h-3 w-3" /> {t('nextSteps.billingTemplates')}
               </p>
               {billingTemplates.map((template, idx) => (
                 <TemplateCard key={idx} template={template} />
@@ -131,7 +132,7 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
           {insuranceTemplates.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <Shield className="h-3 w-3" /> To Your Insurance Company
+                <Shield className="h-3 w-3" /> {t('nextSteps.insuranceTemplates')}
               </p>
               {insuranceTemplates.map((template, idx) => (
                 <TemplateCard key={idx} template={template} />
@@ -142,24 +143,20 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
           {billingTemplates.length === 0 && insuranceTemplates.length === 0 && (
             <div className="p-4 rounded-xl bg-muted/20 border border-border/30">
               <p className="text-sm text-muted-foreground">
-                No specific call templates were generated for this bill. Check the action plan for next steps.
+                No specific call templates were generated for this bill.
               </p>
             </div>
           )}
         </div>
       </SubcategoryCard>
 
-      {/* C. When to Seek Extra Help */}
       <SubcategoryCard
         icon={<LifeBuoy className="h-5 w-5 text-coral" />}
-        title="When to Seek Extra Help"
+        title={t('nextSteps.whenToSeekHelp')}
         teaser="Resources for additional support"
         defaultOpen={false}
       >
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground mb-3">
-            Consider reaching out to these resources if you need more support:
-          </p>
           {whenToSeekHelp.length > 0 ? (
             whenToSeekHelp.map((item, idx) => (
               <div key={idx} className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
@@ -172,19 +169,13 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
               <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
                 <ArrowRight className="h-4 w-4 text-coral shrink-0 mt-0.5" />
                 <p className="text-sm text-muted-foreground">
-                  If you receive a collection notice or are being sued for medical debt, consult with a consumer law attorney or legal aid organization.
+                  If you receive a collection notice, consult with a consumer law attorney.
                 </p>
               </div>
               <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
                 <ArrowRight className="h-4 w-4 text-coral shrink-0 mt-0.5" />
                 <p className="text-sm text-muted-foreground">
-                  If you believe your insurance wrongly denied a claim, contact your state's insurance commissioner.
-                </p>
-              </div>
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
-                <ArrowRight className="h-4 w-4 text-coral shrink-0 mt-0.5" />
-                <p className="text-sm text-muted-foreground">
-                  Many hospitals have patient advocates who can help navigate billing issues and financial assistance applications.
+                  Many hospitals have patient advocates who can help navigate billing issues.
                 </p>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { AnalysisResult, CPTCode } from '@/types';
 import { useState } from 'react';
 import { SubcategoryCard } from './SubcategoryCard';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface ExplainerSectionProps {
   analysis: AnalysisResult;
@@ -29,6 +30,7 @@ const categoryColors: Record<string, string> = {
 
 function CPTCodeCard({ code }: { code: CPTCode }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <div className="p-4 rounded-lg border border-border/30 bg-muted/10 space-y-3">
@@ -51,7 +53,7 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
         className="flex items-center gap-1 text-xs text-primary hover:underline"
       >
         <Info className="h-3 w-3" />
-        {expanded ? 'Hide details' : 'Learn more about this code'}
+        {expanded ? t('common.collapse') : t('common.learnMore')}
         <ChevronRight className={cn('h-3 w-3 transition-transform', expanded && 'rotate-90')} />
       </button>
 
@@ -72,6 +74,7 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
 }
 
 export function ExplainerSection({ analysis }: ExplainerSectionProps) {
+  const { t } = useTranslation();
   const groupedCodes = analysis.cptCodes.reduce((acc, code) => {
     const cat = code.category || 'other';
     if (!acc[cat]) acc[cat] = [];
@@ -81,7 +84,6 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
 
   const categoryOrder = ['evaluation', 'lab', 'radiology', 'surgery', 'medicine', 'other'];
   
-  // Generate teaser text
   const cptTeaser = analysis.cptCodes.length > 0 
     ? `${analysis.cptCodes[0].shortLabel}${analysis.cptCodes.length > 1 ? ` and ${analysis.cptCodes.length - 1} more` : ''}`
     : 'No codes found';
@@ -92,10 +94,9 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
 
   return (
     <div className="space-y-3">
-      {/* A. CPT Codes in Plain English */}
       <SubcategoryCard
         icon={<Code className="h-5 w-5 text-primary" />}
-        title="CPT Codes in Plain English"
+        title={t('explainer.cptCodes')}
         teaser={cptTeaser}
         badge={`${analysis.cptCodes.length} codes`}
         defaultOpen={false}
@@ -120,18 +121,14 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
         </div>
       </SubcategoryCard>
 
-      {/* B. What This Visit Likely Looked Like */}
       <SubcategoryCard
         icon={<Footprints className="h-5 w-5 text-primary" />}
-        title="What This Visit Likely Looked Like"
+        title={t('explainer.visitWalkthrough')}
         teaser={visitTeaser}
-        badge={`${analysis.visitWalkthrough.length} steps`}
+        badge={`${analysis.visitWalkthrough.length} ${t('explainer.step').toLowerCase()}s`}
         defaultOpen={false}
       >
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground italic">
-            Based on the codes on your bill, here's what likely happened:
-          </p>
           <ol className="space-y-2">
             {analysis.visitWalkthrough.map((step) => (
               <li key={step.order} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border border-border/30">
@@ -156,10 +153,9 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
         </div>
       </SubcategoryCard>
 
-      {/* C. Common Questions About Your Codes */}
       <SubcategoryCard
         icon={<HelpCircle className="h-5 w-5 text-primary" />}
-        title="Common Questions About Your Codes"
+        title={t('explainer.commonQuestions')}
         teaser="People often ask about these things"
         badge={`${analysis.codeQuestions.length} Q&As`}
         badgeVariant="info"
@@ -176,9 +172,9 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-2">{q.answer}</p>
               <p className="text-xs text-muted-foreground">
-                {q.suggestCall === 'billing' && '→ Call the billing department to clarify.'}
-                {q.suggestCall === 'insurance' && '→ Call your insurance company to clarify.'}
-                {q.suggestCall === 'either' && '→ Either billing or insurance can help with this.'}
+                {q.suggestCall === 'billing' && `→ ${t('explainer.callWho.billing')}`}
+                {q.suggestCall === 'insurance' && `→ ${t('explainer.callWho.insurance')}`}
+                {q.suggestCall === 'either' && `→ ${t('explainer.callWho.either')}`}
               </p>
             </div>
           ))}

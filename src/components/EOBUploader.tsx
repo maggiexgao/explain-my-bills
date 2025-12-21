@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { UploadedFile } from '@/types';
 import { useHeicConverter } from '@/hooks/useHeicConverter';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface EOBUploaderProps {
   uploadedFile: UploadedFile | null;
@@ -22,6 +23,7 @@ const ACCEPTED_TYPES = [
 
 export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUploaderProps) {
   const { convertFile, isConverting } = useHeicConverter();
+  const { t } = useTranslation();
 
   const processFile = useCallback(
     async (file: File) => {
@@ -48,9 +50,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      processFile(file);
-    }
+    if (file) processFile(file);
     e.target.value = '';
   };
 
@@ -61,7 +61,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
           <div className="liquid-loader rounded-full p-2">
             <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
           </div>
-          <p className="text-sm text-foreground">Converting HEIC image...</p>
+          <p className="text-sm text-foreground">{t('heic.converting')}</p>
         </div>
       </div>
     );
@@ -79,8 +79,8 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
               {uploadedFile.file.name}
             </p>
             <p className="text-xs text-success">
-              EOB uploaded - analysis will be enhanced
-              {uploadedFile.isConverted && ' • Converted for preview'}
+              EOB uploaded
+              {uploadedFile.isConverted && ' • Converted'}
             </p>
           </div>
           <Button
@@ -111,10 +111,10 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-foreground">
-              Upload Insurance EOB <span className="text-muted-foreground font-normal">(optional)</span>
+              {t('upload.eob.title')} <span className="text-muted-foreground font-normal">({t('upload.eob.optional')})</span>
             </p>
             <p className="text-xs text-muted-foreground">
-              For a more accurate breakdown of what insurance paid
+              {t('upload.eob.subtitle')}
             </p>
           </div>
           <Button variant="outline" size="sm" className="shrink-0 border-border/50 bg-background/50 hover:bg-background/80" asChild>

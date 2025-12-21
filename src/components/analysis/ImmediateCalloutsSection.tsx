@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { AnalysisResult, BillingIssue } from '@/types';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface ImmediateCalloutsSectionProps {
   analysis: AnalysisResult;
@@ -16,32 +17,30 @@ const severityConfig = {
     border: 'border-destructive/30',
     icon: 'text-destructive',
     badge: 'bg-destructive/10 text-destructive',
-    label: 'Potential Error',
   },
   warning: {
     bg: 'bg-warning/5',
     border: 'border-warning/30',
     icon: 'text-warning',
     badge: 'bg-warning/10 text-warning-foreground',
-    label: 'May Need Attention',
   },
   info: {
     bg: 'bg-info/5',
     border: 'border-info/30',
     icon: 'text-info',
     badge: 'bg-info/10 text-info',
-    label: 'For Your Information',
   },
 };
 
 function CalloutCard({ issue }: { issue: BillingIssue }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
   const config = severityConfig[issue.severity] || severityConfig.info;
 
   const copyQuestion = () => {
     navigator.clipboard.writeText(issue.suggestedQuestion);
     setCopied(true);
-    toast.success('Question copied to clipboard');
+    toast.success(t('nextSteps.copied'));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -57,12 +56,11 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
           <div className="flex items-start justify-between gap-2">
             <h4 className="text-sm font-medium text-foreground">{issue.title}</h4>
             <Badge className={cn('shrink-0 text-xs', config.badge)}>
-              {config.label}
+              {issue.severity === 'error' ? t('callouts.potentialErrors') : t('callouts.needsAttention')}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">{issue.description}</p>
           
-          {/* Related codes and amounts */}
           {(issue.relatedCodes?.length || issue.relatedAmounts) && (
             <div className="flex flex-wrap gap-2 pt-1">
               {issue.relatedCodes?.map((code) => (
@@ -72,20 +70,14 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
               ))}
               {issue.relatedAmounts?.billed && (
                 <span className="text-xs text-muted-foreground">
-                  Billed: ${issue.relatedAmounts.billed.toLocaleString()}
-                </span>
-              )}
-              {issue.relatedAmounts?.eob && (
-                <span className="text-xs text-muted-foreground">
-                  EOB: ${issue.relatedAmounts.eob.toLocaleString()}
+                  {t('billing.eobComparison.billed')}: ${issue.relatedAmounts.billed.toLocaleString()}
                 </span>
               )}
             </div>
           )}
 
-          {/* Suggested question */}
           <div className="pt-2">
-            <p className="text-xs text-muted-foreground mb-2 italic">Ask:</p>
+            <p className="text-xs text-muted-foreground mb-2 italic">{t('callouts.suggestedQuestion')}:</p>
             <div className="p-2 rounded-md bg-background/80 border border-border/30">
               <p className="text-sm text-foreground">"{issue.suggestedQuestion}"</p>
             </div>
@@ -96,7 +88,7 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
               className="mt-2 text-xs h-7"
             >
               <Copy className="h-3 w-3 mr-1" />
-              {copied ? 'Copied!' : 'Copy question'}
+              {copied ? t('nextSteps.copied') : t('nextSteps.copyTemplate')}
             </Button>
           </div>
         </div>
@@ -106,6 +98,7 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
 }
 
 export function ImmediateCalloutsSection({ analysis }: ImmediateCalloutsSectionProps) {
+  const { t } = useTranslation();
   const potentialErrors = analysis.potentialErrors || [];
   const needsAttention = analysis.needsAttention || [];
   const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
@@ -118,7 +111,7 @@ export function ImmediateCalloutsSection({ analysis }: ImmediateCalloutsSectionP
         </div>
         <h4 className="text-sm font-medium text-foreground mb-1">No immediate issues detected</h4>
         <p className="text-sm text-muted-foreground">
-          We didn't find obvious errors or discrepancies in your bill. Review the other sections for a complete understanding.
+          Review the other sections for a complete understanding.
         </p>
       </div>
     );
@@ -126,19 +119,15 @@ export function ImmediateCalloutsSection({ analysis }: ImmediateCalloutsSectionP
 
   return (
     <div className="space-y-6">
-      {/* Potential Errors */}
       {potentialErrors.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-destructive" />
-            <h4 className="text-sm font-medium text-foreground">Potential Errors</h4>
+            <h4 className="text-sm font-medium text-foreground">{t('callouts.potentialErrors')}</h4>
             <Badge className="bg-destructive/10 text-destructive text-xs">
               {potentialErrors.length}
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
-            These items appear to have issues that may need correction:
-          </p>
           <div className="space-y-3">
             {potentialErrors.map((issue, idx) => (
               <CalloutCard key={idx} issue={issue} />
@@ -147,19 +136,15 @@ export function ImmediateCalloutsSection({ analysis }: ImmediateCalloutsSectionP
         </div>
       )}
 
-      {/* May Need Attention */}
       {needsAttention.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-warning" />
-            <h4 className="text-sm font-medium text-foreground">May Need Attention</h4>
+            <h4 className="text-sm font-medium text-foreground">{t('callouts.needsAttention')}</h4>
             <Badge className="bg-warning/10 text-warning-foreground text-xs">
               {needsAttention.length}
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
-            These aren't necessarily errors but may warrant clarification:
-          </p>
           <div className="space-y-3">
             {needsAttention.map((issue, idx) => (
               <CalloutCard key={idx} issue={issue} />
