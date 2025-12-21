@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { DocumentViewer } from '@/components/DocumentViewer';
 import { ExplanationPanel } from '@/components/ExplanationPanel';
 import { UploadedFile, AnalysisResult } from '@/types';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface AnalysisPageProps {
   file: UploadedFile;
@@ -15,6 +16,7 @@ interface AnalysisPageProps {
 
 export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = false }: AnalysisPageProps) {
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   if (isAnalyzing) {
     return (
@@ -29,13 +31,12 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
           </div>
           <div>
             <h2 className="text-2xl font-display font-bold text-foreground mb-2">
-              Analyzing Your Document
+              {t('analysis.loading')}
             </h2>
             <p className="text-muted-foreground">
-              This usually takes 10-30 seconds...
+              {t('analysis.loadingDesc')}
             </p>
           </div>
-          {/* Animated progress bar */}
           <div className="w-64 h-2 rounded-full bg-muted/50 mx-auto overflow-hidden">
             <div className="h-full liquid-loader rounded-full animate-pulse-soft" style={{ width: '60%' }} />
           </div>
@@ -48,13 +49,13 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
     return (
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
         <div className="text-center space-y-4 glass-card-strong p-8 rounded-2xl">
-          <p className="text-muted-foreground">Something went wrong. Please try again.</p>
+          <p className="text-muted-foreground">{t('analysis.errorDesc')}</p>
           <Button 
             onClick={onBack}
             className="accent-gradient text-primary-foreground shadow-glow hover:shadow-glow-active"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Go Back
+            {t('analysis.back')}
           </Button>
         </div>
       </div>
@@ -63,7 +64,6 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
-      {/* Top Bar */}
       <div className="sticky top-16 z-40 glass-card border-t-0 border-x-0">
         <div className="container flex items-center h-12 px-4 md:px-6">
           <Button 
@@ -73,22 +73,18 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
             className="gap-2 text-foreground/80 hover:text-foreground hover:bg-background/50"
           >
             <ArrowLeft className="h-4 w-4" />
-            Upload New Document
+            {t('analysis.newDocument')}
           </Button>
         </div>
       </div>
 
-      {/* Split View */}
       <div className="container px-4 py-4 md:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-12rem)]">
-          {/* Left Panel - Document Viewer */}
           <div className="h-full min-h-[400px] animate-fade-in">
             <div className="h-full glass-card-strong rounded-2xl overflow-hidden">
               <DocumentViewer file={file} activeHighlight={activeHighlight} />
             </div>
           </div>
-
-          {/* Right Panel - Explanation */}
           <div className="h-full min-h-[400px] glass-card-strong rounded-2xl overflow-hidden animate-slide-up">
             <ExplanationPanel 
               analysis={analysis} 

@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['EB Garamond', 'Georgia', 'serif'],
-        display: ['EB Garamond', 'Georgia', 'serif'],
+        sans: ['Lora', 'Georgia', 'serif'],
+        display: ['Lora', 'Georgia', 'serif'],
         mono: ['Courier New', 'Courier', 'monospace'],
       },
       colors: {
