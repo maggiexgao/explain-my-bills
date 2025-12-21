@@ -8,18 +8,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRight, MapPin, Lock, FileSearch, Shield, Sparkles, Upload, FileText } from 'lucide-react';
-import { UploadedFile, US_STATES } from '@/types';
+import { ArrowRight, MapPin, Lock, FileSearch, Shield, Sparkles, Upload, FileText, Globe } from 'lucide-react';
+import { UploadedFile, US_STATES, Language, LANGUAGES } from '@/types';
 
 interface UploadPageProps {
   uploadedFile: UploadedFile | null;
   eobFile: UploadedFile | null;
   selectedState: string;
+  selectedLanguage: Language;
   onFileSelect: (file: UploadedFile) => void;
   onRemoveFile: () => void;
   onEOBSelect: (file: UploadedFile) => void;
   onRemoveEOB: () => void;
   onStateChange: (state: string) => void;
+  onLanguageChange: (language: Language) => void;
   onAnalyze: () => void;
 }
 
@@ -27,11 +29,13 @@ export function UploadPage({
   uploadedFile,
   eobFile,
   selectedState,
+  selectedLanguage,
   onFileSelect,
   onRemoveFile,
   onEOBSelect,
   onRemoveEOB,
   onStateChange,
+  onLanguageChange,
   onAnalyze,
 }: UploadPageProps) {
   const canAnalyze = uploadedFile && selectedState;
@@ -83,7 +87,7 @@ export function UploadPage({
                   <SelectTrigger className="w-full h-12 bg-background">
                     <SelectValue placeholder="Select your state" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
+                  <SelectContent className="max-h-[300px] bg-popover z-50">
                     {US_STATES.map((state) => (
                       <SelectItem key={state.value} value={state.value}>
                         {state.label}
@@ -93,6 +97,34 @@ export function UploadPage({
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   We'll include state-specific protections and assistance programs
+                </p>
+              </div>
+
+              {/* Language Selector */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Globe className="h-4 w-4 text-coral" />
+                  Language
+                </label>
+                <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
+                  <SelectTrigger className="w-full h-12 bg-background">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        <span className="flex items-center gap-2">
+                          <span>{lang.nativeLabel}</span>
+                          {lang.value !== 'en' && (
+                            <span className="text-muted-foreground text-xs">({lang.label})</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  All explanations will be provided in your chosen language
                 </p>
               </div>
 
