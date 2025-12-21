@@ -6,58 +6,73 @@
 
 @layer base {
   :root {
-    /* Calming healthcare palette */
-    --background: 40 33% 98%;
-    --foreground: 210 25% 15%;
+    /* Soft whimsical palette inspired by abstract art */
+    --background: 45 30% 97%;
+    --foreground: 280 20% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 210 25% 15%;
+    --card-foreground: 280 20% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 210 25% 15%;
+    --popover-foreground: 280 20% 20%;
 
-    /* Teal primary - trustworthy, medical */
-    --primary: 175 45% 40%;
+    /* Coral/Pink primary */
+    --primary: 350 65% 65%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 175 45% 95%;
+    --primary-light: 350 50% 94%;
 
-    /* Warm secondary */
-    --secondary: 40 30% 94%;
-    --secondary-foreground: 210 25% 25%;
+    /* Lavender secondary */
+    --secondary: 270 40% 94%;
+    --secondary-foreground: 270 30% 30%;
 
-    /* Muted tones */
-    --muted: 40 20% 92%;
-    --muted-foreground: 210 15% 45%;
+    /* Muted cream tones */
+    --muted: 40 25% 92%;
+    --muted-foreground: 280 15% 45%;
 
-    /* Soft accent */
-    --accent: 175 35% 92%;
-    --accent-foreground: 175 45% 30%;
+    /* Mint/green accent */
+    --accent: 150 35% 88%;
+    --accent-foreground: 150 40% 30%;
 
     /* Status colors */
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
     
-    --success: 150 45% 45%;
+    --success: 160 50% 45%;
     --success-foreground: 0 0% 100%;
     
-    --warning: 38 92% 55%;
-    --warning-foreground: 38 92% 15%;
+    --warning: 38 85% 55%;
+    --warning-foreground: 38 85% 15%;
     
-    --info: 200 75% 50%;
+    --info: 220 70% 55%;
     --info-foreground: 0 0% 100%;
 
-    --border: 210 20% 90%;
-    --input: 210 20% 90%;
-    --ring: 175 45% 40%;
+    /* Purple tones for accents */
+    --purple: 270 50% 65%;
+    --purple-light: 270 40% 92%;
+    
+    /* Coral for highlights */
+    --coral: 15 70% 65%;
+    --coral-light: 15 60% 94%;
+
+    /* Mint for success states */
+    --mint: 160 45% 70%;
+    --mint-light: 160 35% 92%;
+
+    --border: 280 15% 88%;
+    --input: 280 15% 88%;
+    --ring: 350 65% 65%;
 
     --radius: 0.75rem;
 
-    /* Custom tokens - Superpower-inspired */
-    --gradient-calm: linear-gradient(135deg, hsl(175 45% 95%) 0%, hsl(40 33% 98%) 50%, hsl(200 40% 96%) 100%);
-    --gradient-header: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 33% 98%) 100%);
-    --shadow-soft: 0 1px 2px hsl(210 25% 15% / 0.04), 0 2px 6px hsl(210 25% 15% / 0.04);
-    --shadow-card: 0 1px 3px hsl(210 25% 15% / 0.05), 0 4px 12px hsl(210 25% 15% / 0.06);
-    --shadow-elevated: 0 4px 16px hsl(210 25% 15% / 0.08), 0 8px 32px hsl(210 25% 15% / 0.06);
+    /* Gradients inspired by the abstract artwork */
+    --gradient-hero: linear-gradient(135deg, hsl(350 50% 94%) 0%, hsl(45 30% 97%) 30%, hsl(270 40% 94%) 60%, hsl(150 35% 92%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(45 30% 98%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(350 65% 65% / 0.1) 0%, hsl(270 50% 65% / 0.1) 50%, hsl(160 45% 70% / 0.1) 100%);
+    
+    /* Shadows */
+    --shadow-soft: 0 1px 2px hsl(280 20% 20% / 0.03), 0 2px 6px hsl(280 20% 20% / 0.04);
+    --shadow-card: 0 2px 8px hsl(280 20% 20% / 0.05), 0 8px 24px hsl(280 20% 20% / 0.06);
+    --shadow-elevated: 0 4px 16px hsl(280 20% 20% / 0.08), 0 12px 40px hsl(280 20% 20% / 0.08);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -70,34 +85,43 @@
   }
 
   .dark {
-    --background: 210 25% 10%;
-    --foreground: 40 20% 95%;
+    --background: 280 20% 10%;
+    --foreground: 45 20% 95%;
 
-    --card: 210 25% 12%;
-    --card-foreground: 40 20% 95%;
+    --card: 280 20% 12%;
+    --card-foreground: 45 20% 95%;
 
-    --popover: 210 25% 12%;
-    --popover-foreground: 40 20% 95%;
+    --popover: 280 20% 12%;
+    --popover-foreground: 45 20% 95%;
 
-    --primary: 175 50% 50%;
-    --primary-foreground: 210 25% 10%;
-    --primary-light: 175 40% 20%;
+    --primary: 350 60% 60%;
+    --primary-foreground: 280 20% 10%;
+    --primary-light: 350 40% 20%;
 
-    --secondary: 210 20% 18%;
-    --secondary-foreground: 40 20% 90%;
+    --secondary: 270 25% 20%;
+    --secondary-foreground: 270 30% 90%;
 
-    --muted: 210 20% 18%;
-    --muted-foreground: 210 15% 60%;
+    --muted: 280 20% 18%;
+    --muted-foreground: 280 15% 60%;
 
-    --accent: 175 30% 20%;
-    --accent-foreground: 175 50% 70%;
+    --accent: 150 25% 20%;
+    --accent-foreground: 150 45% 70%;
 
     --destructive: 0 60% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 20% 20%;
-    --input: 210 20% 20%;
-    --ring: 175 50% 50%;
+    --purple: 270 45% 55%;
+    --purple-light: 270 30% 20%;
+    
+    --coral: 15 60% 55%;
+    --coral-light: 15 40% 20%;
+
+    --mint: 160 40% 50%;
+    --mint-light: 160 30% 20%;
+
+    --border: 280 20% 22%;
+    --input: 280 20% 22%;
+    --ring: 350 60% 60%;
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -129,8 +153,16 @@
     @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-soft rounded-xl;
   }
 
-  .calm-gradient {
-    background: var(--gradient-calm);
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+
+  .accent-gradient {
+    background: var(--gradient-accent);
   }
 
   .shadow-soft {

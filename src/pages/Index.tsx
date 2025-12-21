@@ -151,7 +151,27 @@ const Index = () => {
         financialAssistance: ensureArray(ai.financialAssistance),
         patientRights: ensureArray(ai.patientProtections || ai.patientRights),
         actionPlan: ensureArray(ai.actionPlan).map((s: any, idx: number) => ({ step: s.step || idx + 1, action: s.action || '', description: s.details || s.description || '' })),
-        // New structured fields
+        
+        // New 4-section fields
+        potentialErrors: ensureArray(ai.potentialErrors).map((i: any) => ({
+          type: i.type || 'potential_error',
+          title: i.title || '',
+          description: i.description || '',
+          suggestedQuestion: i.suggestedQuestion || '',
+          severity: i.severity || 'error',
+          relatedCodes: ensureArray(i.relatedCodes),
+          relatedAmounts: i.relatedAmounts,
+        })),
+        needsAttention: ensureArray(ai.needsAttention).map((i: any) => ({
+          type: i.type || 'needs_attention',
+          title: i.title || '',
+          description: i.description || '',
+          suggestedQuestion: i.suggestedQuestion || '',
+          severity: i.severity || 'warning',
+          relatedCodes: ensureArray(i.relatedCodes),
+          relatedAmounts: i.relatedAmounts,
+        })),
+        
         cptCodes: ensureArray(ai.cptCodes).map((c: any) => ({
           code: c.code || '',
           shortLabel: c.shortLabel || c.description || '',
@@ -173,9 +193,9 @@ const Index = () => {
           suggestCall: q.suggestCall || 'either',
         })),
         billingEducation: ai.billingEducation || {
-          billedVsAllowed: 'The "billed amount" is what the provider charges. The "allowed amount" is the maximum your insurance will pay for that service.',
+          billedVsAllowed: 'The "billed amount" is what the provider charges. The "allowed amount" is the maximum your insurance will pay.',
           deductibleExplanation: 'Your deductible is the amount you pay before insurance starts covering costs.',
-          copayCoinsurance: 'A copay is a fixed amount you pay per visit. Coinsurance is a percentage of the allowed amount you pay.',
+          copayCoinsurance: 'A copay is a fixed amount you pay per visit. Coinsurance is a percentage of the allowed amount.',
           eobSummary: state.eobFile ? ai.billingEducation?.eobSummary : undefined,
         },
         stateHelp: ai.stateHelp || {
@@ -191,20 +211,18 @@ const Index = () => {
           eligibilityNotes: 'Eligibility typically depends on income and family size.',
         },
         debtAndCreditInfo: ensureArray(ai.debtAndCreditInfo),
-        billingIssues: ensureArray(ai.billingIssues).map((i: any) => ({
-          type: i.type || 'mismatch',
-          title: i.title || '',
-          description: i.description || '',
-          suggestedQuestion: i.suggestedQuestion || '',
-          severity: i.severity || 'info',
-          relatedCodes: ensureArray(i.relatedCodes),
-        })),
         financialOpportunities: ensureArray(ai.financialOpportunities).map((o: any) => ({
           title: o.title || '',
           description: o.description || '',
           eligibilityHint: o.eligibilityHint || '',
           effortLevel: o.effortLevel || 'short_form',
           link: o.link,
+        })),
+        actionSteps: ensureArray(ai.actionSteps).map((s: any, idx: number) => ({
+          order: s.order || idx + 1,
+          action: s.action || '',
+          details: s.details || '',
+          relatedIssue: s.relatedIssue,
         })),
         billingTemplates: ensureArray(ai.billingTemplates).map((t: any) => ({
           target: 'billing',
@@ -217,6 +235,15 @@ const Index = () => {
           purpose: t.purpose || '',
           template: t.template || '',
           whenToUse: t.whenToUse || '',
+        })),
+        whenToSeekHelp: ensureArray(ai.whenToSeekHelp),
+        billingIssues: ensureArray(ai.billingIssues).map((i: any) => ({
+          type: i.type || 'mismatch',
+          title: i.title || '',
+          description: i.description || '',
+          suggestedQuestion: i.suggestedQuestion || '',
+          severity: i.severity || 'info',
+          relatedCodes: ensureArray(i.relatedCodes),
         })),
         eobData: state.eobFile && ai.eobData ? {
           claimNumber: ai.eobData.claimNumber,

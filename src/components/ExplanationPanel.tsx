@@ -1,14 +1,18 @@
 import { Badge } from '@/components/ui/badge';
 import {
+  AlertCircle,
   BookOpen,
   Receipt,
+  ArrowRight,
   FileCheck,
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult } from '@/types';
+import { ImmediateCalloutsSection } from '@/components/analysis/ImmediateCalloutsSection';
 import { ExplainerSection } from '@/components/analysis/ExplainerSection';
 import { BillingSection } from '@/components/analysis/BillingSection';
+import { NextStepsSection } from '@/components/analysis/NextStepsSection';
 import { useState } from 'react';
 
 interface ExplanationPanelProps {
@@ -27,24 +31,24 @@ interface AccordionSectionProps {
   children: React.ReactNode;
 }
 
-function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = true, children }: AccordionSectionProps) {
+function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = false, children }: AccordionSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-card shadow-soft overflow-hidden">
+    <div className="rounded-2xl border border-border/40 bg-card shadow-card overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "w-full flex items-center gap-4 p-5 transition-colors",
-          "hover:bg-muted/30",
+          "hover:bg-muted/20",
           isOpen && "border-b border-border/40"
         )}
       >
-        <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl", iconBg)}>
+        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", iconBg)}>
           {icon}
         </div>
         <div className="flex-1 text-left">
-          <h3 className="font-semibold text-foreground text-lg">{title}</h3>
+          <h3 className="font-semibold text-foreground text-base">{title}</h3>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
         {badge}
@@ -73,15 +77,18 @@ function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = 
 }
 
 export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: ExplanationPanelProps) {
+  const hasCallouts = (analysis.potentialErrors?.length || 0) + (analysis.needsAttention?.length || 0) > 0;
+  const calloutCount = (analysis.potentialErrors?.length || 0) + (analysis.needsAttention?.length || 0);
+
   return (
     <div className="h-full overflow-auto">
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-5">
         {/* Document Summary Header */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-muted/50 to-muted/30 border border-border/40">
+        <div className="p-5 rounded-2xl accent-gradient border border-border/40">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-semibold text-foreground">Analysis Results</h2>
+            <h2 className="text-lg font-semibold text-foreground">Analysis Results</h2>
             {hasEOB && (
-              <Badge className="bg-success/10 text-success border-success/20">
+              <Badge className="bg-mint-light text-mint border-mint/20">
                 <FileCheck className="h-3 w-3 mr-1" />
                 EOB Enhanced
               </Badge>
@@ -94,35 +101,64 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
           </div>
         </div>
 
-        {/* Two Main Accordions with generous spacing */}
+        {/* Four Main Sections */}
         <div className="space-y-4">
-          {/* Section 1: Explainer */}
+          {/* Section 1: Immediate Callouts (expanded by default if items exist) */}
+          <AccordionSection
+            title="Immediate Callouts"
+            subtitle="Potential errors and items needing attention"
+            icon={<AlertCircle className="h-5 w-5 text-coral" />}
+            iconBg="bg-coral-light"
+            badge={
+              hasCallouts ? (
+                <Badge className="bg-coral-light text-coral border-0 text-xs">
+                  {calloutCount} items
+                </Badge>
+              ) : undefined
+            }
+            defaultOpen={hasCallouts}
+          >
+            <ImmediateCalloutsSection analysis={analysis} />
+          </AccordionSection>
+
+          {/* Section 2: Explainer */}
           <AccordionSection
             title="Explainer"
-            subtitle="What happened during your visit"
-            icon={<BookOpen className="h-6 w-6 text-primary" />}
-            iconBg="bg-primary/10"
-            defaultOpen={true}
+            subtitle="What your CPT codes mean, your visit walkthrough, and common questions"
+            icon={<BookOpen className="h-5 w-5 text-purple" />}
+            iconBg="bg-purple-light"
+            defaultOpen={false}
           >
             <ExplainerSection analysis={analysis} />
           </AccordionSection>
 
-          {/* Section 2: Billing & Next Steps */}
+          {/* Section 3: Billing */}
           <AccordionSection
-            title="Billing & Next Steps"
-            subtitle="Money, assistance, and action items"
-            icon={<Receipt className="h-6 w-6 text-success" />}
-            iconBg="bg-success/10"
+            title="Billing"
+            subtitle="Your bill explained and what you can do about it"
+            icon={<Receipt className="h-5 w-5 text-primary" />}
+            iconBg="bg-primary-light"
             badge={
               hasEOB ? (
-                <Badge className="bg-success/10 text-success border-0 text-xs">
-                  EOB uploaded
+                <Badge className="bg-mint-light text-mint border-0 text-xs">
+                  EOB data
                 </Badge>
               ) : undefined
             }
-            defaultOpen={true}
+            defaultOpen={false}
           >
             <BillingSection analysis={analysis} hasEOB={hasEOB} />
+          </AccordionSection>
+
+          {/* Section 4: Next Steps */}
+          <AccordionSection
+            title="Next Steps"
+            subtitle="Action plan and templates for calls"
+            icon={<ArrowRight className="h-5 w-5 text-mint" />}
+            iconBg="bg-mint-light"
+            defaultOpen={false}
+          >
+            <NextStepsSection analysis={analysis} />
           </AccordionSection>
         </div>
       </div>

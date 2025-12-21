@@ -96,7 +96,7 @@ export interface BillingEducation {
   billedVsAllowed: string;
   deductibleExplanation: string;
   copayCoinsurance: string;
-  eobSummary?: string; // Enhanced when EOB present
+  eobSummary?: string;
 }
 
 // State-specific financial help
@@ -125,16 +125,22 @@ export interface ProviderAssistance {
   charityCareSummary: string;
   financialAssistanceLink?: string;
   eligibilityNotes: string;
+  // New specific fields
+  incomeThresholds?: string[];
+  requiredDocuments?: string[];
+  applicationLink?: string;
+  collectionPolicies?: string[];
 }
 
-// Red flags / issues to review
+// Red flags / issues to review - now with severity levels for callouts
 export interface BillingIssue {
-  type: 'duplicate' | 'upcoding' | 'mismatch' | 'missing_modifier' | 'eob_discrepancy';
+  type: 'duplicate' | 'upcoding' | 'mismatch' | 'missing_modifier' | 'eob_discrepancy' | 'potential_error' | 'needs_attention';
   title: string;
   description: string;
   suggestedQuestion: string;
-  severity: 'info' | 'warning' | 'important';
+  severity: 'error' | 'warning' | 'info';
   relatedCodes?: string[];
+  relatedAmounts?: { billed?: number; eob?: number };
 }
 
 // Financial assistance opportunity
@@ -154,7 +160,15 @@ export interface ContactTemplate {
   whenToUse: string;
 }
 
-// Main analysis result - restructured
+// Action step for Next Steps section
+export interface ActionStep {
+  order: number;
+  action: string;
+  details: string;
+  relatedIssue?: string;
+}
+
+// Main analysis result - restructured for 4 sections
 export interface AnalysisResult {
   // Document basics
   documentType: DocumentType;
@@ -171,23 +185,30 @@ export interface AnalysisResult {
   patientRights: string[];
   actionPlan: { step: number; action: string; description: string }[];
 
-  // === SECTION 1: EXPLAINER ===
+  // === SECTION 1: IMMEDIATE CALLOUTS ===
+  potentialErrors: BillingIssue[];
+  needsAttention: BillingIssue[];
+
+  // === SECTION 2: EXPLAINER ===
   cptCodes: CPTCode[];
   visitWalkthrough: VisitStep[];
   codeQuestions: CodeQuestion[];
 
-  // === SECTION 2: BILLING & NEXT STEPS ===
-  // A. Things to know
+  // === SECTION 3: BILLING ===
   billingEducation: BillingEducation;
   stateHelp: StateFinancialHelp;
   providerAssistance: ProviderAssistance;
   debtAndCreditInfo: string[];
-
-  // B. Next steps
-  billingIssues: BillingIssue[];
   financialOpportunities: FinancialOpportunity[];
+
+  // === SECTION 4: NEXT STEPS ===
+  actionSteps: ActionStep[];
   billingTemplates: ContactTemplate[];
   insuranceTemplates: ContactTemplate[];
+  whenToSeekHelp: string[];
+
+  // Legacy field - keep for backwards compatibility
+  billingIssues: BillingIssue[];
 
   // EOB data (optional - present when EOB uploaded)
   eobData?: EOBData;
@@ -196,7 +217,7 @@ export interface AnalysisResult {
 export interface AppState {
   currentStep: 'upload' | 'analysis';
   uploadedFile: UploadedFile | null;
-  eobFile: UploadedFile | null; // Optional EOB
+  eobFile: UploadedFile | null;
   selectedState: string;
   selectedLanguage: Language;
   analysisResult: AnalysisResult | null;

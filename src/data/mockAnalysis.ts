@@ -401,4 +401,39 @@ export const mockAnalysisResult: AnalysisResult = {
       whenToUse: 'If insurance denied coverage for any services.',
     },
   ],
+
+  // New 4-section fields
+  potentialErrors: [],
+  needsAttention: [
+    {
+      type: 'upcoding',
+      title: 'ER visit coded at Level 4',
+      description: 'Level 4 visits are for moderately complex cases. If your visit felt routine or quick, you may want to ask about the coding.',
+      suggestedQuestion: 'Can you explain why my visit was coded as Level 4? What criteria determined this level?',
+      severity: 'warning',
+      relatedCodes: ['99284'],
+    },
+  ],
+  actionSteps: [
+    {
+      order: 1,
+      action: 'Wait for your EOB from insurance',
+      details: 'Your Explanation of Benefits will show what insurance paid and what you actually owe.',
+    },
+    {
+      order: 2,
+      action: 'Request an itemized bill',
+      details: 'Call the billing number on your statement to get a detailed breakdown of all charges.',
+    },
+    {
+      order: 3,
+      action: 'Ask about financial assistance',
+      details: 'Contact the hospital financial assistance office to learn about charity care or payment plans.',
+    },
+  ],
+  whenToSeekHelp: [
+    'A patient advocate at the hospital can help navigate billing disputes.',
+    'Your state attorney general\'s office handles healthcare billing complaints.',
+    'Nonprofit credit counseling agencies can help with medical debt.',
+  ],
 };
