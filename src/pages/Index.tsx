@@ -276,7 +276,6 @@ const Index = () => {
       <Header
         selectedLanguage={state.selectedLanguage}
         onLanguageChange={handleLanguageChange}
-        showLanguageSelector={state.currentStep === 'analysis'}
       />
       <main className="flex-1">
         {state.currentStep === 'upload' ? (

@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
-import { Upload, FileCheck, X, Shield } from 'lucide-react';
+import { Upload, FileCheck, X, Shield, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { UploadedFile } from '@/types';
+import { useHeicConverter } from '@/hooks/useHeicConverter';
 
 interface EOBUploaderProps {
   uploadedFile: UploadedFile | null;
@@ -20,19 +21,30 @@ const ACCEPTED_TYPES = [
 ];
 
 export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUploaderProps) {
+  const { convertFile, isConverting } = useHeicConverter();
+
   const processFile = useCallback(
-    (file: File) => {
-      const fileType = file.type.startsWith('image/') ? 'image' : 'pdf';
-      const preview = URL.createObjectURL(file);
-      const uploadedFile: UploadedFile = {
+    async (file: File) => {
+      const fileName = file.name.toLowerCase();
+      const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
+      const fileType = isPdf ? 'pdf' : 'image';
+      
+      // Convert HEIC files to JPEG for preview
+      const conversionResult = await convertFile(file);
+      
+      const uploadedFileObj: UploadedFile = {
         id: crypto.randomUUID(),
         file,
-        preview,
+        preview: conversionResult.originalUrl,
+        previewUrl: conversionResult.previewUrl,
+        originalUrl: conversionResult.originalUrl,
         type: fileType,
+        isConverted: conversionResult.isConverted,
+        conversionError: conversionResult.conversionError,
       };
-      onFileSelect(uploadedFile);
+      onFileSelect(uploadedFileObj);
     },
-    [onFileSelect]
+    [onFileSelect, convertFile]
   );
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,6 +54,17 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
     }
     e.target.value = '';
   };
+
+  if (isConverting) {
+    return (
+      <div className="p-4 rounded-xl border-2 border-primary/30 bg-primary-light/20">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-5 w-5 text-primary animate-spin" />
+          <p className="text-sm text-foreground">Converting HEIC image...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (uploadedFile) {
     return (
@@ -56,6 +79,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
             </p>
             <p className="text-xs text-success">
               EOB uploaded - analysis will be enhanced
+              {uploadedFile.isConverted && ' • Converted for preview'}
             </p>
           </div>
           <Button
@@ -77,7 +101,7 @@ export function EOBUploader({ uploadedFile, onFileSelect, onRemoveFile }: EOBUpl
         <input
           type="file"
           className="sr-only"
-          accept={ACCEPTED_TYPES.join(',')}
+          accept={[...ACCEPTED_TYPES, '.heic', '.heif'].join(',')}
           onChange={handleFileChange}
         />
         <div className="flex items-center gap-3">

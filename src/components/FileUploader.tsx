@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { Upload, FileText, Image, X, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Image, X, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { UploadedFile } from '@/types';
+import { useHeicConverter } from '@/hooks/useHeicConverter';
 
 interface FileUploaderProps {
   onFileSelect: (file: UploadedFile) => void;
@@ -27,6 +28,7 @@ const ACCEPTED_TYPES = ['application/pdf', ...ACCEPTED_IMAGE_TYPES];
 export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { convertFile, isConverting, isHeicFile } = useHeicConverter();
 
   const validateFile = (file: File): string | null => {
     // Check file extension for HEIC files (browser may not recognize MIME type)
@@ -44,7 +46,7 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
     return null;
   };
 
-  const processFile = useCallback((file: File) => {
+  const processFile = useCallback(async (file: File) => {
     const validationError = validateFile(file);
     if (validationError) {
       setError(validationError);
@@ -55,15 +57,21 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
     const fileName = file.name.toLowerCase();
     const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
     const fileType = isPdf ? 'pdf' : 'image';
-    const preview = URL.createObjectURL(file);
+    
+    // Convert HEIC files to JPEG for preview
+    const conversionResult = await convertFile(file);
     
     onFileSelect({
       id: crypto.randomUUID(),
       file,
-      preview,
+      preview: conversionResult.originalUrl, // Legacy field, keep for backward compatibility
+      previewUrl: conversionResult.previewUrl,
+      originalUrl: conversionResult.originalUrl,
       type: fileType,
+      isConverted: conversionResult.isConverted,
+      conversionError: conversionResult.conversionError,
     });
-  }, [onFileSelect]);
+  }, [onFileSelect, convertFile]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -92,6 +100,22 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
     }
   }, [processFile]);
 
+  if (isConverting) {
+    return (
+      <div className="animate-scale-in">
+        <div className="relative rounded-xl border-2 border-primary/30 bg-primary-light/30 p-6">
+          <div className="flex items-center justify-center gap-4">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <div>
+              <p className="font-medium text-foreground">Converting HEIC image...</p>
+              <p className="text-sm text-muted-foreground">This may take a moment</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (uploadedFile) {
     return (
       <div className="animate-scale-in">
@@ -119,7 +143,11 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
               </p>
               <p className="text-sm text-muted-foreground">
                 {(uploadedFile.file.size / 1024 / 1024).toFixed(2)} MB • {uploadedFile.type.toUpperCase()}
+                {uploadedFile.isConverted && <span className="text-success ml-2">• Converted for preview</span>}
               </p>
+              {uploadedFile.conversionError && (
+                <p className="text-xs text-warning mt-1">{uploadedFile.conversionError}</p>
+              )}
             </div>
           </div>
         </div>
