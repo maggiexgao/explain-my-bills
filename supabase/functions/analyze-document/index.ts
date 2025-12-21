@@ -413,13 +413,127 @@ Each flagged issue should indicate confidence:
 - Moderate concern: Unusual but could have explanation
 - Soft concern: Worth asking about, may be fine`;
 
+// Input validation constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_LANGUAGES = ['en', 'es', 'zh-Hans', 'zh-Hant', 'ar'];
+const US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
+];
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/png', 'image/heic', 'image/webp', 
+  'application/pdf', 'image/gif', 'image/bmp'
+];
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+function validateDataUrl(content: string, fieldName: string): ValidationResult {
+  if (!content.startsWith('data:')) {
+    return { valid: true }; // Not a data URL, allow text content
+  }
+  
+  const parts = content.split(',');
+  if (parts.length !== 2) {
+    return { valid: false, error: `Invalid ${fieldName} data URL format` };
+  }
+  
+  const mimeMatch = parts[0].match(/data:([^;]+);/);
+  if (!mimeMatch) {
+    return { valid: false, error: `Invalid MIME type in ${fieldName}` };
+  }
+  
+  if (!ALLOWED_MIME_TYPES.includes(mimeMatch[1])) {
+    return { valid: false, error: `Unsupported file type for ${fieldName}: ${mimeMatch[1]}. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}` };
+  }
+  
+  return { valid: true };
+}
+
+function validateInput(body: any): ValidationResult {
+  // Validate documentContent is present and is a string
+  if (!body.documentContent || typeof body.documentContent !== 'string') {
+    return { valid: false, error: 'documentContent is required and must be a string' };
+  }
+  
+  // Check document size
+  if (body.documentContent.length > MAX_FILE_SIZE) {
+    return { valid: false, error: `Document size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB` };
+  }
+  
+  // Validate document format if it's a data URL
+  const docValidation = validateDataUrl(body.documentContent, 'documentContent');
+  if (!docValidation.valid) {
+    return docValidation;
+  }
+  
+  // Validate language if provided
+  if (body.language && !ALLOWED_LANGUAGES.includes(body.language)) {
+    return { valid: false, error: `Invalid language code. Allowed: ${ALLOWED_LANGUAGES.join(', ')}` };
+  }
+  
+  // Validate state if provided
+  if (body.state && !US_STATES.includes(body.state)) {
+    return { valid: false, error: 'Invalid US state code' };
+  }
+  
+  // Validate EOB content if provided
+  if (body.eobContent) {
+    if (typeof body.eobContent !== 'string') {
+      return { valid: false, error: 'eobContent must be a string' };
+    }
+    
+    if (body.eobContent.length > MAX_FILE_SIZE) {
+      return { valid: false, error: `EOB file size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB` };
+    }
+    
+    const eobValidation = validateDataUrl(body.eobContent, 'eobContent');
+    if (!eobValidation.valid) {
+      return eobValidation;
+    }
+  }
+  
+  // Validate documentType if provided (optional field)
+  if (body.documentType && typeof body.documentType !== 'string') {
+    return { valid: false, error: 'documentType must be a string' };
+  }
+  
+  return { valid: true };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { documentContent, documentType, eobContent, state, language } = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // Validate input
+    const validation = validateInput(body);
+    if (!validation.valid) {
+      console.warn('Input validation failed:', validation.error);
+      return new Response(JSON.stringify({ error: validation.error }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    const { documentContent, documentType, eobContent, state, language } = body;
     
     console.log('Analyzing document:', { documentType, state, language, contentLength: documentContent?.length, hasEOB: !!eobContent });
     
