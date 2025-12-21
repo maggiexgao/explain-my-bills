@@ -12,10 +12,9 @@ import { Language, LANGUAGES } from '@/types';
 interface HeaderProps {
   selectedLanguage: Language;
   onLanguageChange: (lang: Language) => void;
-  showLanguageSelector?: boolean;
 }
 
-export function Header({ selectedLanguage, onLanguageChange, showLanguageSelector = true }: HeaderProps) {
+export function Header({ selectedLanguage, onLanguageChange }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
@@ -33,28 +32,27 @@ export function Header({ selectedLanguage, onLanguageChange, showLanguageSelecto
           </div>
         </div>
 
-        {showLanguageSelector && (
-          <div className="flex items-center gap-2">
-            <Globe className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
-              <SelectTrigger className="w-[140px] h-9 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGES.map((lang) => (
-                  <SelectItem key={lang.value} value={lang.value}>
-                    <span className="flex items-center gap-2">
-                      <span>{lang.nativeLabel}</span>
-                      {lang.value !== 'en' && (
-                        <span className="text-muted-foreground text-xs">({lang.label})</span>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* Language selector - always visible */}
+        <div className="flex items-center gap-2">
+          <Globe className="h-4 w-4 text-muted-foreground" />
+          <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
+            <SelectTrigger className="w-[160px] h-9 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LANGUAGES.map((lang) => (
+                <SelectItem key={lang.value} value={lang.value}>
+                  <span className="flex items-center gap-2">
+                    <span>{lang.nativeLabel}</span>
+                    {lang.value !== 'en' && (
+                      <span className="text-muted-foreground text-xs">({lang.label})</span>
+                    )}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </header>
   );

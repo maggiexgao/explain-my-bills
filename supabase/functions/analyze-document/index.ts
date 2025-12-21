@@ -378,9 +378,19 @@ serve(async (req) => {
     const hasEOB = !!eobContent;
     const systemPrompt = hasEOB ? SYSTEM_PROMPT + EOB_PROMPT_ADDITION : SYSTEM_PROMPT;
 
+    // Map language codes to full names
+    const languageMap: Record<string, string> = {
+      'en': 'English',
+      'es': 'Spanish',
+      'zh-Hans': 'Simplified Chinese (简体中文)',
+      'zh-Hant': 'Traditional Chinese (繁體中文)',
+      'ar': 'Arabic (العربية)',
+    };
+    const outputLanguage = languageMap[language] || 'English';
+
     const userPromptText = `Analyze this medical document for a patient in ${state || 'an unspecified U.S. state'}. 
 Document type: ${documentType || 'medical bill'}
-Output language: ${language === 'en' ? 'English' : language === 'es' ? 'Spanish' : language === 'zh' ? 'Simplified Chinese' : language === 'ar' ? 'Arabic' : language === 'hi' ? 'Hindi' : 'English'}
+Output language: ${outputLanguage}
 ${hasEOB ? '\nIMPORTANT: An EOB (Explanation of Benefits) is also provided. Compare it carefully with the bill and flag any discrepancies with EXACT amounts.' : ''}
 
 CRITICAL REQUIREMENTS:
@@ -389,10 +399,11 @@ CRITICAL REQUIREMENTS:
 3. Create actionSteps array with SPECIFIC next steps based on the actual bill content
 4. Include whenToSeekHelp array with relevant guidance
 5. All templates must reference the ACTUAL provider name, dates, and amounts
+6. ${language !== 'en' ? `ALL text content (titles, descriptions, explanations, templates, etc.) MUST be written in ${outputLanguage}. EXCEPTION: Do NOT translate CPT codes, HCPCS codes, dollar amounts, dates, claim numbers, provider names, hospital names, program names (like Medicaid, Medicare), or URLs.` : 'Write all content in English.'}
 
 Output ONLY valid JSON matching the exact structure in the system prompt.
 
-Write at 6th-8th grade level, avoid jargon, be reassuring, and help identify issues worth asking about.`;
+Write at 6th-8th grade reading level, avoid jargon, be reassuring, and help identify issues worth asking about.`;
 
     // Build content array for the message
     const contentParts: any[] = [{ type: 'text', text: userPromptText }];

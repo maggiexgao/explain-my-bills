@@ -1,12 +1,16 @@
-export type Language = 'en' | 'es' | 'zh' | 'ar' | 'hi';
+export type Language = 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'ar';
 
 export type DocumentType = 'bill' | 'eob' | 'chart' | 'denial' | 'unknown';
 
 export interface UploadedFile {
   id: string;
   file: File;
-  preview: string;
+  preview: string;           // Original file preview (blob URL)
+  previewUrl: string;        // Converted/displayable preview URL (for HEIC->JPEG conversion)
+  originalUrl: string;       // Original file URL for download
   type: 'pdf' | 'image';
+  isConverted?: boolean;     // True if file was converted (e.g., HEIC to JPEG)
+  conversionError?: string;  // Error message if conversion failed
 }
 
 export interface AnalysisSection {
@@ -282,7 +286,7 @@ export const US_STATES = [
 export const LANGUAGES: { value: Language; label: string; nativeLabel: string }[] = [
   { value: 'en', label: 'English', nativeLabel: 'English' },
   { value: 'es', label: 'Spanish', nativeLabel: 'Español' },
-  { value: 'zh', label: 'Chinese', nativeLabel: '中文' },
+  { value: 'zh-Hans', label: 'Simplified Chinese', nativeLabel: '简体中文' },
+  { value: 'zh-Hant', label: 'Traditional Chinese', nativeLabel: '繁體中文' },
   { value: 'ar', label: 'Arabic', nativeLabel: 'العربية' },
-  { value: 'hi', label: 'Hindi', nativeLabel: 'हिन्दी' },
 ];
