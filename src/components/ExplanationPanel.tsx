@@ -14,6 +14,7 @@ import { ExplainerSection } from '@/components/analysis/ExplainerSection';
 import { BillingSection } from '@/components/analysis/BillingSection';
 import { NextStepsSection } from '@/components/analysis/NextStepsSection';
 import { useState } from 'react';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface ExplanationPanelProps {
   analysis: AnalysisResult;
@@ -77,6 +78,7 @@ function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = 
 }
 
 export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: ExplanationPanelProps) {
+  const { t } = useTranslation();
   const hasCallouts = (analysis.potentialErrors?.length || 0) + (analysis.needsAttention?.length || 0) > 0;
   const calloutCount = (analysis.potentialErrors?.length || 0) + (analysis.needsAttention?.length || 0);
 
@@ -86,7 +88,7 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
         {/* Document Summary Header */}
         <div className="p-5 rounded-2xl accent-gradient border border-border/40">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-foreground">Rosetta Analysis</h2>
+            <h2 className="text-lg font-semibold text-foreground">{t('app.title')} Analysis</h2>
             {hasEOB && (
               <Badge className="bg-mint-light text-mint border-mint/20">
                 <FileCheck className="h-3 w-3 mr-1" />
@@ -103,10 +105,9 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
 
         {/* Four Main Sections */}
         <div className="space-y-4">
-          {/* Section 1: Immediate Callouts (expanded by default if items exist) */}
           <AccordionSection
-            title="Immediate Callouts"
-            subtitle="Potential errors and items needing attention"
+            title={t('section.immediateCallouts')}
+            subtitle={t('section.immediateCallouts.subtitle')}
             icon={<AlertCircle className="h-5 w-5 text-coral" />}
             iconBg="bg-coral-light"
             badge={
@@ -121,10 +122,9 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
             <ImmediateCalloutsSection analysis={analysis} />
           </AccordionSection>
 
-          {/* Section 2: Explainer */}
           <AccordionSection
-            title="Explainer"
-            subtitle="What your CPT codes mean, your visit walkthrough, and common questions"
+            title={t('section.explainer')}
+            subtitle={t('section.explainer.subtitle')}
             icon={<BookOpen className="h-5 w-5 text-purple" />}
             iconBg="bg-purple-light"
             defaultOpen={false}
@@ -132,10 +132,9 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
             <ExplainerSection analysis={analysis} />
           </AccordionSection>
 
-          {/* Section 3: Billing */}
           <AccordionSection
-            title="Billing"
-            subtitle="Your bill explained and what you can do about it"
+            title={t('section.billing')}
+            subtitle={t('section.billing.subtitle')}
             icon={<Receipt className="h-5 w-5 text-primary" />}
             iconBg="bg-primary-light"
             badge={
@@ -150,10 +149,9 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
             <BillingSection analysis={analysis} hasEOB={hasEOB} />
           </AccordionSection>
 
-          {/* Section 4: Next Steps */}
           <AccordionSection
-            title="Next Steps"
-            subtitle="Action plan and templates for calls"
+            title={t('section.nextSteps')}
+            subtitle={t('section.nextSteps.subtitle')}
             icon={<ArrowRight className="h-5 w-5 text-mint" />}
             iconBg="bg-mint-light"
             defaultOpen={false}

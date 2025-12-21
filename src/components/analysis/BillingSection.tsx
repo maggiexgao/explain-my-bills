@@ -18,6 +18,7 @@ import { AnalysisResult, BillingIssue, FinancialOpportunity } from '@/types';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { SubcategoryCard } from './SubcategoryCard';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface BillingSectionProps {
   analysis: AnalysisResult;
@@ -40,11 +41,12 @@ const severityIcons: Record<string, string> = {
 
 function IssueCard({ issue }: { issue: BillingIssue }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
 
   const copyQuestion = () => {
     navigator.clipboard.writeText(issue.suggestedQuestion);
     setCopied(true);
-    toast.success('Question copied to clipboard');
+    toast.success(t('nextSteps.copied'));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -62,7 +64,7 @@ function IssueCard({ issue }: { issue: BillingIssue }) {
             className="text-xs h-7"
           >
             <Copy className="h-3 w-3 mr-1" />
-            {copied ? 'Copied!' : 'Copy question'}
+            {copied ? t('nextSteps.copied') : t('nextSteps.copyTemplate')}
           </Button>
         </div>
       </div>
@@ -95,17 +97,16 @@ function FinancialOpportunityCard({ opportunity }: { opportunity: FinancialOppor
   );
 }
 
-// How Medical Billing Works - the preview section
 function BillingEducationPreview({ analysis, hasEOB }: { analysis: AnalysisResult; hasEOB: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <div className="space-y-4">
-      {/* Preview: How Medical Billing Works */}
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
           <DollarSign className="h-4 w-4 text-muted-foreground" />
-          How Medical Billing Works
+          {t('billing.education.billedVsAllowed')}
         </h4>
         <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -117,7 +118,7 @@ function BillingEducationPreview({ analysis, hasEOB }: { analysis: AnalysisResul
           <div className="p-4 rounded-xl bg-success/5 border border-success/20">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="h-4 w-4 text-success" />
-              <span className="text-xs font-medium text-success">From Your EOB</span>
+              <span className="text-xs font-medium text-success">{t('billing.education.eobSummary')}</span>
             </div>
             <p className="text-sm text-foreground leading-relaxed">
               {analysis.billingEducation.eobSummary}
@@ -126,52 +127,50 @@ function BillingEducationPreview({ analysis, hasEOB }: { analysis: AnalysisResul
         )}
       </div>
 
-      {/* Expand for more details */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex items-center gap-2 text-sm text-primary hover:underline font-medium"
       >
-        {isExpanded ? 'Show less' : 'Learn more about billing terms'}
+        {isExpanded ? t('common.collapse') : t('common.learnMore')}
         <ChevronDown className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
       </button>
       
       {isExpanded && (
         <div className="space-y-3 pt-3 border-t border-border/30 animate-fade-in">
           <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-            <h5 className="text-xs font-medium text-foreground mb-2">Deductibles</h5>
+            <h5 className="text-xs font-medium text-foreground mb-2">{t('billing.education.deductible')}</h5>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {analysis.billingEducation.deductibleExplanation}
             </p>
           </div>
           <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-            <h5 className="text-xs font-medium text-foreground mb-2">Copays & Coinsurance</h5>
+            <h5 className="text-xs font-medium text-foreground mb-2">{t('billing.education.copayCoinsurance')}</h5>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {analysis.billingEducation.copayCoinsurance}
             </p>
           </div>
           
-          {/* EOB Breakdown if available */}
           {hasEOB && analysis.eobData && (
             <div className="space-y-3 pt-3">
               <h5 className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Shield className="h-4 w-4 text-muted-foreground" />
-                Your Insurance Breakdown
+                {t('billing.eobComparison')}
               </h5>
               <div className="grid grid-cols-2 gap-2">
                 <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground">Billed Amount</p>
+                  <p className="text-xs text-muted-foreground">{t('billing.eobComparison.billed')}</p>
                   <p className="text-lg font-semibold text-foreground">${analysis.eobData.billedAmount.toLocaleString()}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground">Allowed Amount</p>
+                  <p className="text-xs text-muted-foreground">{t('billing.eobComparison.allowed')}</p>
                   <p className="text-lg font-semibold text-foreground">${analysis.eobData.allowedAmount.toLocaleString()}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-success/5 border border-success/20">
-                  <p className="text-xs text-muted-foreground">Insurance Paid</p>
+                  <p className="text-xs text-muted-foreground">{t('billing.eobComparison.insurancePaid')}</p>
                   <p className="text-lg font-semibold text-success">${analysis.eobData.insurancePaid.toLocaleString()}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-warning/5 border border-warning/20">
-                  <p className="text-xs text-muted-foreground">Your Responsibility</p>
+                  <p className="text-xs text-muted-foreground">{t('billing.eobComparison.yourResponsibility')}</p>
                   <p className="text-lg font-semibold text-warning">${analysis.eobData.patientResponsibility.toLocaleString()}</p>
                 </div>
               </div>
@@ -184,12 +183,13 @@ function BillingEducationPreview({ analysis, hasEOB }: { analysis: AnalysisResul
 }
 
 export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-3">
-      {/* A. Things to Know About Your Bill - How billing works as preview */}
       <SubcategoryCard
         icon={<HelpCircle className="h-5 w-5 text-purple" />}
-        title="Things to Know About Your Bill"
+        title={t('billing.education')}
         teaser="Understanding how medical billing works"
         badge={hasEOB ? 'EOB Enhanced' : undefined}
         badgeVariant="success"
@@ -198,17 +198,15 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
         <BillingEducationPreview analysis={analysis} hasEOB={hasEOB} />
       </SubcategoryCard>
 
-      {/* B. Financial Help in [State] */}
       <SubcategoryCard
         icon={<Heart className="h-5 w-5 text-coral" />}
-        title={`Financial Help in ${analysis.stateHelp.state}`}
-        teaser="State programs and protections available to you"
+        title={`${t('billing.stateHelp')} - ${analysis.stateHelp.state}`}
+        teaser="State programs and protections"
         defaultOpen={false}
       >
         <div className="space-y-4">
-          {/* Medicaid/CHIP */}
           <div className="p-4 rounded-xl bg-success/5 border border-success/20">
-            <p className="text-xs font-medium text-success mb-2">Medicaid / CHIP</p>
+            <p className="text-xs font-medium text-success mb-2">{t('billing.stateHelp.medicaid')}</p>
             <p className="text-sm text-muted-foreground mb-3">{analysis.stateHelp.medicaidInfo.description}</p>
             <a
               href={analysis.stateHelp.medicaidInfo.eligibilityLink}
@@ -220,10 +218,9 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
             </a>
           </div>
           
-          {/* State Debt Protections */}
           {analysis.stateHelp.debtProtections.length > 0 && (
             <div className="space-y-2">
-              <h5 className="text-xs font-medium text-foreground">Your State Protections</h5>
+              <h5 className="text-xs font-medium text-foreground">{t('billing.stateHelp.debtProtections')}</h5>
               {analysis.stateHelp.debtProtections.map((protection, idx) => (
                 <div key={idx} className="p-3 rounded-lg bg-muted/30 border border-border/30">
                   <p className="text-sm text-muted-foreground">{protection}</p>
@@ -232,7 +229,6 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
             </div>
           )}
           
-          {/* Relief Programs */}
           {analysis.stateHelp.reliefPrograms.map((program, idx) => (
             <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/30">
               <p className="text-xs font-medium text-foreground mb-2">{program.name}</p>
@@ -244,7 +240,7 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
                   rel="noopener noreferrer"
                   className="text-xs text-primary hover:underline inline-flex items-center gap-1"
                 >
-                  Learn more <ExternalLink className="h-3 w-3" />
+                  {t('common.learnMore')} <ExternalLink className="h-3 w-3" />
                 </a>
               )}
             </div>
@@ -252,10 +248,9 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
         </div>
       </SubcategoryCard>
 
-      {/* C. Provider Financial Assistance */}
       <SubcategoryCard
         icon={<Building className="h-5 w-5 text-mint" />}
-        title="Provider Financial Assistance"
+        title={t('billing.providerAssistance')}
         teaser={`Assistance from ${analysis.providerAssistance.providerName}`}
         defaultOpen={false}
       >
@@ -265,7 +260,6 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
             <p className="text-sm text-muted-foreground mb-3">{analysis.providerAssistance.charityCareSummary}</p>
             <p className="text-xs text-muted-foreground italic mb-3">{analysis.providerAssistance.eligibilityNotes}</p>
             
-            {/* Income thresholds if available */}
             {Array.isArray(analysis.providerAssistance.incomeThresholds) && analysis.providerAssistance.incomeThresholds.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs font-medium text-foreground mb-1">Income Thresholds:</p>
@@ -280,7 +274,6 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
               </div>
             )}
             
-            {/* Required documents if available */}
             {Array.isArray(analysis.providerAssistance.requiredDocuments) && analysis.providerAssistance.requiredDocuments.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs font-medium text-foreground mb-1">Documents You May Need:</p>
@@ -307,10 +300,9 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
             )}
           </div>
           
-          {/* Financial Opportunities */}
           {analysis.financialOpportunities.length > 0 && (
             <div className="space-y-3">
-              <h5 className="text-sm font-medium text-foreground">Other Assistance You May Qualify For</h5>
+              <h5 className="text-sm font-medium text-foreground">{t('billing.financialOpportunities')}</h5>
               {analysis.financialOpportunities.map((opp, idx) => (
                 <FinancialOpportunityCard key={idx} opportunity={opp} />
               ))}
@@ -319,17 +311,13 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
         </div>
       </SubcategoryCard>
 
-      {/* D. Medical Debt & Credit */}
       <SubcategoryCard
         icon={<Scale className="h-5 w-5 text-primary" />}
-        title="Medical Debt & Credit"
+        title={t('billing.debtCredit')}
         teaser="What you should know about medical debt"
         defaultOpen={false}
       >
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground italic">
-            Educational information about how medical debt can affect your credit:
-          </p>
           {analysis.debtAndCreditInfo.length > 0 ? (
             <ul className="space-y-2">
               {analysis.debtAndCreditInfo.map((info, idx) => (
@@ -342,8 +330,7 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
           ) : (
             <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
               <p className="text-sm text-muted-foreground">
-                Medical debt over $500 that's at least 12 months past due may appear on your credit report. 
-                Recent changes have removed many medical debts from credit reports, and paid medical debts no longer appear.
+                Medical debt over $500 that's at least 12 months past due may appear on your credit report.
               </p>
             </div>
           )}

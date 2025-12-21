@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { UploadedFile } from '@/types';
 import { useHeicConverter } from '@/hooks/useHeicConverter';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 interface FileUploaderProps {
   onFileSelect: (file: UploadedFile) => void;
@@ -11,7 +12,7 @@ interface FileUploaderProps {
   onRemoveFile: () => void;
 }
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = [
   'image/jpeg',
   'image/jpg', 
@@ -28,7 +29,8 @@ const ACCEPTED_TYPES = ['application/pdf', ...ACCEPTED_IMAGE_TYPES];
 export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { convertFile, isConverting, isHeicFile } = useHeicConverter();
+  const { convertFile, isConverting } = useHeicConverter();
+  const { t } = useTranslation();
 
   const validateFile = (file: File): string | null => {
     const fileName = file.name.toLowerCase();
@@ -74,11 +76,8 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
     const file = e.dataTransfer.files[0];
-    if (file) {
-      processFile(file);
-    }
+    if (file) processFile(file);
   }, [processFile]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -93,9 +92,7 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      processFile(file);
-    }
+    if (file) processFile(file);
   }, [processFile]);
 
   if (isConverting) {
@@ -107,8 +104,8 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
               <Loader2 className="h-8 w-8 text-primary-foreground animate-spin" />
             </div>
             <div>
-              <p className="font-medium text-foreground">Converting HEIC image...</p>
-              <p className="text-sm text-muted-foreground">This may take a moment</p>
+              <p className="font-medium text-foreground">{t('heic.converting')}</p>
+              <p className="text-sm text-muted-foreground">{t('analysis.loadingDesc')}</p>
             </div>
           </div>
         </div>
@@ -143,7 +140,7 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
               </p>
               <p className="text-sm text-muted-foreground">
                 {(uploadedFile.file.size / 1024 / 1024).toFixed(2)} MB • {uploadedFile.type.toUpperCase()}
-                {uploadedFile.isConverted && <span className="text-success ml-2">• Converted for preview</span>}
+                {uploadedFile.isConverted && <span className="text-success ml-2">• Converted</span>}
               </p>
               {uploadedFile.conversionError && (
                 <p className="text-xs text-warning mt-1">{uploadedFile.conversionError}</p>
@@ -190,13 +187,13 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
           </div>
           
           <h3 className="text-lg font-semibold text-foreground mb-1">
-            {isDragging ? 'Drop your file here' : 'Upload your medical bill'}
+            {isDragging ? t('upload.bill.dragDrop') : t('upload.bill.title')}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Drag and drop or click to browse
+            {t('upload.bill.subtitle')}
           </p>
           <p className="text-xs text-muted-foreground/80">
-            PDF or images (JPG, PNG, HEIC, GIF, WEBP, TIFF, BMP) • Maximum 20MB
+            {t('upload.bill.formats')}
           </p>
         </div>
       </div>
