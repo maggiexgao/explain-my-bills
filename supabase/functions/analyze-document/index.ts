@@ -35,6 +35,15 @@ When analyzing a bill without an EOB, focus on:
 - Providing general billing education
 - Suggesting the patient request and compare with their EOB
 
+### CRITICAL: CHECK FOR MISSING INSURANCE PAYMENT
+If the bill shows NO insurance payment, NO insurance adjustment, or indicates "self-pay" / "patient responsibility = 100%", this is a MAJOR red flag. Add to potentialErrors:
+- title: "No Insurance Payment Detected"
+- description: "This bill shows no insurance payment or adjustment. This could mean: (1) the claim was never submitted to insurance, (2) the claim was denied, or (3) you were billed as self-pay. If you have insurance, contact the provider immediately."
+- suggestedQuestion: "I have insurance. Can you confirm this claim was submitted to my insurance? If so, was it denied? I need to understand why there's no insurance payment."
+- severity: "error"
+
+Also add to needsAttention if there's any indication the balance is 100% patient responsibility without explanation.
+
 Do NOT:
 - Cross-reference with EOB data (there is none)
 - Flag bill-EOB mismatches
@@ -117,12 +126,42 @@ For each issue found, provide:
 - Itemized Bill Review (effortLevel: short_form)
 
 ## SECTION 4: NEXT STEPS
-### actionSteps - Always include these 3-5 steps in order:
-1. "Review your itemized bill" - Details about checking each charge
-2. "Request your EOB" - If not yet received, get it from your insurer
-3. "Compare bill with EOB" - Verify amounts match
-4. "Question any discrepancies" - Call billing with specific concerns found
-5. "Ask about financial assistance" - If balance is large
+### actionSteps - ALWAYS generate 3-5 specific action items with ACTUAL details from the bill:
+Generate actionSteps as an array of objects with this EXACT structure:
+[
+  {
+    "order": 1,
+    "action": "Request an itemized bill",
+    "details": "Call the billing department at [PROVIDER NAME] and request a fully itemized statement showing each charge with CPT codes, dates of service, and amounts.",
+    "relatedIssue": null
+  },
+  {
+    "order": 2,
+    "action": "Get your Explanation of Benefits (EOB)",
+    "details": "Contact your insurance company and request the EOB for services on [DATE]. This shows what insurance paid and what you actually owe.",
+    "relatedIssue": null
+  },
+  {
+    "order": 3,
+    "action": "Compare bill with EOB",
+    "details": "Once you have both documents, verify the amounts match. Your bill should not exceed what the EOB says you owe.",
+    "relatedIssue": null
+  },
+  {
+    "order": 4,
+    "action": "Question any issues found",
+    "details": "If you found discrepancies or potential errors, call [PROVIDER] billing and reference the specific issues with claim numbers and amounts.",
+    "relatedIssue": "[Reference specific issue if found]"
+  },
+  {
+    "order": 5,
+    "action": "Ask about financial assistance",
+    "details": "If the balance is significant, ask [PROVIDER] about payment plans, charity care, or prompt-pay discounts.",
+    "relatedIssue": null
+  }
+]
+
+CRITICAL: actionSteps MUST NOT be empty. Always generate at least 3 actionable steps with specific details from the bill.
 
 ### billingTemplates - ALWAYS include exactly 2 templates with ACTUAL details from the bill
 
