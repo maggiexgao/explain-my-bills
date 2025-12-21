@@ -266,7 +266,7 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
             <p className="text-xs text-muted-foreground italic mb-3">{analysis.providerAssistance.eligibilityNotes}</p>
             
             {/* Income thresholds if available */}
-            {analysis.providerAssistance.incomeThresholds && analysis.providerAssistance.incomeThresholds.length > 0 && (
+            {Array.isArray(analysis.providerAssistance.incomeThresholds) && analysis.providerAssistance.incomeThresholds.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs font-medium text-foreground mb-1">Income Thresholds:</p>
                 <ul className="space-y-1">
@@ -281,7 +281,7 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
             )}
             
             {/* Required documents if available */}
-            {analysis.providerAssistance.requiredDocuments && analysis.providerAssistance.requiredDocuments.length > 0 && (
+            {Array.isArray(analysis.providerAssistance.requiredDocuments) && analysis.providerAssistance.requiredDocuments.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs font-medium text-foreground mb-1">Documents You May Need:</p>
                 <ul className="space-y-1">
