@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Lato', 'system-ui', 'sans-serif'],
-        display: ['Lato', 'system-ui', 'sans-serif'],
+        sans: ['EB Garamond', 'Georgia', 'serif'],
+        display: ['EB Garamond', 'Georgia', 'serif'],
         mono: ['Courier New', 'Courier', 'monospace'],
       },
       colors: {
