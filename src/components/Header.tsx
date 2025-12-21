@@ -9,7 +9,7 @@ export function Header() {
             <img 
               src={rosettaLogo} 
               alt="Rosetta Logo" 
-              className="h-full w-full object-contain brightness-0 invert"
+              className="h-full w-full object-contain"
             />
           </div>
           <div className="flex flex-col">
