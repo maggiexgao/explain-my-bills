@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
+import { Language } from '@/types';
+import { getTranslation } from '@/i18n/translations';
 
 interface IntroScreenProps {
   onComplete: () => void;
+  language: Language;
 }
 
-const IntroScreen = ({ onComplete }: IntroScreenProps) => {
+const IntroScreen = ({ onComplete, language }: IntroScreenProps) => {
   const [displayedText1, setDisplayedText1] = useState('');
   const [displayedText2, setDisplayedText2] = useState('');
   const [showSecondLine, setShowSecondLine] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
-  const line1 = "Welcome to Rosetta...";
-  const line2 = "your personal medical bill decoder";
+  const line1 = getTranslation(language, 'intro.welcome');
+  const line2 = getTranslation(language, 'intro.decoder');
 
   useEffect(() => {
     let currentIndex = 0;

@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { UploadPage } from '@/components/UploadPage';
 import { AnalysisPage } from '@/components/AnalysisPage';
 import IntroScreen from '@/components/IntroScreen';
+import { LanguageProvider } from '@/i18n/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AppState, UploadedFile, Language, AnalysisResult } from '@/types';
 import { toast } from 'sonner';
@@ -284,44 +285,46 @@ const Index = () => {
   }, []);
 
   if (showIntro) {
-    return <IntroScreen onComplete={handleIntroComplete} />;
+    return <IntroScreen onComplete={handleIntroComplete} language={state.selectedLanguage} />;
   }
 
   return (
-    <div className="min-h-screen flex flex-col relative">
-      {/* Aurora Background */}
-      <div className="aurora-bg" />
-      
-      <Header />
-      <main className="flex-1 relative z-10">
-        {state.currentStep === 'upload' ? (
-          <UploadPage
-            uploadedFile={state.uploadedFile}
-            eobFile={state.eobFile}
-            selectedState={state.selectedState}
-            selectedLanguage={state.selectedLanguage}
-            onFileSelect={handleFileSelect}
-            onRemoveFile={handleRemoveFile}
-            onEOBSelect={handleEOBSelect}
-            onRemoveEOB={handleRemoveEOB}
-            onStateChange={handleStateChange}
-            onLanguageChange={handleLanguageChange}
-            onAnalyze={handleAnalyze}
-          />
-        ) : (
-          state.uploadedFile && (
-            <AnalysisPage
-              file={state.uploadedFile}
-              analysis={state.analysisResult}
-              isAnalyzing={state.isAnalyzing}
-              onBack={handleBack}
-              hasEOB={!!state.eobFile}
+    <LanguageProvider language={state.selectedLanguage} setLanguage={handleLanguageChange}>
+      <div className="min-h-screen flex flex-col relative">
+        {/* Aurora Background */}
+        <div className="aurora-bg" />
+        
+        <Header />
+        <main className="flex-1 relative z-10">
+          {state.currentStep === 'upload' ? (
+            <UploadPage
+              uploadedFile={state.uploadedFile}
+              eobFile={state.eobFile}
+              selectedState={state.selectedState}
+              selectedLanguage={state.selectedLanguage}
+              onFileSelect={handleFileSelect}
+              onRemoveFile={handleRemoveFile}
+              onEOBSelect={handleEOBSelect}
+              onRemoveEOB={handleRemoveEOB}
+              onStateChange={handleStateChange}
+              onLanguageChange={handleLanguageChange}
+              onAnalyze={handleAnalyze}
             />
-          )
-        )}
-      </main>
-      <Footer />
-    </div>
+          ) : (
+            state.uploadedFile && (
+              <AnalysisPage
+                file={state.uploadedFile}
+                analysis={state.analysisResult}
+                isAnalyzing={state.isAnalyzing}
+                onBack={handleBack}
+                hasEOB={!!state.eobFile}
+              />
+            )
+          )}
+        </main>
+        <Footer />
+      </div>
+    </LanguageProvider>
   );
 };
 
