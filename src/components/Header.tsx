@@ -25,10 +25,10 @@ export function Header({ selectedLanguage, onLanguageChange, showLanguageSelecto
           </div>
           <div className="flex flex-col">
             <span className="font-display text-lg font-semibold text-foreground">
-              MedBill Clarity
+              Rosetta
             </span>
             <span className="text-xs text-muted-foreground hidden sm:block">
-              Understand your medical documents
+              Medical bills, decoded
             </span>
           </div>
         </div>

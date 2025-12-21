@@ -60,6 +60,10 @@ export default {
           DEFAULT: "hsl(var(--mint))",
           light: "hsl(var(--mint-light))",
         },
+        blush: {
+          DEFAULT: "hsl(var(--blush))",
+          light: "hsl(var(--blush-light))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",

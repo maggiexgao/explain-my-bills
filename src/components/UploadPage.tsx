@@ -43,10 +43,10 @@ export function UploadPage({
           {/* Hero Section */}
           <div className="text-center mb-12 animate-fade-in">
             <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold text-foreground mb-5 leading-tight tracking-tight">
-              MedBill Clarity
+              Rosetta
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Understand your medical bills in plain language.
+              Medical bills, decoded in plain language.
             </p>
           </div>
 
