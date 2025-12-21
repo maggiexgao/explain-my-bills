@@ -86,7 +86,7 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
     <div className="h-full overflow-auto">
       <div className="p-6 space-y-5">
         {/* Document Summary Header */}
-        <div className="p-5 rounded-2xl accent-gradient border border-border/40">
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15 border border-border/40">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-foreground">{t('app.title')} Analysis</h2>
             {hasEOB && (

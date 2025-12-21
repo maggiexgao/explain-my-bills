@@ -161,7 +161,13 @@ export interface ContactTemplate {
   target: 'billing' | 'insurance';
   purpose: string;
   template: string;
+  templateEnglish?: string; // English version for bilingual display
   whenToUse: string;
+  contactInfo?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
 }
 
 // Action step for Next Steps section

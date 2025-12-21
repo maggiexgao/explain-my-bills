@@ -1,10 +1,7 @@
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, AlertCircle, Copy, Info } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, BillingIssue } from '@/types';
-import { useState } from 'react';
-import { toast } from 'sonner';
 import { useTranslation } from '@/i18n/LanguageContext';
 
 interface ImmediateCalloutsSectionProps {
@@ -33,16 +30,8 @@ const severityConfig = {
 };
 
 function CalloutCard({ issue }: { issue: BillingIssue }) {
-  const [copied, setCopied] = useState(false);
   const { t } = useTranslation();
   const config = severityConfig[issue.severity] || severityConfig.info;
-
-  const copyQuestion = () => {
-    navigator.clipboard.writeText(issue.suggestedQuestion);
-    setCopied(true);
-    toast.success(t('nextSteps.copied'));
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className={cn('p-4 rounded-xl border', config.bg, config.border)}>
@@ -75,22 +64,6 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
               )}
             </div>
           )}
-
-          <div className="pt-2">
-            <p className="text-xs text-muted-foreground mb-2 italic">{t('callouts.suggestedQuestion')}:</p>
-            <div className="p-2 rounded-md bg-background/80 border border-border/30">
-              <p className="text-sm text-foreground">"{issue.suggestedQuestion}"</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={copyQuestion}
-              className="mt-2 text-xs h-7"
-            >
-              <Copy className="h-3 w-3 mr-1" />
-              {copied ? t('nextSteps.copied') : t('nextSteps.copyTemplate')}
-            </Button>
-          </div>
         </div>
       </div>
     </div>

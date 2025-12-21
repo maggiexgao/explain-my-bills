@@ -8,6 +8,7 @@ import {
   Phone,
   LifeBuoy,
   ArrowRight,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, ContactTemplate, ActionStep } from '@/types';
@@ -22,10 +23,11 @@ interface NextStepsSectionProps {
 
 function TemplateCard({ template }: { template: ContactTemplate }) {
   const [copied, setCopied] = useState(false);
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const isNonEnglish = language !== 'en';
 
-  const copyTemplate = () => {
-    navigator.clipboard.writeText(template.template);
+  const copyTemplate = (text?: string) => {
+    navigator.clipboard.writeText(text || template.template);
     setCopied(true);
     toast.success(t('nextSteps.copied'));
     setTimeout(() => setCopied(false), 2000);
@@ -40,21 +42,74 @@ function TemplateCard({ template }: { template: ContactTemplate }) {
           {template.target === 'billing' ? 'Billing' : 'Insurance'}
         </Badge>
       </div>
+      
+      {/* Contact Information */}
+      {template.contactInfo && (template.contactInfo.phone || template.contactInfo.email) && (
+        <div className="mb-3 p-2 rounded-lg bg-primary/5 border border-primary/10">
+          <p className="text-xs font-medium text-primary mb-1">{t('nextSteps.contactInfo')}</p>
+          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {template.contactInfo.phone && (
+              <span className="flex items-center gap-1">
+                <Phone className="h-3 w-3" />
+                {template.contactInfo.phone}
+              </span>
+            )}
+            {template.contactInfo.email && (
+              <span className="flex items-center gap-1">
+                <Mail className="h-3 w-3" />
+                {template.contactInfo.email}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      
       <p className="text-xs text-muted-foreground mb-3">{t('nextSteps.whenToUse')}: {template.whenToUse}</p>
+      
+      {/* Template in selected language */}
       <div className="p-3 rounded-lg bg-background border border-border/30 mb-3">
         <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
           "{template.template}"
         </p>
       </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={copyTemplate}
-        className="text-xs h-7"
-      >
-        <Copy className="h-3 w-3 mr-1" />
-        {copied ? t('nextSteps.copied') : t('nextSteps.copyTemplate')}
-      </Button>
+      
+      {/* English translation for non-English languages */}
+      {isNonEnglish && template.templateEnglish && (
+        <div className="mb-3">
+          <p className="text-xs text-muted-foreground mb-2 italic">
+            {t('nextSteps.englishTranslation')}:
+          </p>
+          <div className="p-3 rounded-lg bg-muted/30 border border-border/20 ml-3">
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+              "{template.templateEnglish}"
+            </p>
+          </div>
+        </div>
+      )}
+      
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => copyTemplate()}
+          className="text-xs h-7"
+        >
+          <Copy className="h-3 w-3 mr-1" />
+          {copied ? t('nextSteps.copied') : t('nextSteps.copyTemplate')}
+        </Button>
+        
+        {isNonEnglish && template.templateEnglish && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => copyTemplate(template.templateEnglish)}
+            className="text-xs h-7 text-muted-foreground"
+          >
+            <Copy className="h-3 w-3 mr-1" />
+            {t('nextSteps.copyEnglish')}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

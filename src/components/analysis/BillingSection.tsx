@@ -313,8 +313,8 @@ export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
 
       <SubcategoryCard
         icon={<Scale className="h-5 w-5 text-primary" />}
-        title={t('billing.debtCredit')}
-        teaser="What you should know about medical debt"
+        title={`${t('billing.debtCredit')} - ${analysis.stateHelp.state}`}
+        teaser={`What you should know about medical debt in ${analysis.stateHelp.state}`}
         defaultOpen={false}
       >
         <div className="space-y-3">
