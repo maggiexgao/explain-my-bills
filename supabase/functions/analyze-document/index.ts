@@ -839,6 +839,38 @@ Output ONLY valid JSON matching the exact structure in the system prompt. No mar
   }
 });
 
+function createFallbackMedicalDocAnalysis(state: string) {
+  return {
+    documentType: 'mixed_other',
+    documentTypeLabel: 'Medical Document',
+    overview: {
+      summary: 'This document contains medical information. Please review with your healthcare provider.',
+      mainPurpose: 'Provides medical details about your care.',
+      overallAssessment: 'Please discuss any questions or concerns with your healthcare provider.'
+    },
+    lineByLine: [
+      { originalText: 'Document content', plainLanguage: 'This document contains medical information that your healthcare team has prepared for you.' }
+    ],
+    definitions: [
+      { term: 'Medical Record', definition: 'A document that contains information about your health and medical care.' }
+    ],
+    commonlyAskedQuestions: [
+      { question: 'What should I do with this document?', answer: 'Keep this document for your records and bring it to your next appointment to discuss with your doctor.' }
+    ],
+    providerQuestions: [
+      { question: 'Can you explain what this document means for my health?', questionEnglish: 'Can you explain what this document means for my health?' },
+      { question: 'Are there any follow-up steps I should take?', questionEnglish: 'Are there any follow-up steps I should take?' }
+    ],
+    resources: [
+      { title: 'MedlinePlus', description: 'Trusted health information from the National Library of Medicine', url: 'https://medlineplus.gov/', source: 'NIH' }
+    ],
+    nextSteps: [
+      { step: 'Review this document', details: 'Read through the document and note any questions you have.' },
+      { step: 'Contact your provider', details: 'Reach out to your healthcare provider if you have questions about the content.' }
+    ]
+  };
+}
+
 function createFallbackAnalysis(state: string, hasEOB: boolean) {
   return {
     documentType: 'bill',
