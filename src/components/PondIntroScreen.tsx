@@ -171,26 +171,17 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         isExiting ? 'opacity-0' : 'opacity-100'
       }`}
       style={{
-        background: `
-          radial-gradient(ellipse at 25% 15%, hsl(340 60% 55% / 0.45) 0%, transparent 45%),
-          radial-gradient(ellipse at 75% 25%, hsl(15 75% 55% / 0.5) 0%, transparent 40%),
-          radial-gradient(ellipse at 60% 70%, hsl(45 80% 55% / 0.4) 0%, transparent 45%),
-          radial-gradient(ellipse at 30% 80%, hsl(340 55% 50% / 0.35) 0%, transparent 40%),
-          linear-gradient(180deg, hsl(195 50% 20%) 0%, hsl(185 45% 22%) 50%, hsl(200 55% 18%) 100%)
-        `,
+        backgroundImage: `url('/images/pond-water-bg.png')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         cursor: prefersReducedMotion ? 'auto' : 'none',
       }}
     >
-      {/* Water caustic overlay */}
+      {/* Subtle darkening overlay for better text readability */}
       <div 
-        className="absolute inset-0 opacity-40 pointer-events-none"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `
-            radial-gradient(ellipse at 20% 30%, hsl(45 85% 70% / 0.2) 0%, transparent 30%),
-            radial-gradient(ellipse at 80% 20%, hsl(0 0% 100% / 0.15) 0%, transparent 25%),
-            radial-gradient(ellipse at 60% 50%, hsl(180 60% 75% / 0.12) 0%, transparent 35%),
-            radial-gradient(ellipse at 35% 70%, hsl(0 0% 100% / 0.12) 0%, transparent 30%)
-          `,
+          background: 'linear-gradient(180deg, hsl(200 30% 15% / 0.15) 0%, hsl(200 30% 10% / 0.25) 100%)',
         }}
       />
 
@@ -198,19 +189,6 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="shimmer-particles" />
       </div>
-
-      {/* Animated water lines */}
-      <svg className="absolute inset-0 w-full h-full opacity-12" preserveAspectRatio="none">
-        <defs>
-          <pattern id="waterPattern" x="0" y="0" width="200" height="200" patternUnits="userSpaceOnUse">
-            <path d="M0 100 Q50 80 100 100 T200 100" stroke="hsl(0, 0%, 100%)" strokeWidth="1.5" fill="none" opacity="0.6">
-              <animate attributeName="d" dur="3s" repeatCount="indefinite"
-                values="M0 100 Q50 80 100 100 T200 100;M0 100 Q50 120 100 100 T200 100;M0 100 Q50 80 100 100 T200 100" />
-            </path>
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#waterPattern)" />
-      </svg>
 
       {/* Frog cursor - using actual image */}
       {!prefersReducedMotion && (

@@ -73,29 +73,19 @@ export function UploadPage({
   const currentContent = content[analysisMode];
 
   return (
-    <div className="h-full flex flex-col items-center justify-center px-4 py-3">
+    <div className="h-full flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm animate-fade-in">
-        {/* Compact header */}
-        <div className="text-center mb-3">
-          <h1 className="font-display text-2xl font-bold text-foreground mb-0.5 tracking-tight">
-            {t('app.title')}
-          </h1>
-          <p className="text-xs text-muted-foreground font-light">
-            be your own best advocate.
-          </p>
-        </div>
-
-        <div className="glass-card-strong p-4 space-y-3 animate-slide-up">
+        <div className="glass-card-strong p-4 space-y-2.5 animate-slide-up">
           {/* Mode Toggle with inline subtitle */}
           <div className="space-y-1">
             <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
-            <p className="text-[11px] text-center text-muted-foreground">
+            <p className="text-[10px] text-center text-muted-foreground leading-tight">
               {currentContent.subtitle}
             </p>
           </div>
 
           {/* File uploaders */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <FileUploader
               uploadedFile={uploadedFile}
               onFileSelect={onFileSelect}
@@ -105,7 +95,7 @@ export function UploadPage({
             
             {/* Compact supported docs for Medical Document mode */}
             {isMedicalDoc && !uploadedFile && (
-              <p className="text-[10px] text-muted-foreground/70 text-center leading-tight">
+              <p className="text-[9px] text-muted-foreground/70 text-center leading-tight">
                 Lab results, imaging reports, visit summaries, prescriptions
               </p>
             )}
@@ -128,7 +118,7 @@ export function UploadPage({
                 {t('upload.state.label')}
               </label>
               <Select value={selectedState} onValueChange={onStateChange}>
-                <SelectTrigger className="w-full h-9 text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
+                <SelectTrigger className="w-full h-8 text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
                   <SelectValue placeholder={t('upload.state.placeholder')} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[180px] bg-popover/95 backdrop-blur-md z-50">
@@ -147,7 +137,7 @@ export function UploadPage({
                 {t('upload.language.label')}
               </label>
               <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
-                <SelectTrigger className="w-full h-9 text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
+                <SelectTrigger className="w-full h-8 text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
                   <SelectValue placeholder={t('upload.language.label')} />
                 </SelectTrigger>
                 <SelectContent className="bg-popover/95 backdrop-blur-md z-50">
@@ -169,7 +159,7 @@ export function UploadPage({
           {/* Analyze button */}
           <Button
             size="lg"
-            className={`w-full h-10 text-sm font-semibold rounded-xl transition-all duration-300 relative overflow-hidden group ${
+            className={`w-full h-9 text-sm font-semibold rounded-xl transition-all duration-300 relative overflow-hidden group ${
               canAnalyze 
                 ? 'accent-gradient text-primary-foreground shadow-glow hover:shadow-glow-active' 
                 : 'bg-muted/60 text-muted-foreground cursor-not-allowed'
@@ -190,42 +180,37 @@ export function UploadPage({
         </div>
 
         {/* Condensed steps + features */}
-        <div className="mt-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div className="mt-2.5 animate-slide-up" style={{ animationDelay: '0.1s' }}>
           {/* Step indicators */}
-          <div className="flex items-center justify-center gap-1.5 text-[10px] text-foreground/60 mb-2">
+          <div className="flex items-center justify-center gap-1.5 text-[9px] text-foreground/60 mb-1.5">
             <span className="flex items-center gap-0.5">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-coral/20 text-coral font-bold text-[9px]">1</span>
+              <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-coral/20 text-coral font-bold text-[8px]">1</span>
               upload
             </span>
             <span className="text-muted-foreground/40">→</span>
             <span className="flex items-center gap-0.5">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple/20 text-purple font-bold text-[9px]">2</span>
+              <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-purple/20 text-purple font-bold text-[8px]">2</span>
               pond decodes
             </span>
             <span className="text-muted-foreground/40">→</span>
             <span className="flex items-center gap-0.5">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-teal/20 text-teal font-bold text-[9px]">3</span>
+              <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-teal/20 text-teal font-bold text-[8px]">3</span>
               next step
             </span>
           </div>
 
           {/* Feature pills */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[9px]">
+          <div className="flex flex-wrap items-center justify-center gap-1 text-[8px]">
             {currentContent.features.map((feature, idx) => {
               const Icon = feature.icon;
               return (
-                <div key={idx} className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-white/50 backdrop-blur-sm border border-white/60">
-                  <Icon className={`h-2.5 w-2.5 ${feature.color}`} />
+                <div key={idx} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/50 backdrop-blur-sm border border-white/60">
+                  <Icon className={`h-2 w-2 ${feature.color}`} />
                   <span className="text-foreground/70">{feature.label}</span>
                 </div>
               );
             })}
           </div>
-
-          {/* Compact disclaimer */}
-          <p className="text-[9px] text-center text-muted-foreground/60 mt-2 leading-tight">
-            pond explains documents in everyday language—it won't diagnose or treat. <a href="#" className="underline hover:text-foreground/70">Learn more</a>
-          </p>
         </div>
       </div>
     </div>

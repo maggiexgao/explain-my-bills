@@ -20,7 +20,7 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
 
   if (isAnalyzing) {
     return (
-      <div className="h-[calc(100vh-7rem)] flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4 animate-fade-in">
           <div className="relative">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl glass-card-strong mx-auto">
@@ -57,7 +57,7 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
 
   if (!analysis) {
     return (
-      <div className="h-[calc(100vh-7rem)] flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-3 glass-card-strong p-6 rounded-2xl">
           <p className="text-muted-foreground text-sm">{t('analysis.errorDesc')}</p>
           <Button 
@@ -73,25 +73,25 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
   }
 
   return (
-    <div className="h-[calc(100vh-7rem)] flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Compact sticky bar */}
-      <div className="sticky top-14 z-40 glass-card border-t-0 border-x-0">
-        <div className="container flex items-center h-10 px-4 md:px-6">
+      <div className="shrink-0 z-40 glass-card border-t-0 border-x-0 border-b border-border/30">
+        <div className="container flex items-center h-8 px-4 md:px-6">
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={onBack} 
-            className="gap-1.5 text-foreground/80 hover:text-foreground hover:bg-background/50 text-xs h-7"
+            className="gap-1 text-foreground/80 hover:text-foreground hover:bg-background/50 text-xs h-6 px-2"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-3 w-3" />
             {t('analysis.newDocument')}
           </Button>
         </div>
       </div>
 
       {/* Two-column layout that fits in viewport */}
-      <div className="flex-1 container px-3 py-2 md:px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full">
+      <div className="flex-1 min-h-0 container px-3 py-2 md:px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 h-full">
           <div className="h-full min-h-0 animate-fade-in">
             <div className="h-full glass-card-strong rounded-xl overflow-hidden">
               <DocumentViewer file={file} activeHighlight={activeHighlight} />
@@ -109,3 +109,4 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
     </div>
   );
 }
+

@@ -365,7 +365,7 @@ const Index = () => {
           <WaterRippleEffect />
           
           <Header />
-          <main className="flex-1 relative z-10 overflow-hidden">
+          <main className="flex-1 relative z-10 overflow-hidden min-h-0">
             {state.currentStep === 'upload' ? (
               <UploadPage
                 uploadedFile={state.uploadedFile}

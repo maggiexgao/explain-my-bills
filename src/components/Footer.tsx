@@ -2,20 +2,13 @@ import { AlertTriangle } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="border-t border-border/40 bg-muted/30">
-      <div className="container px-4 py-6 md:px-6">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex items-start gap-3 max-w-2xl p-4 rounded-lg bg-warning/10 border border-warning/20">
-            <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              <strong className="text-foreground">Important:</strong> This tool provides educational information only. 
-              It is not medical, legal, or financial advice. Always consult qualified professionals 
-              for specific guidance about your situation.
-            </p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} pond. Your privacy is protected. 
-            Documents are processed securely and not stored.
+    <footer className="shrink-0 glass-card border-t border-border/30 border-x-0 border-b-0">
+      <div className="container px-4 py-1.5 md:px-6">
+        <div className="flex items-center justify-center gap-2 text-center">
+          <AlertTriangle className="h-3 w-3 text-warning shrink-0" />
+          <p className="text-[10px] text-muted-foreground">
+            <strong className="text-foreground/80">Important:</strong> Educational only—not medical, legal, or financial advice. 
+            <a href="#" className="underline hover:text-foreground ml-1">Learn more</a>
           </p>
         </div>
       </div>
