@@ -574,6 +574,75 @@ function validateInput(body: any): ValidationResult {
   return { valid: true };
 }
 
+// Medical document analysis prompt
+const MEDICAL_DOC_PROMPT = `You are a friendly medical document explainer. Your job is to help patients understand their medical documents (visit summaries, test results, clinical notes, prescriptions, imaging reports) in plain language.
+
+## CRITICAL RULES
+1. Be educational only - never diagnose or give medical advice
+2. Use 6th-8th grade reading level
+3. Be reassuring and calm
+4. Always suggest discussing with their healthcare provider
+
+## OUTPUT FORMAT
+Return valid JSON with this EXACT structure:
+{
+  "documentType": "after_visit_summary" | "test_results" | "clinical_note" | "prescription" | "imaging_report" | "mixed_other",
+  "documentTypeLabel": "Human-readable label for the document type",
+  "overview": {
+    "summary": "3-6 sentence summary of what this document is about",
+    "mainPurpose": "The main purpose of this document",
+    "overallAssessment": "General assessment using cautious language like 'appears normal' or 'may need follow-up'"
+  },
+  "lineByLine": [
+    {
+      "originalText": "Key medical term or finding from the document",
+      "plainLanguage": "Plain English explanation of what this means"
+    }
+  ],
+  "definitions": [
+    {
+      "term": "Medical term or abbreviation",
+      "definition": "1-2 sentence consumer-friendly definition"
+    }
+  ],
+  "commonlyAskedQuestions": [
+    {
+      "question": "Common patient question about findings in this document",
+      "answer": "Educational answer ending with suggestion to discuss with provider"
+    }
+  ],
+  "providerQuestions": [
+    {
+      "question": "Suggested question to ask healthcare provider",
+      "questionEnglish": "English version if output is in another language"
+    }
+  ],
+  "resources": [
+    {
+      "title": "Resource title",
+      "description": "Brief description",
+      "url": "URL to reputable patient resource",
+      "source": "Source name (e.g., MedlinePlus, Mayo Clinic)"
+    }
+  ],
+  "nextSteps": [
+    {
+      "step": "Action step title",
+      "details": "Details about this step"
+    }
+  ]
+}
+
+## CONTENT REQUIREMENTS
+- lineByLine: Extract 5-15 key findings, terms, or instructions from the document
+- definitions: Include 5-10 medical terms found in the document
+- commonlyAskedQuestions: Generate 3-5 Q&As based on what real patients ask about these types of findings
+- providerQuestions: Generate 5-8 personalized questions for the patient to ask their doctor
+- resources: Include 2-4 reputable health education links (MedlinePlus, Mayo Clinic, CDC, etc.)
+- nextSteps: Include 3-5 practical next steps
+
+If the document has minimal clinical content, still provide helpful general information about the document type.`;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -601,17 +670,19 @@ serve(async (req) => {
       });
     }
     
-    const { documentContent, documentType, eobContent, state, language } = body;
+    const { documentContent, documentType, eobContent, state, language, analysisMode } = body;
+    const isMedicalDoc = analysisMode === 'medical_document';
     
-    console.log('Analyzing document:', { documentType, state, language, contentLength: documentContent?.length, hasEOB: !!eobContent });
+    console.log('Analyzing document:', { documentType, state, language, analysisMode, contentLength: documentContent?.length, hasEOB: !!eobContent });
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const hasEOB = !!eobContent;
-    const systemPrompt = hasEOB ? SYSTEM_PROMPT + EOB_PROMPT_ADDITION : SYSTEM_PROMPT;
+    // Choose prompt based on analysis mode
+    const hasEOB = !!eobContent && !isMedicalDoc;
+    const systemPrompt = isMedicalDoc ? MEDICAL_DOC_PROMPT : (hasEOB ? SYSTEM_PROMPT + EOB_PROMPT_ADDITION : SYSTEM_PROMPT);
 
     // Map language codes to full names
     const languageMap: Record<string, string> = {
@@ -623,43 +694,42 @@ serve(async (req) => {
     };
     const outputLanguage = languageMap[language] || 'English';
 
-    const eobInstructions = hasEOB 
-      ? `\nIMPORTANT: An EOB (Explanation of Benefits) is provided. You MUST:
-1. Cross-reference EVERY line item between bill and EOB
-2. Flag ANY discrepancies with EXACT dollar amounts from both documents
-3. Populate the eobData field with extracted EOB values
-4. Update billingEducation.eobSummary with actual EOB amounts
-5. Include claim number, dates, and amounts in all templates`
-      : `\nNOTE: No EOB was provided. Do NOT:
-1. Cross-reference with EOB data (there is none)
-2. Flag bill-EOB mismatches
-3. Include eobData in output (set to null)
-4. Reference EOB amounts in templates
-Instead, suggest the patient request and compare with their EOB once received.`;
+    let userPromptText: string;
+    
+    if (isMedicalDoc) {
+      userPromptText = `Analyze this medical document for a patient in ${state || 'an unspecified U.S. state'}.
+Output language: ${outputLanguage}
 
-    const userPromptText = `Analyze this medical document for a patient in ${state || 'an unspecified U.S. state'}. 
+## REQUIREMENTS:
+1. Identify the document type (after_visit_summary, test_results, clinical_note, prescription, imaging_report, or mixed_other)
+2. Extract ALL key findings, terms, diagnoses, test results, and instructions
+3. Explain each medical term in plain language
+4. Generate realistic patient questions based on what people actually ask about these findings
+5. Create personalized questions for the patient to bring to their next appointment
+6. Include relevant educational resources
+
+${language !== 'en' ? `ALL text content MUST be written in ${outputLanguage}. EXCEPTION: Do NOT translate medical terms, test names, medication names, or URLs. For providerQuestions, also include an English version in questionEnglish field.` : 'Write all content in English.'}
+
+Output ONLY valid JSON matching the structure in the system prompt. No markdown, no explanation.`;
+    } else {
+      const eobInstructions = hasEOB 
+        ? `\nIMPORTANT: An EOB (Explanation of Benefits) is provided. You MUST cross-reference EVERY line item between bill and EOB.`
+        : `\nNOTE: No EOB was provided. Suggest the patient request and compare with their EOB.`;
+
+      userPromptText = `Analyze this medical document for a patient in ${state || 'an unspecified U.S. state'}. 
 Document type: ${documentType || 'medical bill'}
 Output language: ${outputLanguage}
 ${eobInstructions}
 
-## DETERMINISTIC ANALYSIS REQUIREMENTS:
-1. Extract and reference EXACT CPT codes, amounts, dates, and provider names
-2. Check for issues in the EXACT ORDER specified in the system prompt
-3. Use the EXACT template patterns and standard phrases provided
-4. Generate arrays with consistent item ordering (by code number, by date, by amount)
-5. Use standard category labels: evaluation, lab, radiology, surgery, medicine, other
-6. Use standard severity labels: error, warning, info
-7. Use standard effort levels: quick_call, short_form, detailed_application
+${language !== 'en' ? `ALL text content MUST be written in ${outputLanguage}. EXCEPTION: Do NOT translate CPT codes, dollar amounts, dates, claim numbers, provider names, or URLs.` : 'Write all content in English.'}
 
-## LANGUAGE REQUIREMENT:
-${language !== 'en' ? `ALL text content (titles, descriptions, explanations, templates, etc.) MUST be written in ${outputLanguage}. EXCEPTION: Do NOT translate CPT codes, HCPCS codes, dollar amounts, dates, claim numbers, provider names, hospital names, program names (like Medicaid, Medicare), or URLs.` : 'Write all content in English.'}
-
-Output ONLY valid JSON matching the exact structure in the system prompt. No markdown, no explanation, just the JSON object.`;
+Output ONLY valid JSON matching the exact structure in the system prompt. No markdown, no explanation.`;
+    }
 
     // Build content array for the message
     const contentParts: any[] = [{ type: 'text', text: userPromptText }];
     
-    // Add bill document
+    // Add document
     if (documentContent.startsWith('data:')) {
       const base64Data = documentContent.split(',')[1];
       const mimeType = documentContent.split(';')[0].split(':')[1] || 'image/jpeg';
@@ -669,11 +739,11 @@ Output ONLY valid JSON matching the exact structure in the system prompt. No mar
         image_url: { url: `data:${mimeType};base64,${base64Data}` } 
       });
     } else {
-      contentParts[0].text += `\n\nBill document content:\n${documentContent}`;
+      contentParts[0].text += `\n\nDocument content:\n${documentContent}`;
     }
 
-    // Add EOB document if present
-    if (eobContent) {
+    // Add EOB document if present (bill mode only)
+    if (eobContent && !isMedicalDoc) {
       if (eobContent.startsWith('data:')) {
         const base64Data = eobContent.split(',')[1];
         const mimeType = eobContent.split(';')[0].split(':')[1] || 'image/jpeg';
@@ -703,8 +773,8 @@ Output ONLY valid JSON matching the exact structure in the system prompt. No mar
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages,
-        temperature: 0, // CRITICAL: Set to 0 for deterministic, reproducible output
-        top_p: 0.1, // Minimal nucleus sampling for consistency
+        temperature: 0,
+        top_p: 0.1,
       }),
     });
 
@@ -738,7 +808,7 @@ Output ONLY valid JSON matching the exact structure in the system prompt. No mar
       throw new Error('No content in AI response');
     }
 
-    // Extract JSON from the response (handle markdown code blocks)
+    // Extract JSON from the response
     let analysisJson = content;
     const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
@@ -751,8 +821,7 @@ Output ONLY valid JSON matching the exact structure in the system prompt. No mar
       console.log('Analysis parsed successfully');
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', content.substring(0, 500));
-      // Return a structured fallback
-      analysis = createFallbackAnalysis(state || 'US', hasEOB);
+      analysis = isMedicalDoc ? createFallbackMedicalDocAnalysis(state || 'US') : createFallbackAnalysis(state || 'US', hasEOB);
     }
 
     return new Response(JSON.stringify({ analysis }), {
