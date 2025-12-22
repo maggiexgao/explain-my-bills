@@ -1,5 +1,6 @@
 import { FileUploader } from '@/components/FileUploader';
 import { EOBUploader } from '@/components/EOBUploader';
+import { ModeToggle } from '@/components/ModeToggle';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -9,7 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe } from 'lucide-react';
-import { UploadedFile, US_STATES, Language, LANGUAGES } from '@/types';
+import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 
 interface UploadPageProps {
@@ -17,12 +18,14 @@ interface UploadPageProps {
   eobFile: UploadedFile | null;
   selectedState: string;
   selectedLanguage: Language;
+  analysisMode: AnalysisMode;
   onFileSelect: (file: UploadedFile) => void;
   onRemoveFile: () => void;
   onEOBSelect: (file: UploadedFile) => void;
   onRemoveEOB: () => void;
   onStateChange: (state: string) => void;
   onLanguageChange: (language: Language) => void;
+  onModeChange: (mode: AnalysisMode) => void;
   onAnalyze: () => void;
 }
 
@@ -31,12 +34,14 @@ export function UploadPage({
   eobFile,
   selectedState,
   selectedLanguage,
+  analysisMode,
   onFileSelect,
   onRemoveFile,
   onEOBSelect,
   onRemoveEOB,
   onStateChange,
   onLanguageChange,
+  onModeChange,
   onAnalyze,
 }: UploadPageProps) {
   const { t } = useTranslation();
@@ -55,17 +60,22 @@ export function UploadPage({
         </div>
 
         <div className="glass-card-strong p-6 md:p-8 space-y-6 animate-slide-up">
+          {/* Mode Toggle */}
+          <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
+
           <div className="space-y-4">
             <FileUploader
               uploadedFile={uploadedFile}
               onFileSelect={onFileSelect}
               onRemoveFile={onRemoveFile}
             />
-            <EOBUploader
-              uploadedFile={eobFile}
-              onFileSelect={onEOBSelect}
-              onRemoveFile={onRemoveEOB}
-            />
+            {analysisMode === 'bill' && (
+              <EOBUploader
+                uploadedFile={eobFile}
+                onFileSelect={onEOBSelect}
+                onRemoveFile={onRemoveEOB}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
