@@ -11,7 +11,7 @@ const modes = [
   {
     value: 'bill' as const,
     label: 'Bill Analysis',
-    subtitle: 'Understand your medical bills and what you can do about them.',
+    subtitle: 'Understand your medical bills and what you may owe.',
     icon: FileText,
   },
   {

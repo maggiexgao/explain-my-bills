@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe } from 'lucide-react';
+import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, MessageSquare, HelpCircle, AlertCircle } from 'lucide-react';
 import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -46,6 +46,38 @@ export function UploadPage({
 }: UploadPageProps) {
   const { t } = useTranslation();
   const canAnalyze = uploadedFile && selectedState;
+  const isMedicalDoc = analysisMode === 'medical_document';
+
+  // Mode-specific content
+  const content = {
+    bill: {
+      subtitle: 'Medical bills, decoded.',
+      step1: 'Share your medical bill or EOB',
+      step2: 'AI decodes your document',
+      step3: 'Get clear explanations and next steps',
+      features: [
+        { icon: FileSearch, label: 'Line-by-line breakdown', color: 'text-coral' },
+        { icon: Shield, label: 'State protections', color: 'text-purple' },
+        { icon: Lock, label: 'Private & secure', color: 'text-mint' },
+      ],
+      buttonText: t('upload.analyze'),
+    },
+    medical_document: {
+      subtitle: 'Medical documents, explained.',
+      step1: 'Upload your medical document',
+      step2: 'AI decodes your medical information',
+      step3: 'Get clear explanations for your health information',
+      features: [
+        { icon: BookOpen, label: 'Line-by-line explanation', color: 'text-coral' },
+        { icon: HelpCircle, label: 'Key terms defined', color: 'text-purple' },
+        { icon: MessageSquare, label: 'Questions for your provider', color: 'text-mint' },
+        { icon: Lock, label: 'Private & secure', color: 'text-blush' },
+      ],
+      buttonText: 'Analyze Document',
+    },
+  };
+
+  const currentContent = content[analysisMode];
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center px-4 py-8">
@@ -55,7 +87,7 @@ export function UploadPage({
             {t('app.title')}
           </h1>
           <p className="text-lg text-muted-foreground font-light">
-            {t('app.subtitle')}
+            {currentContent.subtitle}
           </p>
         </div>
 
@@ -63,13 +95,39 @@ export function UploadPage({
           {/* Mode Toggle */}
           <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
 
+          {/* Medical Document helper text */}
+          {isMedicalDoc && (
+            <div className="text-center text-sm text-muted-foreground px-2">
+              <p>Upload visit summaries, test results, imaging reports, prescriptions, or other medical paperwork. Rosetta will explain them in plain language.</p>
+            </div>
+          )}
+
           <div className="space-y-4">
             <FileUploader
               uploadedFile={uploadedFile}
               onFileSelect={onFileSelect}
               onRemoveFile={onRemoveFile}
+              mode={analysisMode}
             />
-            {analysisMode === 'bill' && (
+            
+            {/* Supported documents list for Medical Document mode */}
+            {isMedicalDoc && !uploadedFile && (
+              <div className="text-xs text-muted-foreground bg-background/40 rounded-lg p-3 space-y-2">
+                <p className="font-medium text-foreground/80">Supported documents include:</p>
+                <ul className="space-y-1 ml-2">
+                  <li>• After-visit summaries (e.g., MyChart)</li>
+                  <li>• Lab and blood test results</li>
+                  <li>• Imaging reports (X-ray, CT, MRI, ultrasound)</li>
+                  <li>• Clinic or hospital visit notes</li>
+                  <li>• Prescription or medication instructions</li>
+                  <li>• Other documents with diagnoses, tests, or observations</li>
+                </ul>
+                <p className="text-muted-foreground/70 mt-2">Formats: PDF, JPG, JPEG, PNG, HEIC</p>
+              </div>
+            )}
+
+            {/* EOB uploader only for bill mode */}
+            {!isMedicalDoc && (
               <EOBUploader
                 uploadedFile={eobFile}
                 onFileSelect={onEOBSelect}
@@ -133,9 +191,17 @@ export function UploadPage({
             disabled={!canAnalyze}
             onClick={onAnalyze}
           >
-            {t('upload.analyze')}
+            {currentContent.buttonText}
             <ArrowRight className="h-5 w-5 ml-2" />
           </Button>
+
+          {/* Medical Document disclaimer */}
+          {isMedicalDoc && (
+            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background/30 rounded-lg p-3">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-warning" />
+              <p>Rosetta will not diagnose or treat conditions, but will explain what this document says in everyday language so you can have a better conversation with your clinician.</p>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 space-y-6 animate-slide-up" style={{ animationDelay: '0.15s' }}>
@@ -144,35 +210,32 @@ export function UploadPage({
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-coral/20 border border-coral/30">
                 <span className="text-coral font-bold text-sm">1</span>
               </div>
-              <p className="text-sm text-foreground/70">{t('upload.step1.desc')}</p>
+              <p className="text-sm text-foreground/70">{currentContent.step1}</p>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple/20 border border-purple/30">
                 <span className="text-purple font-bold text-sm">2</span>
               </div>
-              <p className="text-sm text-foreground/70">{t('upload.step2.desc')}</p>
+              <p className="text-sm text-foreground/70">{currentContent.step2}</p>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-mint/20 border border-mint/30">
                 <span className="text-mint font-bold text-sm">3</span>
               </div>
-              <p className="text-sm text-foreground/70">{t('upload.step3.desc')}</p>
+              <p className="text-sm text-foreground/70">{currentContent.step3}</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/40 backdrop-blur-sm">
-              <FileSearch className="h-4 w-4 text-coral" />
-              <span className="text-foreground/70">{t('upload.feature.breakdown')}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/40 backdrop-blur-sm">
-              <Shield className="h-4 w-4 text-purple" />
-              <span className="text-foreground/70">{t('upload.feature.protections')}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/40 backdrop-blur-sm">
-              <Lock className="h-4 w-4 text-mint" />
-              <span className="text-foreground/70">{t('upload.feature.secure')}</span>
-            </div>
+            {currentContent.features.map((feature, idx) => {
+              const Icon = feature.icon;
+              return (
+                <div key={idx} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/40 backdrop-blur-sm">
+                  <Icon className={`h-4 w-4 ${feature.color}`} />
+                  <span className="text-foreground/70">{feature.label}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
