@@ -156,6 +156,17 @@ export interface FinancialOpportunity {
   link?: string;
 }
 
+// Provider contact information extracted from bill
+export interface ProviderContactInfo {
+  providerName: string;
+  billingPhone?: string;
+  billingEmail?: string;
+  mailingAddress?: string;
+  memberServicesPhone?: string; // For insurance
+  memberServicesEmail?: string; // For insurance
+  insurerName?: string;
+}
+
 // Call/email templates
 export interface ContactTemplate {
   target: 'billing' | 'insurance';
@@ -167,6 +178,16 @@ export interface ContactTemplate {
     name?: string;
     phone?: string;
     email?: string;
+    address?: string;
+  };
+  // Auto-filled data from the bill/EOB
+  filledData?: {
+    claimNumber?: string;
+    dateOfService?: string;
+    providerName?: string;
+    billedAmount?: number;
+    eobPatientResponsibility?: number;
+    discrepancyAmount?: number;
   };
 }
 
@@ -212,6 +233,7 @@ export interface AnalysisResult {
   financialOpportunities: FinancialOpportunity[];
 
   // === SECTION 4: NEXT STEPS ===
+  providerContactInfo: ProviderContactInfo;
   actionSteps: ActionStep[];
   billingTemplates: ContactTemplate[];
   insuranceTemplates: ContactTemplate[];

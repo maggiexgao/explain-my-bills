@@ -414,6 +414,14 @@ export const mockAnalysisResult: AnalysisResult = {
       relatedCodes: ['99284'],
     },
   ],
+  providerContactInfo: {
+    providerName: 'Memorial Regional Medical Center',
+    billingPhone: '(555) 123-4567',
+    billingEmail: 'billing@memorialregional.example.com',
+    mailingAddress: '1234 Healthcare Blvd, Los Angeles, CA 90001',
+    insurerName: 'Blue Cross Blue Shield',
+    memberServicesPhone: '(800) 555-1234',
+  },
   actionSteps: [
     {
       order: 1,

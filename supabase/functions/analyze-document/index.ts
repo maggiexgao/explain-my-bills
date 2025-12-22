@@ -172,6 +172,23 @@ For CPT 43239 (Upper GI endoscopy with biopsy):
 3. "Paid medical debt must be removed from credit reports within 45 days."
 
 ## SECTION 4: NEXT STEPS
+
+### providerContactInfo - ALWAYS extract from the bill:
+Extract the provider's contact information from the bill and populate this object. Look for these in the "billing questions", "customer service", "payment information", or header sections of the bill:
+{
+  "providerContactInfo": {
+    "providerName": "Exact billing entity name from the bill (hospital/provider name)",
+    "billingPhone": "Phone number in billing/customer service/questions area (format: (XXX) XXX-XXXX)",
+    "billingEmail": "Email for billing questions if listed, otherwise null",
+    "mailingAddress": "Address shown for payments or correspondence",
+    "insurerName": "Insurance company name if visible on bill or EOB",
+    "memberServicesPhone": "Insurance member services number if on EOB",
+    "memberServicesEmail": "Insurance contact email if on EOB, otherwise null"
+  }
+}
+
+If a field cannot be found on the documents, set it to null. Never make up contact information - only use what's actually on the documents.
+
 ### actionSteps - ALWAYS generate 3-5 specific action items with ACTUAL details from the bill:
 Generate actionSteps as an array of objects with this EXACT structure:
 [
@@ -209,27 +226,65 @@ Generate actionSteps as an array of objects with this EXACT structure:
 
 CRITICAL: actionSteps MUST NOT be empty. Always generate at least 3 actionable steps with specific details from the bill.
 
-### billingTemplates - ALWAYS include exactly ONE consolidated template:
-Generate a SINGLE professional billing department template that consolidates ALL issues, discrepancies, and questions to raise. Structure it as:
+### billingTemplates - Generate ONE ready-to-send email template:
+Create a SINGLE professional, ready-to-send email/message template for the billing department. This template must:
+1. Auto-fill ALL specific details from the bill (provider name, claim number, dates, amounts)
+2. List ALL billing issues found in a numbered, organized format
+3. Be professional but kind and concise
+4. Be formatted as an email with Subject line
+
+TEMPLATE FORMAT:
 {
   "target": "billing",
-  "purpose": "Consolidated Billing Department Inquiry",
-  "template": "Hello, I am calling about my bill for services on [DATE OF SERVICE] with account number [ACCOUNT NUMBER].\\n\\nI have reviewed my statement and have the following items I would like to discuss:\\n\\n[LIST ALL ISSUES NUMBERED: 1. Issue description 2. Issue description etc.]\\n\\nFor each of these items, I would appreciate:\\n- An explanation of why this charge appears\\n- Confirmation that it was billed correctly\\n- Any adjustments that may apply\\n\\nI would also like to request:\\n- An itemized bill if not already received\\n- Information about payment plans or financial assistance programs\\n- A breakdown of any payments already applied\\n\\nCan you please help me understand these charges and confirm the correct amount I owe? Thank you for your assistance.",
-  "templateEnglish": "[Same as template if already in English, or English version if different language selected]",
-  "whenToUse": "Use this template when calling the billing department to address all issues found in your bill at once.",
-  "contactInfo": { "name": "[Provider billing department]", "phone": "[If found on bill]" }
+  "purpose": "Billing Department - Bill Review Request",
+  "template": "Subject: Question about bill for claim #[ACTUAL_CLAIM_NUMBER_FROM_BILL]\\n\\nHello [ACTUAL_PROVIDER_NAME] billing team,\\n\\nI am reviewing my bill for date(s) of service [ACTUAL_DATE_FROM_BILL].\\n\\nI have the following questions about my statement:\\n\\n[NUMBERED LIST OF ALL ISSUES FROM THE ANALYSIS:\\n1. [First issue with specific amounts/codes]\\n2. [Second issue with specific amounts/codes]\\netc.]\\n\\nMy bill shows a total of $[ACTUAL_BILL_AMOUNT]. [IF EOB: My Explanation of Benefits shows my responsibility as $[EOB_PATIENT_RESP].]\\n\\nCould you please:\\n- Review these items and confirm whether the charges are correct\\n- Provide an updated statement if any adjustments apply\\n- Share information about payment plans or financial assistance if available\\n\\nThank you for your assistance.\\n\\n[PATIENT_NAME]\\n[PATIENT_PHONE if known]",
+  "templateEnglish": "[Same template in English if different language selected]",
+  "whenToUse": "Send this email or read it when calling the billing department to address all issues at once.",
+  "contactInfo": {
+    "name": "[ACTUAL_PROVIDER_NAME from bill]",
+    "phone": "[ACTUAL_BILLING_PHONE from bill]",
+    "email": "[ACTUAL_BILLING_EMAIL if found]",
+    "address": "[ACTUAL_MAILING_ADDRESS from bill]"
+  },
+  "filledData": {
+    "claimNumber": "[ACTUAL_CLAIM_NUMBER or account number]",
+    "dateOfService": "[ACTUAL_DATE]",
+    "providerName": "[ACTUAL_PROVIDER_NAME]",
+    "billedAmount": [ACTUAL_TOTAL_AMOUNT_NUMBER],
+    "eobPatientResponsibility": [EOB_AMOUNT or null],
+    "discrepancyAmount": [DIFFERENCE or null]
+  }
 }
 
-### insuranceTemplates - ALWAYS include exactly ONE consolidated template:
-Generate a SINGLE professional insurance company template that consolidates ALL issues, questions about coverage, and EOB discrepancies. Structure it as:
+### insuranceTemplates - Generate ONE ready-to-send template for insurance:
+Create a SINGLE professional template for contacting the insurance company. This template must:
+1. Auto-fill ALL specific details (claim number, provider, dates, amounts)
+2. List ALL insurance-related issues from the analysis
+3. Be formatted as a script or email
+
+TEMPLATE FORMAT:
 {
   "target": "insurance",
-  "purpose": "Consolidated Insurance Inquiry",
-  "template": "Hello, I am calling about a claim for services on [DATE OF SERVICE] from [PROVIDER NAME].\\n\\nI have reviewed my bill and Explanation of Benefits and have the following concerns:\\n\\n[LIST ALL INSURANCE-RELATED ISSUES NUMBERED: 1. Issue description 2. Issue description etc.]\\n\\nI would like to understand:\\n- How each service was processed under my plan\\n- Whether all claims were submitted correctly\\n- If any denials can be appealed\\n- The correct patient responsibility amount according to your records\\n\\nCan you please review my claim and help me understand the coverage decisions? Thank you for your assistance.",
-  "templateEnglish": "[Same as template if already in English, or English version if different language selected]",
-  "whenToUse": "Use this template when calling your insurance company to address coverage questions and verify amounts.",
-  "contactInfo": { "name": "[Insurance company name]", "phone": "[Member services number if found on EOB]" }
+  "purpose": "Insurance - Claim Review Request",
+  "template": "Subject: Question about claim #[ACTUAL_CLAIM_NUMBER] for [ACTUAL_DATE]\\n\\nHello,\\n\\nI am reviewing a claim for services on [ACTUAL_DATE] from [ACTUAL_PROVIDER_NAME].\\n\\nI have the following concerns about how this claim was processed:\\n\\n[NUMBERED LIST OF INSURANCE-RELATED ISSUES:\\n1. [Issue with specific amounts/codes]\\n2. [Issue with specific amounts/codes]\\netc.]\\n\\nMy bill shows $[BILL_AMOUNT], but [describe discrepancy if any].\\n\\nCould you please:\\n- Confirm the allowed amount and what was paid for this claim\\n- Explain the patient responsibility breakdown (deductible, copay, coinsurance)\\n- Advise if any denials can be appealed\\n\\nThank you for your assistance.\\n\\n[PATIENT_NAME]\\nMember ID: [MEMBER_ID if known]",
+  "templateEnglish": "[Same template in English if different language selected]",
+  "whenToUse": "Use when calling member services or sending a message through your insurance portal.",
+  "contactInfo": {
+    "name": "[INSURANCE_COMPANY_NAME]",
+    "phone": "[MEMBER_SERVICES_PHONE from EOB]",
+    "email": "[MEMBER_SERVICES_EMAIL if available]"
+  },
+  "filledData": {
+    "claimNumber": "[ACTUAL_CLAIM_NUMBER]",
+    "dateOfService": "[ACTUAL_DATE]",
+    "providerName": "[ACTUAL_PROVIDER_NAME]",
+    "billedAmount": [ACTUAL_TOTAL_AMOUNT_NUMBER],
+    "eobPatientResponsibility": [EOB_AMOUNT or null],
+    "discrepancyAmount": [DIFFERENCE or null]
+  }
 }
+
+CRITICAL: Replace ALL bracketed placeholders with ACTUAL values from the documents. Only use [PATIENT_NAME] and [MEMBER_ID] as placeholders since those aren't on the bill.
 
 ### whenToSeekHelp - ALWAYS include these 4 items:
 1. "If billing errors persist after 2-3 attempts to resolve, contact your state's insurance commissioner."
@@ -271,6 +326,7 @@ Return valid JSON with this EXACT structure:
   "providerAssistance": {...},
   "debtAndCreditInfo": [...],
   "financialOpportunities": [...],
+  "providerContactInfo": {...},
   "actionSteps": [...],
   "billingTemplates": [...],
   "insuranceTemplates": [...],
