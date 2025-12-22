@@ -199,6 +199,64 @@ export interface ActionStep {
   relatedIssue?: string;
 }
 
+// Guided Dispute Package - paid add-on
+export interface DisputePackageEligibility {
+  eligible: boolean;
+  reasons: string[];
+  estimatedBalance: number;
+  hasErrors: boolean;
+  hasDenials: boolean;
+  hasNoSurprisesActScenario: boolean;
+}
+
+export interface DisputePackage {
+  billingLetter: string;
+  insurerLetter: string;
+  noSurprisesLetter?: string;
+  attachmentsChecklist: string[];
+  timeline: {
+    step: number;
+    action: string;
+    deadline: string;
+    followUp: string;
+  }[];
+  sendingInstructions: {
+    method: 'portal' | 'email' | 'fax' | 'mail';
+    details: string;
+  }[];
+  portalCopyPasteText?: string;
+}
+
+// Referral/Affiliate services
+export type ReferralServiceType = 'nonprofit_advocate' | 'legal_aid' | 'negotiation_firm' | 'telehealth' | 'rx_savings';
+
+export interface ReferralService {
+  id: string;
+  type: ReferralServiceType;
+  name: string;
+  description: string;
+  url: string;
+  isPaid: boolean;
+  isAffiliate: boolean;
+  disclaimer: string;
+  showWhen: {
+    highBalance?: boolean;
+    complexDispute?: boolean;
+    denialPresent?: boolean;
+    noSurprisesAct?: boolean;
+  };
+}
+
+export interface ReferralContext {
+  showReferrals: boolean;
+  balanceAmount: number;
+  isHighBalance: boolean;
+  hasComplexDispute: boolean;
+  hasDenial: boolean;
+  hasNoSurprisesActScenario: boolean;
+  recommendedServices: ReferralService[];
+}
+
 // Main analysis result - restructured for 4 sections
 export interface AnalysisResult {
   // Document basics
@@ -244,6 +302,10 @@ export interface AnalysisResult {
 
   // EOB data (optional - present when EOB uploaded)
   eobData?: EOBData;
+
+  // === MONETIZATION FEATURES ===
+  disputePackageEligibility?: DisputePackageEligibility;
+  referralContext?: ReferralContext;
 }
 
 export interface AppState {

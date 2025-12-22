@@ -12,11 +12,13 @@ import {
   MapPin,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AnalysisResult, ContactTemplate, ActionStep, ProviderContactInfo } from '@/types';
+import { AnalysisResult, ContactTemplate, ActionStep, ProviderContactInfo, DisputePackageEligibility, ReferralContext } from '@/types';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { SubcategoryCard } from './SubcategoryCard';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { DisputePackageUpsell } from './DisputePackageUpsell';
+import { ReferralServices } from './ReferralServices';
 
 interface NextStepsSectionProps {
   analysis: AnalysisResult;
@@ -206,8 +208,22 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
   const insuranceTemplates = analysis.insuranceTemplates || [];
   const whenToSeekHelp = analysis.whenToSeekHelp || [];
 
+  // Compute dispute package eligibility from analysis
+  const disputePackageEligibility = analysis.disputePackageEligibility || computeDisputeEligibility(analysis);
+  
+  // Compute referral context from analysis
+  const referralContext = analysis.referralContext || computeReferralContext(analysis);
+
   return (
     <div className="space-y-3">
+      {/* Dispute Package Upsell - shown first if eligible */}
+      {disputePackageEligibility.eligible && (
+        <DisputePackageUpsell 
+          eligibility={disputePackageEligibility} 
+          analysis={analysis} 
+        />
+      )}
+
       {/* Provider Contact Information */}
       {providerContactInfo && (providerContactInfo.billingPhone || providerContactInfo.insurerName) && (
         <SubcategoryCard
@@ -274,6 +290,18 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
         </div>
       </SubcategoryCard>
 
+      {/* Referral Services - shown when context indicates it's helpful */}
+      {referralContext.showReferrals && (
+        <SubcategoryCard
+          icon={<LifeBuoy className="h-5 w-5 text-coral" />}
+          title="Helpful Services"
+          teaser="Vetted resources that may be able to assist you"
+          defaultOpen={false}
+        >
+          <ReferralServices context={referralContext} />
+        </SubcategoryCard>
+      )}
+
       <SubcategoryCard
         icon={<LifeBuoy className="h-5 w-5 text-coral" />}
         title={t('nextSteps.whenToSeekHelp')}
@@ -308,4 +336,78 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
       </SubcategoryCard>
     </div>
   );
+}
+
+// Helper function to compute dispute package eligibility from analysis
+function computeDisputeEligibility(analysis: AnalysisResult): DisputePackageEligibility {
+  const hasErrors = (analysis.potentialErrors?.length || 0) > 0;
+  const hasDenials = analysis.potentialErrors?.some(e => 
+    e.title.toLowerCase().includes('denial') || 
+    e.description.toLowerCase().includes('denied')
+  ) || false;
+  const hasNoSurprisesActScenario = analysis.potentialErrors?.some(e =>
+    e.description.toLowerCase().includes('no surprises') ||
+    e.description.toLowerCase().includes('out-of-network') ||
+    e.description.toLowerCase().includes('surprise bill')
+  ) || false;
+  
+  // Estimate balance from EOB or charges
+  const estimatedBalance = analysis.eobData?.patientResponsibility || 
+    analysis.charges?.reduce((sum, c) => sum + c.amount, 0) || 0;
+  
+  const isHighBalance = estimatedBalance >= 1000;
+  
+  const reasons: string[] = [];
+  if (hasErrors) {
+    reasons.push(`We found ${analysis.potentialErrors?.length || 0} potential billing error(s) that may warrant a formal dispute`);
+  }
+  if (isHighBalance) {
+    reasons.push(`Your estimated balance of $${estimatedBalance.toLocaleString()} is significant and worth disputing if incorrect`);
+  }
+  if (hasDenials) {
+    reasons.push('There appears to be a denial that may be appealable');
+  }
+  if (hasNoSurprisesActScenario) {
+    reasons.push('This may involve the No Surprises Act which provides specific protections');
+  }
+  
+  const eligible = hasErrors || isHighBalance || hasDenials || hasNoSurprisesActScenario;
+  
+  return {
+    eligible,
+    reasons,
+    estimatedBalance,
+    hasErrors,
+    hasDenials,
+    hasNoSurprisesActScenario,
+  };
+}
+
+// Helper function to compute referral context from analysis
+function computeReferralContext(analysis: AnalysisResult): ReferralContext {
+  const estimatedBalance = analysis.eobData?.patientResponsibility || 
+    analysis.charges?.reduce((sum, c) => sum + c.amount, 0) || 0;
+  
+  const isHighBalance = estimatedBalance >= 1000;
+  const hasComplexDispute = (analysis.potentialErrors?.length || 0) >= 2;
+  const hasDenial = analysis.potentialErrors?.some(e => 
+    e.title.toLowerCase().includes('denial') || 
+    e.description.toLowerCase().includes('denied')
+  ) || false;
+  const hasNoSurprisesActScenario = analysis.potentialErrors?.some(e =>
+    e.description.toLowerCase().includes('no surprises') ||
+    e.description.toLowerCase().includes('out-of-network')
+  ) || false;
+  
+  const showReferrals = isHighBalance || hasComplexDispute || hasDenial || hasNoSurprisesActScenario;
+  
+  return {
+    showReferrals,
+    balanceAmount: estimatedBalance,
+    isHighBalance,
+    hasComplexDispute,
+    hasDenial,
+    hasNoSurprisesActScenario,
+    recommendedServices: [], // Will use defaults in the component
+  };
 }
