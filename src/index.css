@@ -6,172 +6,180 @@
 
 @layer base {
   :root {
-    /* Pond palette - deep teal/blue base with warm pink, coral, gold */
-    --background: 195 45% 18%;
-    --foreground: 45 30% 95%;
+    /* Pastel pond palette - soft aqua/turquoise with peach, pink, yellow */
+    --background: 185 45% 85%;
+    --foreground: 200 40% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 195 35% 15%;
+    --card-foreground: 200 35% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 195 35% 15%;
+    --popover-foreground: 200 35% 20%;
 
-    /* Warm coral primary */
-    --primary: 15 75% 60%;
+    /* Coral/peach primary */
+    --primary: 20 75% 55%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 15 60% 92%;
+    --primary-light: 20 60% 92%;
 
-    /* Deep teal secondary */
-    --secondary: 185 55% 35%;
+    /* Aqua secondary */
+    --secondary: 175 50% 55%;
     --secondary-foreground: 0 0% 100%;
 
-    /* Muted teal */
-    --muted: 190 30% 25%;
-    --muted-foreground: 45 20% 75%;
+    /* Muted pastel */
+    --muted: 185 30% 75%;
+    --muted-foreground: 200 25% 40%;
 
-    /* Gold accent */
-    --accent: 45 80% 55%;
-    --accent-foreground: 195 45% 12%;
+    /* Golden accent */
+    --accent: 45 80% 60%;
+    --accent-foreground: 40 60% 18%;
 
     /* Status colors */
-    --destructive: 0 65% 55%;
+    --destructive: 0 60% 55%;
     --destructive-foreground: 0 0% 100%;
     
-    --success: 160 55% 42%;
+    --success: 155 50% 45%;
     --success-foreground: 0 0% 100%;
     
     --warning: 40 85% 55%;
     --warning-foreground: 40 90% 15%;
     
-    --info: 210 70% 55%;
+    --info: 200 65% 55%;
     --info-foreground: 0 0% 100%;
 
     /* Pink tones */
-    --pink: 340 65% 60%;
-    --pink-light: 340 55% 85%;
+    --pink: 340 60% 70%;
+    --pink-light: 340 55% 90%;
     
     /* Coral/peach */
-    --coral: 15 80% 60%;
-    --coral-light: 15 70% 92%;
+    --coral: 20 70% 60%;
+    --coral-light: 20 60% 90%;
 
     /* Teal/aqua */
-    --teal: 185 55% 40%;
-    --teal-light: 185 45% 75%;
+    --teal: 175 45% 55%;
+    --teal-light: 175 40% 85%;
+    
+    /* Mint */
+    --mint: 160 40% 50%;
+    
+    /* Purple */
+    --purple: 280 50% 60%;
     
     /* Gold */
-    --gold: 45 85% 55%;
-    --gold-light: 45 70% 85%;
+    --gold: 45 80% 55%;
+    --gold-light: 45 70% 88%;
 
-    --border: 190 25% 30%;
-    --input: 190 25% 30%;
-    --ring: 15 75% 60%;
+    --border: 185 25% 75%;
+    --input: 185 25% 80%;
+    --ring: 20 70% 55%;
 
     --radius: 1.25rem;
 
-    /* Pond gradients - deep teal base with warm overlays */
+    /* Pastel pond gradients - soft aqua base with warm overlays */
     --gradient-pond: linear-gradient(180deg, 
-      hsl(195 50% 20%) 0%, 
-      hsl(185 45% 25%) 30%,
-      hsl(190 50% 22%) 60%,
-      hsl(200 55% 18%) 100%);
+      hsl(180 50% 88%) 0%, 
+      hsl(175 45% 85%) 30%,
+      hsl(185 40% 82%) 60%,
+      hsl(190 45% 85%) 100%);
     
-    --gradient-hero: radial-gradient(ellipse at 25% 15%, hsl(340 60% 55% / 0.4) 0%, transparent 45%),
-      radial-gradient(ellipse at 75% 25%, hsl(15 75% 55% / 0.5) 0%, transparent 40%),
-      radial-gradient(ellipse at 60% 70%, hsl(45 80% 55% / 0.35) 0%, transparent 45%),
-      radial-gradient(ellipse at 30% 80%, hsl(340 55% 50% / 0.3) 0%, transparent 40%),
-      linear-gradient(180deg, hsl(195 50% 20%) 0%, hsl(185 45% 22%) 50%, hsl(200 55% 18%) 100%);
+    --gradient-hero: 
+      radial-gradient(ellipse at 35% 25%, hsl(20 65% 75% / 0.5) 0%, transparent 40%),
+      radial-gradient(ellipse at 70% 20%, hsl(340 55% 80% / 0.4) 0%, transparent 35%),
+      radial-gradient(ellipse at 25% 65%, hsl(45 75% 70% / 0.4) 0%, transparent 40%),
+      radial-gradient(ellipse at 75% 70%, hsl(160 45% 75% / 0.35) 0%, transparent 40%),
+      radial-gradient(ellipse at 50% 50%, hsl(185 50% 90% / 0.6) 0%, transparent 60%),
+      linear-gradient(180deg, hsl(180 50% 90%) 0%, hsl(175 45% 88%) 40%, hsl(185 40% 85%) 100%);
     
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, hsl(0 0% 100% / 0.1) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100% / 0.85) 0%, hsl(0 0% 100% / 0.7) 100%);
     
     --gradient-accent: linear-gradient(135deg, 
-      hsl(15 80% 60%) 0%, 
-      hsl(340 65% 55%) 50%, 
-      hsl(45 80% 55%) 100%);
+      hsl(20 75% 58%) 0%, 
+      hsl(340 60% 65%) 50%, 
+      hsl(45 75% 58%) 100%);
     
     --gradient-subtle: linear-gradient(180deg, 
-      hsl(0 0% 100% / 0.15) 0%, 
-      hsl(0 0% 100% / 0.05) 100%);
+      hsl(0 0% 100% / 0.6) 0%, 
+      hsl(0 0% 100% / 0.4) 100%);
     
-    /* Glass styling - adjusted for dark background */
-    --glass-bg: hsl(0 0% 100% / 0.12);
-    --glass-border: hsl(0 0% 100% / 0.25);
+    /* Glass styling - for pastel background */
+    --glass-bg: hsl(0 0% 100% / 0.65);
+    --glass-border: hsl(0 0% 100% / 0.8);
     --glass-blur: 20px;
 
-    /* Shadows */
-    --shadow-soft: 0 2px 8px hsl(195 50% 5% / 0.2), 0 4px 16px hsl(195 50% 5% / 0.15);
-    --shadow-card: 0 4px 20px hsl(195 50% 5% / 0.25), 0 8px 32px hsl(195 50% 5% / 0.2);
-    --shadow-elevated: 0 8px 32px hsl(195 50% 5% / 0.3), 0 16px 48px hsl(195 50% 5% / 0.25);
-    --shadow-glow: 0 0 30px hsl(15 75% 60% / 0.3);
-    --shadow-glow-active: 0 0 40px hsl(15 75% 60% / 0.5), 0 0 60px hsl(45 80% 55% / 0.3);
+    /* Shadows - softer for pastel theme */
+    --shadow-soft: 0 2px 8px hsl(200 30% 50% / 0.1), 0 4px 16px hsl(200 30% 50% / 0.08);
+    --shadow-card: 0 4px 20px hsl(200 30% 50% / 0.12), 0 8px 32px hsl(200 30% 50% / 0.08);
+    --shadow-elevated: 0 8px 32px hsl(200 30% 50% / 0.15), 0 16px 48px hsl(200 30% 50% / 0.1);
+    --shadow-glow: 0 0 25px hsl(20 70% 60% / 0.35);
+    --shadow-glow-active: 0 0 35px hsl(20 70% 60% / 0.5), 0 0 50px hsl(45 75% 60% / 0.3);
 
-    --sidebar-background: 195 45% 15%;
-    --sidebar-foreground: 45 30% 95%;
-    --sidebar-primary: 15 75% 60%;
+    --sidebar-background: 185 40% 92%;
+    --sidebar-foreground: 200 35% 20%;
+    --sidebar-primary: 20 70% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 185 55% 35%;
+    --sidebar-accent: 175 50% 55%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 190 25% 25%;
-    --sidebar-ring: 15 75% 60%;
+    --sidebar-border: 185 25% 80%;
+    --sidebar-ring: 20 70% 55%;
   }
 
   .dark {
-    --background: 200 30% 8%;
+    --background: 200 30% 10%;
     --foreground: 45 30% 95%;
 
-    --card: 200 25% 12%;
+    --card: 200 25% 14%;
     --card-foreground: 45 30% 95%;
 
-    --popover: 200 25% 12%;
+    --popover: 200 25% 14%;
     --popover-foreground: 45 30% 95%;
 
-    --primary: 15 70% 55%;
+    --primary: 20 65% 55%;
     --primary-foreground: 200 30% 8%;
-    --primary-light: 15 50% 20%;
+    --primary-light: 20 50% 22%;
 
-    --secondary: 185 50% 40%;
+    --secondary: 175 45% 45%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 200 22% 18%;
-    --muted-foreground: 45 18% 65%;
+    --muted: 200 22% 20%;
+    --muted-foreground: 45 18% 70%;
 
-    --accent: 45 75% 50%;
+    --accent: 45 70% 50%;
     --accent-foreground: 200 30% 8%;
 
-    --destructive: 0 55% 48%;
+    --destructive: 0 55% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --pink: 340 60% 55%;
-    --pink-light: 340 40% 22%;
+    --pink: 340 55% 60%;
+    --pink-light: 340 40% 25%;
     
-    --coral: 15 65% 50%;
-    --coral-light: 15 45% 22%;
+    --coral: 20 60% 52%;
+    --coral-light: 20 45% 25%;
 
-    --teal: 185 50% 35%;
-    --teal-light: 185 35% 20%;
+    --teal: 175 45% 40%;
+    --teal-light: 175 35% 22%;
     
-    --gold: 45 75% 50%;
-    --gold-light: 45 55% 22%;
+    --gold: 45 70% 50%;
+    --gold-light: 45 55% 25%;
 
-    --border: 200 20% 22%;
-    --input: 200 20% 22%;
-    --ring: 15 70% 55%;
+    --border: 200 20% 25%;
+    --input: 200 20% 25%;
+    --ring: 20 65% 55%;
 
-    --gradient-hero: radial-gradient(ellipse at 25% 15%, hsl(340 55% 35% / 0.4) 0%, transparent 45%),
-      radial-gradient(ellipse at 75% 25%, hsl(15 65% 40% / 0.4) 0%, transparent 40%),
-      radial-gradient(ellipse at 60% 70%, hsl(45 70% 40% / 0.3) 0%, transparent 45%),
-      linear-gradient(180deg, hsl(200 30% 8%) 0%, hsl(195 28% 10%) 100%);
+    --gradient-hero: radial-gradient(ellipse at 35% 25%, hsl(20 50% 35% / 0.4) 0%, transparent 45%),
+      radial-gradient(ellipse at 70% 25%, hsl(340 45% 35% / 0.35) 0%, transparent 40%),
+      radial-gradient(ellipse at 50% 70%, hsl(45 60% 35% / 0.3) 0%, transparent 45%),
+      linear-gradient(180deg, hsl(200 30% 10%) 0%, hsl(195 28% 12%) 100%);
     
-    --glass-bg: hsl(200 25% 15% / 0.6);
-    --glass-border: hsl(0 0% 100% / 0.12);
+    --glass-bg: hsl(200 25% 18% / 0.7);
+    --glass-border: hsl(0 0% 100% / 0.15);
 
-    --sidebar-background: 200 30% 8%;
+    --sidebar-background: 200 30% 10%;
     --sidebar-foreground: 45 30% 95%;
-    --sidebar-primary: 15 70% 55%;
+    --sidebar-primary: 20 65% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 185 50% 40%;
+    --sidebar-accent: 175 45% 45%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 200 20% 18%;
-    --sidebar-ring: 15 70% 55%;
+    --sidebar-border: 200 20% 20%;
+    --sidebar-ring: 20 65% 55%;
   }
 }
 
@@ -182,6 +190,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    overflow: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -190,7 +199,7 @@
 }
 
 @layer components {
-  /* Pond background - deep teal with colorful caustic overlay */
+  /* Pond background - pastel aqua with soft colorful swirls */
   .pond-bg {
     background: var(--gradient-hero);
     position: fixed;
@@ -198,30 +207,31 @@
     z-index: -1;
   }
 
-  /* Water caustic overlay - light refracting on water surface */
+  /* Water caustic overlay - soft pastel ripple patterns */
   .pond-bg::before {
     content: '';
     position: absolute;
     inset: 0;
     background: 
-      radial-gradient(ellipse at 20% 30%, hsl(45 85% 70% / 0.15) 0%, transparent 30%),
-      radial-gradient(ellipse at 80% 20%, hsl(0 0% 100% / 0.12) 0%, transparent 25%),
-      radial-gradient(ellipse at 60% 50%, hsl(180 60% 75% / 0.1) 0%, transparent 35%),
-      radial-gradient(ellipse at 35% 70%, hsl(0 0% 100% / 0.1) 0%, transparent 30%),
-      radial-gradient(ellipse at 75% 75%, hsl(45 80% 65% / 0.12) 0%, transparent 28%);
-    animation: waterCaustics 8s ease-in-out infinite alternate;
+      radial-gradient(ellipse at 20% 30%, hsl(0 0% 100% / 0.5) 0%, transparent 25%),
+      radial-gradient(ellipse at 75% 25%, hsl(0 0% 100% / 0.4) 0%, transparent 30%),
+      radial-gradient(ellipse at 55% 55%, hsl(0 0% 100% / 0.35) 0%, transparent 40%),
+      radial-gradient(ellipse at 30% 70%, hsl(0 0% 100% / 0.3) 0%, transparent 30%),
+      radial-gradient(ellipse at 80% 75%, hsl(0 0% 100% / 0.25) 0%, transparent 28%);
+    animation: waterCausticsPastel 10s ease-in-out infinite alternate;
     pointer-events: none;
   }
 
-  /* Subtle animated water lines */
+  /* Subtle animated water ripple lines */
   .pond-bg::after {
     content: '';
     position: absolute;
     inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 200 Q100 180 200 200 T400 200' stroke='rgba(255,255,255,0.08)' stroke-width='1.5' fill='none'/%3E%3Cpath d='M0 250 Q100 230 200 250 T400 250' stroke='rgba(255,255,255,0.06)' stroke-width='1' fill='none'/%3E%3Cpath d='M0 150 Q100 170 200 150 T400 150' stroke='rgba(255,255,255,0.07)' stroke-width='1' fill='none'/%3E%3Cpath d='M0 100 Q100 120 200 100 T400 100' stroke='rgba(255,255,255,0.05)' stroke-width='0.8' fill='none'/%3E%3Cpath d='M0 300 Q100 280 200 300 T400 300' stroke='rgba(255,255,255,0.05)' stroke-width='0.8' fill='none'/%3E%3C/svg%3E");
-    background-size: 100% 100%;
-    opacity: 0.8;
-    animation: waterWaves 6s ease-in-out infinite;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 500 500' xmlns='http://www.w3.org/2000/svg'%3E%3Cellipse cx='250' cy='250' rx='150' ry='150' stroke='rgba(255,255,255,0.25)' stroke-width='1' fill='none'/%3E%3Cellipse cx='250' cy='250' rx='200' ry='200' stroke='rgba(255,255,255,0.18)' stroke-width='0.8' fill='none'/%3E%3Cellipse cx='250' cy='250' rx='100' ry='100' stroke='rgba(255,255,255,0.2)' stroke-width='0.8' fill='none'/%3E%3Cellipse cx='150' cy='350' rx='80' ry='80' stroke='rgba(255,255,255,0.15)' stroke-width='0.6' fill='none'/%3E%3Cellipse cx='380' cy='150' rx='70' ry='70' stroke='rgba(255,255,255,0.15)' stroke-width='0.6' fill='none'/%3E%3C/svg%3E");
+    background-size: 120% 120%;
+    background-position: center;
+    opacity: 0.7;
+    animation: waterRipplesDrift 8s ease-in-out infinite;
     pointer-events: none;
   }
 
@@ -230,49 +240,52 @@
     position: absolute;
     inset: 0;
     background-image: 
-      radial-gradient(1px 1px at 10% 20%, hsla(45, 90%, 80%, 0.6) 0%, transparent 100%),
-      radial-gradient(1px 1px at 30% 40%, hsla(0, 0%, 100%, 0.5) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 50% 15%, hsla(180, 70%, 80%, 0.5) 0%, transparent 100%),
-      radial-gradient(1px 1px at 70% 60%, hsla(45, 85%, 75%, 0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 85% 30%, hsla(0, 0%, 100%, 0.4) 0%, transparent 100%),
-      radial-gradient(1.5px 1.5px at 20% 70%, hsla(200, 70%, 80%, 0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 60% 85%, hsla(45, 80%, 70%, 0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 90% 75%, hsla(0, 0%, 100%, 0.3) 0%, transparent 100%),
-      radial-gradient(0.5px 0.5px at 15% 55%, hsla(45, 90%, 85%, 0.5) 0%, transparent 100%),
-      radial-gradient(0.5px 0.5px at 45% 80%, hsla(0, 0%, 100%, 0.4) 0%, transparent 100%),
-      radial-gradient(0.5px 0.5px at 75% 45%, hsla(180, 60%, 75%, 0.4) 0%, transparent 100%);
-    animation: shimmerDrift 12s ease-in-out infinite;
+      radial-gradient(2px 2px at 15% 25%, hsla(0, 0%, 100%, 0.8) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 35% 45%, hsla(45, 80%, 85%, 0.7) 0%, transparent 100%),
+      radial-gradient(2px 2px at 55% 20%, hsla(0, 0%, 100%, 0.75) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 75% 55%, hsla(180, 60%, 85%, 0.6) 0%, transparent 100%),
+      radial-gradient(2px 2px at 88% 35%, hsla(0, 0%, 100%, 0.7) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 25% 75%, hsla(45, 75%, 80%, 0.6) 0%, transparent 100%),
+      radial-gradient(2px 2px at 65% 80%, hsla(0, 0%, 100%, 0.65) 0%, transparent 100%),
+      radial-gradient(1px 1px at 45% 60%, hsla(340, 60%, 85%, 0.55) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 85%, hsla(0, 0%, 100%, 0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 50%, hsla(180, 50%, 80%, 0.5) 0%, transparent 100%);
+    animation: shimmerFloat 15s ease-in-out infinite;
     pointer-events: none;
   }
 
-  @keyframes shimmerDrift {
+  @keyframes shimmerFloat {
     0%, 100% {
-      transform: translateY(0) translateX(0);
-      opacity: 0.5;
-    }
-    50% {
-      transform: translateY(-8px) translateX(4px);
+      transform: translateY(0) translateX(0) scale(1);
       opacity: 0.7;
+    }
+    33% {
+      transform: translateY(-5px) translateX(3px) scale(1.02);
+      opacity: 0.85;
+    }
+    66% {
+      transform: translateY(3px) translateX(-5px) scale(0.98);
+      opacity: 0.75;
     }
   }
 
-  @keyframes waterCaustics {
+  @keyframes waterCausticsPastel {
     0% {
       transform: scale(1) translate(0, 0);
       opacity: 1;
     }
     100% {
-      transform: scale(1.03) translate(1.5%, -1%);
-      opacity: 0.85;
+      transform: scale(1.04) translate(1%, -1%);
+      opacity: 0.8;
     }
   }
 
-  @keyframes waterWaves {
+  @keyframes waterRipplesDrift {
     0%, 100% {
-      transform: translateX(0) translateY(0);
+      transform: scale(1) rotate(0deg);
     }
     50% {
-      transform: translateX(-2%) translateY(1%);
+      transform: scale(1.02) rotate(2deg);
     }
   }
 
@@ -284,17 +297,16 @@
     z-index: -1;
   }
 
-  /* Noise texture overlay for aurora effect */
   .aurora-bg::before {
     content: '';
     position: absolute;
     inset: 0;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    opacity: 0.06;
+    opacity: 0.04;
     pointer-events: none;
   }
 
-  /* Glass card - frosted glass effect */
+  /* Glass card - frosted glass effect for pastel background */
   .glass-card {
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));
@@ -305,10 +317,10 @@
   }
 
   .glass-card-strong {
-    background: hsl(0 0% 100% / 0.18);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid hsl(0 0% 100% / 0.35);
+    background: hsl(0 0% 100% / 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsl(0 0% 100% / 0.9);
     border-radius: var(--radius);
     box-shadow: var(--shadow-elevated);
   }
@@ -406,7 +418,7 @@
   @keyframes slideUp {
     from { 
       opacity: 0; 
-      transform: translateY(20px); 
+      transform: translateY(16px); 
     }
     to { 
       opacity: 1; 
@@ -427,7 +439,7 @@
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
+    50% { transform: translateY(-6px); }
   }
 
   @keyframes auroraPulse {
@@ -437,16 +449,16 @@
     }
     50% { 
       opacity: 0.9;
-      filter: brightness(1.05);
+      filter: brightness(1.03);
     }
   }
 
   @keyframes glowPulse {
     0%, 100% { 
-      box-shadow: 0 0 20px hsl(15 75% 60% / 0.25), 0 0 40px hsl(45 80% 55% / 0.15);
+      box-shadow: 0 0 20px hsl(20 70% 60% / 0.25), 0 0 35px hsl(45 75% 60% / 0.15);
     }
     50% { 
-      box-shadow: 0 0 30px hsl(15 75% 60% / 0.4), 0 0 60px hsl(45 80% 55% / 0.25);
+      box-shadow: 0 0 28px hsl(20 70% 60% / 0.4), 0 0 50px hsl(45 75% 60% / 0.25);
     }
   }
 
