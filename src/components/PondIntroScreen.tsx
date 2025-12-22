@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FrogLogo } from './FrogLogo';
+import pondFrog from '@/assets/pond-frog.png';
 
 interface PondIntroScreenProps {
   onComplete: () => void;
@@ -96,9 +96,9 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         currentIndex++;
       } else {
         clearInterval(typeInterval);
-        setTimeout(() => setCurrentLine(2), 400);
+        setTimeout(() => setCurrentLine(2), 300);
       }
-    }, 45);
+    }, 40);
 
     return () => clearInterval(typeInterval);
   }, [prefersReducedMotion]);
@@ -114,9 +114,9 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         currentIndex++;
       } else {
         clearInterval(typeInterval);
-        setTimeout(() => setCurrentLine(3), 400);
+        setTimeout(() => setCurrentLine(3), 300);
       }
-    }, 50);
+    }, 45);
 
     return () => clearInterval(typeInterval);
   }, [currentLine, prefersReducedMotion]);
@@ -132,14 +132,13 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         currentIndex++;
       } else {
         clearInterval(typeInterval);
-        // Show lilypad button after typing completes
         setTimeout(() => {
           setShowLilypad(true);
-          addRipple(50, 75);
-          addSparkles(50, 75, 8);
-        }, 300);
+          addRipple(50, 70);
+          addSparkles(50, 70, 8);
+        }, 200);
       }
-    }, 55);
+    }, 50);
 
     return () => clearInterval(typeInterval);
   }, [currentLine, prefersReducedMotion, addRipple, addSparkles]);
@@ -147,16 +146,15 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const handleClick = useCallback(() => {
     if (!showLilypad) return;
     
-    // Add splash effect
-    addRipple(50, 75);
-    addSparkles(50, 75, 12);
-    setTimeout(() => addRipple(48, 73), 80);
-    setTimeout(() => addRipple(52, 77), 120);
+    addRipple(50, 70);
+    addSparkles(50, 70, 12);
+    setTimeout(() => addRipple(48, 68), 80);
+    setTimeout(() => addRipple(52, 72), 120);
     
     setTimeout(() => {
       setIsExiting(true);
-      setTimeout(onComplete, 500);
-    }, 300);
+      setTimeout(onComplete, 400);
+    }, 250);
   }, [showLilypad, onComplete, addRipple, addSparkles]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -169,7 +167,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   return (
     <div 
       ref={containerRef}
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-500 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-400 ${
         isExiting ? 'opacity-0' : 'opacity-100'
       }`}
       style={{
@@ -196,8 +194,13 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         }}
       />
 
+      {/* Shimmer sparkle overlay */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="shimmer-particles" />
+      </div>
+
       {/* Animated water lines */}
-      <svg className="absolute inset-0 w-full h-full opacity-15" preserveAspectRatio="none">
+      <svg className="absolute inset-0 w-full h-full opacity-12" preserveAspectRatio="none">
         <defs>
           <pattern id="waterPattern" x="0" y="0" width="200" height="200" patternUnits="userSpaceOnUse">
             <path d="M0 100 Q50 80 100 100 T200 100" stroke="hsl(0, 0%, 100%)" strokeWidth="1.5" fill="none" opacity="0.6">
@@ -209,17 +212,21 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         <rect width="100%" height="100%" fill="url(#waterPattern)" />
       </svg>
 
-      {/* Frog cursor */}
+      {/* Frog cursor - using actual image */}
       {!prefersReducedMotion && (
         <div
           className="fixed pointer-events-none z-[100] transition-transform duration-75"
           style={{
             left: mousePos.x,
             top: mousePos.y,
-            transform: 'translate(-50%, -50%)',
+            transform: `translate(-50%, -50%) ${isHovered ? 'scale(1.1)' : 'scale(1)'}`,
           }}
         >
-          <FrogLogo className="w-10 h-10 drop-shadow-lg" />
+          <img 
+            src={pondFrog} 
+            alt="" 
+            className="w-10 h-10 drop-shadow-lg rounded-full"
+          />
         </div>
       )}
 
@@ -276,23 +283,23 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
       ))}
 
       {/* Content */}
-      <div className="text-center px-6 max-w-3xl relative z-10">
-        <div className="space-y-4 mb-8">
-          <p className="font-mono text-lg md:text-xl lg:text-2xl text-white/90 drop-shadow-md min-h-[1.5em] leading-relaxed">
+      <div className="text-center px-6 max-w-2xl relative z-10">
+        <div className="space-y-3 mb-6">
+          <p className="font-mono text-base md:text-lg lg:text-xl text-white/90 drop-shadow-md min-h-[1.25em] leading-relaxed">
             {displayedText1}
             {currentLine === 1 && displayedText1.length < line1.length && (
               <span className="animate-pulse">|</span>
             )}
           </p>
           
-          <p className="font-mono text-lg md:text-xl lg:text-2xl text-white drop-shadow-md min-h-[1.5em] leading-relaxed font-medium">
+          <p className="font-mono text-base md:text-lg lg:text-xl text-white drop-shadow-md min-h-[1.25em] leading-relaxed font-medium">
             {displayedText2}
             {currentLine === 2 && displayedText2.length < line2.length && (
               <span className="animate-pulse">|</span>
             )}
           </p>
           
-          <div className="min-h-[5rem] flex flex-col items-center justify-center relative pt-6">
+          <div className="min-h-[8rem] flex flex-col items-center justify-center relative pt-4">
             {/* Lilypad button */}
             {showLilypad ? (
               <button
@@ -300,61 +307,54 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
                 onKeyDown={handleKeyDown}
                 onMouseEnter={() => {
                   setIsHovered(true);
-                  addSparkles(50, 75, 4);
+                  addSparkles(50, 70, 4);
                 }}
                 onMouseLeave={() => setIsHovered(false)}
                 className={`
-                  relative font-sans text-lg md:text-xl text-white font-semibold
+                  relative font-sans text-base md:text-lg text-white font-semibold
                   transition-all duration-300 ease-out
                   focus:outline-none focus:ring-4 focus:ring-green-400/50
-                  ${isHovered ? 'scale-110' : 'scale-100'}
+                  ${isHovered ? 'scale-105' : 'scale-100'}
                 `}
                 style={{
-                  width: '180px',
-                  height: '180px',
+                  width: '140px',
+                  height: '140px',
                   borderRadius: '50%',
                   background: `
                     radial-gradient(ellipse at 40% 30%, hsl(130 55% 50%) 0%, hsl(135 50% 42%) 40%, hsl(140 45% 35%) 100%)
                   `,
                   boxShadow: isHovered 
                     ? `
-                      0 12px 40px hsl(130 50% 25% / 0.5), 
-                      0 0 30px hsl(130 60% 45% / 0.4), 
+                      0 8px 30px hsl(130 50% 25% / 0.5), 
+                      0 0 25px hsl(130 60% 45% / 0.4), 
                       inset 0 2px 4px hsl(130 60% 70% / 0.4),
                       inset 0 -4px 8px hsl(140 50% 25% / 0.3)
                     `
                     : `
-                      0 6px 24px hsl(130 50% 20% / 0.4), 
+                      0 4px 20px hsl(130 50% 20% / 0.4), 
                       inset 0 2px 4px hsl(130 60% 70% / 0.3),
                       inset 0 -4px 8px hsl(140 50% 25% / 0.2)
                     `,
-                  transform: isHovered ? 'scale(1.1) rotate(-2deg)' : 'scale(1)',
+                  transform: isHovered ? 'scale(1.05) rotate(-2deg)' : 'scale(1)',
                   cursor: prefersReducedMotion ? 'pointer' : 'none',
-                  clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%, 15% 50%, 50% 45%)',
+                  clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%, 12% 50%, 50% 45%)',
                 }}
               >
                 {/* Lilypad vein SVG overlay */}
                 <svg 
-                  className="absolute inset-0 w-full h-full opacity-30 pointer-events-none"
+                  className="absolute inset-0 w-full h-full opacity-25 pointer-events-none"
                   viewBox="0 0 100 100"
                 >
-                  {/* Central vein */}
                   <path d="M50 15 L50 85" stroke="hsl(135, 35%, 30%)" strokeWidth="1.5" fill="none" />
-                  {/* Radiating veins */}
                   <path d="M50 50 L20 25" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
                   <path d="M50 50 L80 25" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
                   <path d="M50 50 L15 50" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
                   <path d="M50 50 L85 50" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
                   <path d="M50 50 L20 75" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
                   <path d="M50 50 L80 75" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
-                  {/* Secondary veins */}
-                  <path d="M35 32 L25 20" stroke="hsl(135, 35%, 35%)" strokeWidth="0.5" fill="none" />
-                  <path d="M65 32 L75 20" stroke="hsl(135, 35%, 35%)" strokeWidth="0.5" fill="none" />
-                  <path d="M35 68 L25 80" stroke="hsl(135, 35%, 35%)" strokeWidth="0.5" fill="none" />
-                  <path d="M65 68 L75 80" stroke="hsl(135, 35%, 35%)" strokeWidth="0.5" fill="none" />
                 </svg>
                 
-                {/* Water highlight on surface */}
+                {/* Water highlight */}
                 <div 
                   className="absolute inset-0 rounded-full pointer-events-none"
                   style={{
@@ -366,7 +366,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
                 <span className="relative z-10 drop-shadow-lg">take a dip</span>
               </button>
             ) : (
-              <p className="font-mono text-lg md:text-xl text-white/90 drop-shadow-md">
+              <p className="font-mono text-base md:text-lg text-white/90 drop-shadow-md">
                 {displayedText3}
                 {currentLine === 3 && displayedText3.length < line3.length && (
                   <span className="animate-pulse">|</span>
@@ -385,8 +385,8 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
             opacity: 1;
           }
           100% {
-            width: 120px;
-            height: 120px;
+            width: 100px;
+            height: 100px;
             opacity: 0;
           }
         }
@@ -403,6 +403,32 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
           100% {
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.3);
+          }
+        }
+
+        .shimmer-particles {
+          position: absolute;
+          inset: 0;
+          background-image: 
+            radial-gradient(1px 1px at 10% 20%, hsla(45, 90%, 80%, 0.8) 0%, transparent 100%),
+            radial-gradient(1px 1px at 30% 40%, hsla(0, 0%, 100%, 0.6) 0%, transparent 100%),
+            radial-gradient(1.5px 1.5px at 50% 15%, hsla(180, 70%, 80%, 0.7) 0%, transparent 100%),
+            radial-gradient(1px 1px at 70% 60%, hsla(45, 85%, 75%, 0.6) 0%, transparent 100%),
+            radial-gradient(1px 1px at 85% 30%, hsla(0, 0%, 100%, 0.5) 0%, transparent 100%),
+            radial-gradient(1.5px 1.5px at 20% 70%, hsla(200, 70%, 80%, 0.6) 0%, transparent 100%),
+            radial-gradient(1px 1px at 60% 85%, hsla(45, 80%, 70%, 0.5) 0%, transparent 100%),
+            radial-gradient(1px 1px at 90% 75%, hsla(0, 0%, 100%, 0.4) 0%, transparent 100%);
+          animation: shimmerDrift 10s ease-in-out infinite;
+        }
+
+        @keyframes shimmerDrift {
+          0%, 100% {
+            transform: translateY(0) translateX(0);
+            opacity: 0.6;
+          }
+          50% {
+            transform: translateY(-10px) translateX(5px);
+            opacity: 0.8;
           }
         }
       `}</style>
