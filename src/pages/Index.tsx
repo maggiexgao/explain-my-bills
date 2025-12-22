@@ -4,8 +4,8 @@ import { Footer } from '@/components/Footer';
 import { UploadPage } from '@/components/UploadPage';
 import { AnalysisPage } from '@/components/AnalysisPage';
 import { MedicalDocAnalysisPage } from '@/components/MedicalDocAnalysisPage';
-import { AuroraMouseEffect } from '@/components/AuroraMouseEffect';
-import IntroScreen from '@/components/IntroScreen';
+import { WaterRippleEffect } from '@/components/WaterRippleEffect';
+import { PondIntroScreen } from '@/components/PondIntroScreen';
 import { LanguageProvider } from '@/i18n/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult } from '@/types';
@@ -20,7 +20,7 @@ const ensureArray = (value: any): any[] => {
   return [value];
 };
 
-const INTRO_SHOWN_KEY = 'rosetta_intro_shown';
+const INTRO_SHOWN_KEY = 'pond_intro_shown';
 
 const Index = () => {
   const [showIntro, setShowIntro] = useState(() => {
@@ -355,12 +355,12 @@ const Index = () => {
   return (
     <LanguageProvider language={state.selectedLanguage} setLanguage={handleLanguageChange}>
       {showIntro ? (
-        <IntroScreen onComplete={handleIntroComplete} language={state.selectedLanguage} />
+        <PondIntroScreen onComplete={handleIntroComplete} />
       ) : (
         <div className="min-h-screen flex flex-col relative">
-          {/* Aurora Background */}
-          <div className="aurora-bg" />
-          <AuroraMouseEffect />
+          {/* Pond Background */}
+          <div className="pond-bg" />
+          <WaterRippleEffect />
           
           <Header />
           <main className="flex-1 relative z-10">
