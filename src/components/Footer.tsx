@@ -14,7 +14,7 @@ export function Footer() {
             </p>
           </div>
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} MedBill Clarity. Your privacy is protected. 
+            © {new Date().getFullYear()} pond. Your privacy is protected. 
             Documents are processed securely and not stored.
           </p>
         </div>
