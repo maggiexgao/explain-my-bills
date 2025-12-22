@@ -201,7 +201,7 @@ function ActionStepCard({ step }: { step: ActionStep }) {
 }
 
 export function NextStepsSection({ analysis }: NextStepsSectionProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const providerContactInfo = analysis.providerContactInfo;
   const actionSteps = analysis.actionSteps || [];
   const billingTemplates = analysis.billingTemplates || [];
@@ -220,7 +220,8 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
       {disputePackageEligibility.eligible && (
         <DisputePackageUpsell 
           eligibility={disputePackageEligibility} 
-          analysis={analysis} 
+          analysis={analysis}
+          language={language}
         />
       )}
 
