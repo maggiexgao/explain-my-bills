@@ -20,29 +20,27 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
 
   if (isAnalyzing) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-        <div className="text-center space-y-6 animate-fade-in">
+      <div className="h-[calc(100vh-7rem)] flex items-center justify-center">
+        <div className="text-center space-y-4 animate-fade-in">
           <div className="relative">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl glass-card-strong mx-auto">
-              <div className="liquid-loader rounded-xl p-4">
-                <Loader2 className="h-8 w-8 text-primary-foreground animate-spin" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl glass-card-strong mx-auto">
+              <div className="liquid-loader rounded-xl p-3">
+                <Loader2 className="h-6 w-6 text-primary-foreground animate-spin" />
               </div>
             </div>
           </div>
           <div>
-            <h2 className="text-2xl font-display font-bold text-foreground mb-2">
+            <h2 className="text-xl font-display font-bold text-foreground mb-1">
               Analyzing
             </h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {t('analysis.loadingDesc')}
             </p>
           </div>
-          <div className="w-64 h-2 rounded-full bg-muted/50 mx-auto overflow-hidden">
+          <div className="w-48 h-1.5 rounded-full bg-muted/50 mx-auto overflow-hidden">
             <div 
               className="h-full liquid-loader rounded-full" 
-              style={{ 
-                animation: 'loading-progress 30s ease-out forwards',
-              }} 
+              style={{ animation: 'loading-progress 30s ease-out forwards' }} 
             />
           </div>
           <style>{`
@@ -59,9 +57,9 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
 
   if (!analysis) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-        <div className="text-center space-y-4 glass-card-strong p-8 rounded-2xl">
-          <p className="text-muted-foreground">{t('analysis.errorDesc')}</p>
+      <div className="h-[calc(100vh-7rem)] flex items-center justify-center">
+        <div className="text-center space-y-3 glass-card-strong p-6 rounded-2xl">
+          <p className="text-muted-foreground text-sm">{t('analysis.errorDesc')}</p>
           <Button 
             onClick={onBack}
             className="accent-gradient text-primary-foreground shadow-glow hover:shadow-glow-active"
@@ -75,29 +73,31 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)]">
-      <div className="sticky top-16 z-40 glass-card border-t-0 border-x-0">
-        <div className="container flex items-center h-12 px-4 md:px-6">
+    <div className="h-[calc(100vh-7rem)] flex flex-col">
+      {/* Compact sticky bar */}
+      <div className="sticky top-14 z-40 glass-card border-t-0 border-x-0">
+        <div className="container flex items-center h-10 px-4 md:px-6">
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={onBack} 
-            className="gap-2 text-foreground/80 hover:text-foreground hover:bg-background/50"
+            className="gap-1.5 text-foreground/80 hover:text-foreground hover:bg-background/50 text-xs h-7"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             {t('analysis.newDocument')}
           </Button>
         </div>
       </div>
 
-      <div className="container px-4 py-4 md:px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-12rem)]">
-          <div className="h-full min-h-[400px] animate-fade-in">
-            <div className="h-full glass-card-strong rounded-2xl overflow-hidden">
+      {/* Two-column layout that fits in viewport */}
+      <div className="flex-1 container px-3 py-2 md:px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full">
+          <div className="h-full min-h-0 animate-fade-in">
+            <div className="h-full glass-card-strong rounded-xl overflow-hidden">
               <DocumentViewer file={file} activeHighlight={activeHighlight} />
             </div>
           </div>
-          <div className="h-full min-h-[400px] glass-card-strong rounded-2xl overflow-hidden animate-slide-up">
+          <div className="h-full min-h-0 glass-card-strong rounded-xl overflow-hidden animate-slide-up">
             <ExplanationPanel 
               analysis={analysis} 
               onHoverCharge={setActiveHighlight}

@@ -357,9 +357,11 @@ const Index = () => {
       {showIntro ? (
         <PondIntroScreen onComplete={handleIntroComplete} />
       ) : (
-        <div className="min-h-screen flex flex-col relative">
-          {/* Pond Background */}
-          <div className="pond-bg" />
+        <div className="h-screen flex flex-col relative overflow-hidden">
+          {/* Pond Background with shimmer */}
+          <div className="pond-bg">
+            <div className="shimmer-overlay" />
+          </div>
           <WaterRippleEffect />
           
           <Header />

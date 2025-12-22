@@ -51,27 +51,26 @@ export function UploadPage({
   // Mode-specific content
   const content = {
     bill: {
-      subtitle: 'Medical bills, decoded.',
-      step1: 'Share your medical bill or EOB',
-      step2: 'AI decodes your document',
-      step3: 'Get clear explanations and next steps',
+      subtitle: 'Understand your medical bills and what you may owe.',
+      step1: 'upload',
+      step2: 'pond decodes',
+      step3: 'you take the next step',
       features: [
-        { icon: FileSearch, label: 'Line-by-line breakdown', color: 'text-coral' },
+        { icon: FileSearch, label: 'Line-by-line', color: 'text-coral' },
         { icon: Shield, label: 'State protections', color: 'text-purple' },
-        { icon: Lock, label: 'Private & secure', color: 'text-mint' },
+        { icon: Lock, label: 'Private', color: 'text-mint' },
       ],
       buttonText: t('upload.analyze'),
     },
     medical_document: {
-      subtitle: 'Medical documents, explained.',
-      step1: 'Upload your medical document',
-      step2: 'AI decodes your medical information',
-      step3: 'Get clear explanations for your health information',
+      subtitle: 'Understand your visit notes, test results, and paperwork.',
+      step1: 'upload',
+      step2: 'pond decodes',
+      step3: 'you take the next step',
       features: [
-        { icon: BookOpen, label: 'Line-by-line explanation', color: 'text-coral' },
-        { icon: HelpCircle, label: 'Key terms defined', color: 'text-purple' },
-        { icon: MessageSquare, label: 'Questions for your provider', color: 'text-mint' },
-        { icon: Lock, label: 'Private & secure', color: 'text-blush' },
+        { icon: BookOpen, label: 'Plain language', color: 'text-coral' },
+        { icon: HelpCircle, label: 'Terms defined', color: 'text-purple' },
+        { icon: MessageSquare, label: 'Provider questions', color: 'text-mint' },
       ],
       buttonText: 'Analyze Document',
     },
@@ -80,29 +79,29 @@ export function UploadPage({
   const currentContent = content[analysisMode];
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-xl animate-fade-in">
-        <div className="text-center mb-8">
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground/95 mb-3 tracking-tight">
+    <div className="h-[calc(100vh-7rem)] flex flex-col items-center justify-center px-4 py-2">
+      <div className="w-full max-w-md animate-fade-in">
+        {/* Compact header */}
+        <div className="text-center mb-4">
+          <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground/95 mb-1 tracking-tight">
             {t('app.title')}
           </h1>
-          <p className="text-lg text-muted-foreground font-light">
-            {currentContent.subtitle}
+          <p className="text-sm text-muted-foreground font-light">
+            be your own best advocate.
           </p>
         </div>
 
-        <div className="glass-card-strong p-6 md:p-8 space-y-6 animate-slide-up">
-          {/* Mode Toggle */}
-          <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
+        <div className="glass-card-strong p-4 md:p-5 space-y-3 animate-slide-up">
+          {/* Mode Toggle with inline subtitle */}
+          <div className="space-y-1.5">
+            <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
+            <p className="text-xs text-center text-muted-foreground/80">
+              {currentContent.subtitle}
+            </p>
+          </div>
 
-          {/* Medical Document helper text */}
-          {isMedicalDoc && (
-            <div className="text-center text-sm text-muted-foreground px-2">
-              <p>Upload visit summaries, test results, imaging reports, prescriptions, or other medical paperwork. Rosetta will explain them in plain language.</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
+          {/* File uploaders */}
+          <div className="space-y-2">
             <FileUploader
               uploadedFile={uploadedFile}
               onFileSelect={onFileSelect}
@@ -110,20 +109,11 @@ export function UploadPage({
               mode={analysisMode}
             />
             
-            {/* Supported documents list for Medical Document mode */}
+            {/* Compact supported docs for Medical Document mode */}
             {isMedicalDoc && !uploadedFile && (
-              <div className="text-xs text-muted-foreground bg-background/40 rounded-lg p-3 space-y-2">
-                <p className="font-medium text-foreground/80">Supported documents include:</p>
-                <ul className="space-y-1 ml-2">
-                  <li>• After-visit summaries (e.g., MyChart)</li>
-                  <li>• Lab and blood test results</li>
-                  <li>• Imaging reports (X-ray, CT, MRI, ultrasound)</li>
-                  <li>• Clinic or hospital visit notes</li>
-                  <li>• Prescription or medication instructions</li>
-                  <li>• Other documents with diagnoses, tests, or observations</li>
-                </ul>
-                <p className="text-muted-foreground/70 mt-2">Formats: PDF, JPG, JPEG, PNG, HEIC</p>
-              </div>
+              <p className="text-[10px] text-muted-foreground/70 text-center">
+                Visit summaries, lab results, imaging reports, prescriptions, clinic notes
+              </p>
             )}
 
             {/* EOB uploader only for bill mode */}
@@ -136,19 +126,20 @@ export function UploadPage({
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground/80">
-                <MapPin className="h-4 w-4 text-purple" />
+          {/* State and Language selectors */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                <MapPin className="h-3 w-3 text-purple" />
                 {t('upload.state.label')}
               </label>
               <Select value={selectedState} onValueChange={onStateChange}>
-                <SelectTrigger className="w-full h-12 bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
+                <SelectTrigger className="w-full h-10 text-sm bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
                   <SelectValue placeholder={t('upload.state.placeholder')} />
                 </SelectTrigger>
-                <SelectContent className="max-h-[250px] bg-popover/95 backdrop-blur-md z-50">
+                <SelectContent className="max-h-[200px] bg-popover/95 backdrop-blur-md z-50">
                   {US_STATES.map((state) => (
-                    <SelectItem key={state.value} value={state.value}>
+                    <SelectItem key={state.value} value={state.value} className="text-sm">
                       {state.label}
                     </SelectItem>
                   ))}
@@ -156,22 +147,22 @@ export function UploadPage({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground/80">
-                <Globe className="h-4 w-4 text-coral" />
+            <div className="space-y-1">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                <Globe className="h-3 w-3 text-coral" />
                 {t('upload.language.label')}
               </label>
               <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
-                <SelectTrigger className="w-full h-12 bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
+                <SelectTrigger className="w-full h-10 text-sm bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
                   <SelectValue placeholder={t('upload.language.label')} />
                 </SelectTrigger>
                 <SelectContent className="bg-popover/95 backdrop-blur-md z-50">
                   {LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.value} value={lang.value}>
-                      <span className="flex items-center gap-2">
+                    <SelectItem key={lang.value} value={lang.value} className="text-sm">
+                      <span className="flex items-center gap-1.5">
                         <span>{lang.nativeLabel}</span>
                         {lang.value !== 'en' && (
-                          <span className="text-muted-foreground text-xs">({lang.label})</span>
+                          <span className="text-muted-foreground text-[10px]">({lang.label})</span>
                         )}
                       </span>
                     </SelectItem>
@@ -181,58 +172,65 @@ export function UploadPage({
             </div>
           </div>
 
+          {/* Analyze button with ripple on hover */}
           <Button
             size="lg"
-            className={`w-full h-14 text-base font-semibold rounded-xl transition-all duration-300 ${
+            className={`w-full h-12 text-sm font-semibold rounded-xl transition-all duration-300 relative overflow-hidden group ${
               canAnalyze 
-                ? 'accent-gradient text-primary-foreground shadow-glow hover:shadow-glow-active animate-glow-pulse' 
+                ? 'accent-gradient text-primary-foreground shadow-glow hover:shadow-glow-active' 
                 : 'bg-muted text-muted-foreground cursor-not-allowed'
             }`}
             disabled={!canAnalyze}
             onClick={onAnalyze}
           >
-            {currentContent.buttonText}
-            <ArrowRight className="h-5 w-5 ml-2" />
+            {/* Ripple effect on hover */}
+            {canAnalyze && (
+              <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 rounded-full bg-white/20 group-hover:w-full group-hover:h-full group-hover:scale-150 transition-all duration-500" />
+              </span>
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              {currentContent.buttonText}
+              <ArrowRight className="h-4 w-4" />
+            </span>
           </Button>
 
-          {/* Medical Document disclaimer */}
+          {/* Medical Document disclaimer - compact */}
           {isMedicalDoc && (
-            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background/30 rounded-lg p-3">
-              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-warning" />
-              <p>Rosetta will not diagnose or treat conditions, but will explain what this document says in everyday language so you can have a better conversation with your clinician.</p>
+            <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground/80 bg-background/20 rounded-lg px-2 py-1.5">
+              <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5 text-warning" />
+              <p>pond explains documents in everyday language—it won't diagnose or treat.</p>
             </div>
           )}
         </div>
 
-        <div className="mt-8 space-y-6 animate-slide-up" style={{ animationDelay: '0.15s' }}>
-          <div className="flex flex-wrap items-center justify-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-coral/20 border border-coral/30">
-                <span className="text-coral font-bold text-sm">1</span>
-              </div>
-              <p className="text-sm text-foreground/70">{currentContent.step1}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple/20 border border-purple/30">
-                <span className="text-purple font-bold text-sm">2</span>
-              </div>
-              <p className="text-sm text-foreground/70">{currentContent.step2}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-mint/20 border border-mint/30">
-                <span className="text-mint font-bold text-sm">3</span>
-              </div>
-              <p className="text-sm text-foreground/70">{currentContent.step3}</p>
-            </div>
+        {/* Condensed steps row */}
+        <div className="mt-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <div className="flex items-center justify-center gap-2 text-xs text-foreground/60">
+            <span className="flex items-center gap-1">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-coral/20 text-coral font-bold text-[10px]">1</span>
+              {currentContent.step1}
+            </span>
+            <span className="text-muted-foreground/50">→</span>
+            <span className="flex items-center gap-1">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple/20 text-purple font-bold text-[10px]">2</span>
+              {currentContent.step2}
+            </span>
+            <span className="text-muted-foreground/50">→</span>
+            <span className="flex items-center gap-1">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-mint/20 text-mint font-bold text-[10px]">3</span>
+              {currentContent.step3}
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
+          {/* Feature pills */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-2 text-[10px]">
             {currentContent.features.map((feature, idx) => {
               const Icon = feature.icon;
               return (
-                <div key={idx} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/40 backdrop-blur-sm">
-                  <Icon className={`h-4 w-4 ${feature.color}`} />
-                  <span className="text-foreground/70">{feature.label}</span>
+                <div key={idx} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-background/30 backdrop-blur-sm">
+                  <Icon className={`h-3 w-3 ${feature.color}`} />
+                  <span className="text-foreground/60">{feature.label}</span>
                 </div>
               );
             })}
