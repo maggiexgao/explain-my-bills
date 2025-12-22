@@ -3,10 +3,12 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { UploadPage } from '@/components/UploadPage';
 import { AnalysisPage } from '@/components/AnalysisPage';
+import { MedicalDocAnalysisPage } from '@/components/MedicalDocAnalysisPage';
+import { AuroraMouseEffect } from '@/components/AuroraMouseEffect';
 import IntroScreen from '@/components/IntroScreen';
 import { LanguageProvider } from '@/i18n/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AppState, UploadedFile, Language, AnalysisResult } from '@/types';
+import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult } from '@/types';
 import { toast } from 'sonner';
 
 // Helper to ensure value is always an array
@@ -27,11 +29,13 @@ const Index = () => {
   });
   const [state, setState] = useState<AppState>({
     currentStep: 'upload',
+    analysisMode: 'bill',
     uploadedFile: null,
     eobFile: null,
     selectedState: '',
     selectedLanguage: 'en',
     analysisResult: null,
+    medicalDocResult: null,
     isAnalyzing: false,
     activeHighlight: null,
   });
@@ -64,6 +68,10 @@ const Index = () => {
 
   const handleLanguageChange = useCallback((selectedLanguage: Language) => {
     setState((prev) => ({ ...prev, selectedLanguage }));
+  }, []);
+
+  const handleModeChange = useCallback((analysisMode: AnalysisMode) => {
+    setState((prev) => ({ ...prev, analysisMode }));
   }, []);
 
   const fileToBase64 = async (file: File): Promise<string> => {
@@ -118,7 +126,7 @@ const Index = () => {
     try {
       const documentContent = await fileToBase64(state.uploadedFile.file);
       let eobContent: string | undefined;
-      if (state.eobFile) {
+      if (state.eobFile && state.analysisMode === 'bill') {
         eobContent = await fileToBase64(state.eobFile.file);
       }
       
@@ -129,12 +137,56 @@ const Index = () => {
           eobContent,
           state: state.selectedState,
           language: state.selectedLanguage,
+          analysisMode: state.analysisMode,
         },
       });
       
       if (error) throw new Error(error.message || 'Failed to analyze document');
       if (data?.error) throw new Error(data.error);
       
+      // Handle medical document analysis
+      if (state.analysisMode === 'medical_document') {
+        const ai = data.analysis;
+        const medicalDocResult: MedicalDocumentResult = {
+          documentType: ai.documentType || 'mixed_other',
+          documentTypeLabel: ai.documentTypeLabel || 'Medical Document',
+          overview: {
+            summary: ai.overview?.summary || 'This document contains medical information.',
+            mainPurpose: ai.overview?.mainPurpose || 'Provides medical details about your care.',
+            overallAssessment: ai.overview?.overallAssessment || 'Please discuss any concerns with your healthcare provider.',
+          },
+          lineByLine: ensureArray(ai.lineByLine).map((item: any) => ({
+            originalText: item.originalText || '',
+            plainLanguage: item.plainLanguage || '',
+          })),
+          definitions: ensureArray(ai.definitions).map((def: any) => ({
+            term: def.term || '',
+            definition: def.definition || '',
+          })),
+          commonlyAskedQuestions: ensureArray(ai.commonlyAskedQuestions).map((qa: any) => ({
+            question: qa.question || '',
+            answer: qa.answer || '',
+          })),
+          providerQuestions: ensureArray(ai.providerQuestions).map((q: any) => ({
+            question: q.question || '',
+            questionEnglish: q.questionEnglish,
+          })),
+          resources: ensureArray(ai.resources).map((r: any) => ({
+            title: r.title || '',
+            description: r.description || '',
+            url: r.url || '#',
+            source: r.source || 'Medical resource',
+          })),
+          nextSteps: ensureArray(ai.nextSteps).map((s: any) => ({
+            step: s.step || '',
+            details: s.details || '',
+          })),
+        };
+        setState((prev) => ({ ...prev, isAnalyzing: false, medicalDocResult }));
+        return;
+      }
+      
+      // Handle bill analysis (existing logic)
       const ai = data.analysis;
       const analysisResult: AnalysisResult = {
         documentType: ai.documentType?.toLowerCase() as any || 'unknown',
@@ -288,10 +340,10 @@ const Index = () => {
       toast.error(error instanceof Error ? error.message : 'Failed to analyze document.');
       setState((prev) => ({ ...prev, isAnalyzing: false, currentStep: 'upload' }));
     }
-  }, [state.uploadedFile, state.eobFile, state.selectedState, state.selectedLanguage]);
+  }, [state.uploadedFile, state.eobFile, state.selectedState, state.selectedLanguage, state.analysisMode]);
 
   const handleBack = useCallback(() => {
-    setState((prev) => ({ ...prev, currentStep: 'upload', analysisResult: null, isAnalyzing: false }));
+    setState((prev) => ({ ...prev, currentStep: 'upload', analysisResult: null, medicalDocResult: null, isAnalyzing: false }));
   }, []);
 
   const handleIntroComplete = useCallback(() => {
@@ -308,6 +360,7 @@ const Index = () => {
         <div className="min-h-screen flex flex-col relative">
           {/* Aurora Background */}
           <div className="aurora-bg" />
+          <AuroraMouseEffect />
           
           <Header />
           <main className="flex-1 relative z-10">
@@ -317,23 +370,34 @@ const Index = () => {
                 eobFile={state.eobFile}
                 selectedState={state.selectedState}
                 selectedLanguage={state.selectedLanguage}
+                analysisMode={state.analysisMode}
                 onFileSelect={handleFileSelect}
                 onRemoveFile={handleRemoveFile}
                 onEOBSelect={handleEOBSelect}
                 onRemoveEOB={handleRemoveEOB}
                 onStateChange={handleStateChange}
                 onLanguageChange={handleLanguageChange}
+                onModeChange={handleModeChange}
                 onAnalyze={handleAnalyze}
               />
             ) : (
               state.uploadedFile && (
-                <AnalysisPage
-                  file={state.uploadedFile}
-                  analysis={state.analysisResult}
-                  isAnalyzing={state.isAnalyzing}
-                  onBack={handleBack}
-                  hasEOB={!!state.eobFile}
-                />
+                state.analysisMode === 'medical_document' ? (
+                  <MedicalDocAnalysisPage
+                    file={state.uploadedFile}
+                    analysis={state.medicalDocResult}
+                    isAnalyzing={state.isAnalyzing}
+                    onBack={handleBack}
+                  />
+                ) : (
+                  <AnalysisPage
+                    file={state.uploadedFile}
+                    analysis={state.analysisResult}
+                    isAnalyzing={state.isAnalyzing}
+                    onBack={handleBack}
+                    hasEOB={!!state.eobFile}
+                  />
+                )
               )
             )}
           </main>

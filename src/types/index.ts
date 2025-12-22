@@ -2,6 +2,67 @@ export type Language = 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'ar';
 
 export type DocumentType = 'bill' | 'eob' | 'chart' | 'denial' | 'unknown';
 
+export type AnalysisMode = 'bill' | 'medical_document';
+
+export type MedicalDocumentType = 
+  | 'after_visit_summary'
+  | 'test_results'
+  | 'clinical_note'
+  | 'prescription'
+  | 'imaging_report'
+  | 'mixed_other';
+
+// Medical document analysis result
+export interface MedicalDocumentResult {
+  documentType: MedicalDocumentType;
+  documentTypeLabel: string;
+  
+  // Document Overview
+  overview: {
+    summary: string;
+    mainPurpose: string;
+    overallAssessment: string;
+  };
+  
+  // Line-by-Line Plain Language
+  lineByLine: {
+    originalText: string;
+    plainLanguage: string;
+  }[];
+  
+  // Definitions to Know
+  definitions: {
+    term: string;
+    definition: string;
+  }[];
+  
+  // Commonly Asked Questions (Reddit-informed)
+  commonlyAskedQuestions: {
+    question: string;
+    answer: string;
+  }[];
+  
+  // Questions to Ask Your Provider
+  providerQuestions: {
+    question: string;
+    questionEnglish?: string;
+  }[];
+  
+  // Links to Relevant Resources
+  resources: {
+    title: string;
+    description: string;
+    url: string;
+    source: string;
+  }[];
+  
+  // Next Steps & Tracking
+  nextSteps: {
+    step: string;
+    details: string;
+  }[];
+}
+
 export interface UploadedFile {
   id: string;
   file: File;
@@ -310,11 +371,13 @@ export interface AnalysisResult {
 
 export interface AppState {
   currentStep: 'upload' | 'analysis';
+  analysisMode: AnalysisMode;
   uploadedFile: UploadedFile | null;
   eobFile: UploadedFile | null;
   selectedState: string;
   selectedLanguage: Language;
   analysisResult: AnalysisResult | null;
+  medicalDocResult: MedicalDocumentResult | null;
   isAnalyzing: boolean;
   activeHighlight: string | null;
 }
