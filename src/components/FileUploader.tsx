@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Upload, FileText, Image, X, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { UploadedFile } from '@/types';
+import { UploadedFile, AnalysisMode } from '@/types';
 import { useHeicConverter } from '@/hooks/useHeicConverter';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -10,6 +10,7 @@ interface FileUploaderProps {
   onFileSelect: (file: UploadedFile) => void;
   uploadedFile: UploadedFile | null;
   onRemoveFile: () => void;
+  mode?: AnalysisMode;
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -26,11 +27,12 @@ const ACCEPTED_IMAGE_TYPES = [
 ];
 const ACCEPTED_TYPES = ['application/pdf', ...ACCEPTED_IMAGE_TYPES];
 
-export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileUploaderProps) {
+export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 'bill' }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { convertFile, isConverting } = useHeicConverter();
   const { t } = useTranslation();
+  const isMedicalDoc = mode === 'medical_document';
 
   const validateFile = (file: File): string | null => {
     const fileName = file.name.toLowerCase();
@@ -187,10 +189,14 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile }: FileU
           </div>
           
           <h3 className="text-lg font-semibold text-foreground mb-1">
-            {isDragging ? t('upload.bill.dragDrop') : t('upload.bill.title')}
+            {isDragging 
+              ? (isMedicalDoc ? 'Drop your document here' : t('upload.bill.dragDrop'))
+              : (isMedicalDoc ? 'Upload Your Medical Document' : t('upload.bill.title'))}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            {t('upload.bill.subtitle')}
+            {isMedicalDoc 
+              ? 'We accept images, PDFs, and HEIC files'
+              : t('upload.bill.subtitle')}
           </p>
           <p className="text-xs text-muted-foreground/80">
             {t('upload.bill.formats')}
