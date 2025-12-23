@@ -106,8 +106,9 @@ export type TranslationKey =
   | 'heic.converting'
   | 'heic.conversionFailed';
 
+// Only require full translations for implemented languages, others fallback to English
 type TranslationDictionary = {
-  [key in Language]: {
+  [key in 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'ar']: {
     [k in TranslationKey]: string;
   };
 };
@@ -646,5 +647,10 @@ export const translations: TranslationDictionary = {
 };
 
 export function getTranslation(language: Language, key: TranslationKey): string {
-  return translations[language]?.[key] || translations.en[key] || key;
+  // For fully translated languages, use their translations; others fallback to English
+  const supportedLanguages = ['en', 'es', 'zh-Hans', 'zh-Hant', 'ar'] as const;
+  if (supportedLanguages.includes(language as any)) {
+    return translations[language as keyof TranslationDictionary]?.[key] || translations.en[key] || key;
+  }
+  return translations.en[key] || key;
 }

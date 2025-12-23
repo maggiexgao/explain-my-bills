@@ -1,36 +1,45 @@
-import { ZoomIn } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useZoom } from '@/contexts/ZoomContext';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 export function ZoomControl() {
-  const { zoomLevel, cycleZoom } = useZoom();
+  const { zoomLevel, setZoomLevel } = useZoom();
 
-  const label = zoomLevel === 'normal' ? 'A' : zoomLevel === 'large' ? 'A+' : 'A++';
+  const handleZoomIn = () => {
+    if (zoomLevel === 'normal') setZoomLevel('large');
+    else if (zoomLevel === 'large') setZoomLevel('x-large');
+  };
+
+  const handleZoomOut = () => {
+    if (zoomLevel === 'x-large') setZoomLevel('large');
+    else if (zoomLevel === 'large') setZoomLevel('normal');
+  };
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={cycleZoom}
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-background/50"
-            aria-label="Change text size"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Text size: {label}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <div className="flex items-center gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleZoomOut}
+        disabled={zoomLevel === 'normal'}
+        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-background/50 disabled:opacity-40"
+        aria-label="Decrease text size"
+      >
+        <Minus className="h-4 w-4" />
+      </Button>
+      <span className="text-xs text-muted-foreground min-w-[24px] text-center">
+        {zoomLevel === 'normal' ? 'A' : zoomLevel === 'large' ? 'A+' : 'A++'}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleZoomIn}
+        disabled={zoomLevel === 'x-large'}
+        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-background/50 disabled:opacity-40"
+        aria-label="Increase text size"
+      >
+        <Plus className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
