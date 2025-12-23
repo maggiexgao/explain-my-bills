@@ -76,13 +76,8 @@ export function UploadPage({
     <div className="h-full flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm animate-fade-in">
         <div className="glass-card-strong p-4 space-y-2.5 animate-slide-up">
-          {/* Mode Toggle with inline subtitle */}
-          <div className="space-y-1">
-            <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
-            <p className="text-xs text-center text-gray-600 leading-tight">
-              {currentContent.subtitle}
-            </p>
-          </div>
+          {/* Mode Toggle */}
+          <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
 
           {/* File uploaders */}
           <div className="space-y-1.5">
