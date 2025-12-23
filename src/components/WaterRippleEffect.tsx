@@ -17,14 +17,11 @@ interface Sparkle {
   color: string;
 }
 
-// Pastel sparkle colors matching the water reference
+// Soft sparkle colors - occasional twinkles
 const SPARKLE_COLORS = [
-  'hsla(0, 0%, 100%, 0.95)',     // pure white
-  'hsla(45, 85%, 85%, 0.9)',     // pale gold
-  'hsla(180, 55%, 85%, 0.85)',   // soft aqua
-  'hsla(340, 60%, 85%, 0.8)',    // blush pink
-  'hsla(20, 70%, 85%, 0.85)',    // peach
-  'hsla(160, 50%, 80%, 0.8)',    // mint
+  'hsla(0, 0%, 100%, 0.7)',      // soft white
+  'hsla(45, 60%, 85%, 0.6)',     // pale gold
+  'hsla(180, 40%, 88%, 0.55)',   // soft aqua
 ];
 
 export function WaterRippleEffect() {
@@ -36,7 +33,6 @@ export function WaterRippleEffect() {
   const rippleIdRef = useRef<number>(0);
   const sparkleIdRef = useRef<number>(0);
   const mousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const mouseVelRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
@@ -51,30 +47,30 @@ export function WaterRippleEffect() {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  const addSparkles = useCallback((x: number, y: number, count: number = 6) => {
+  const addSparkles = useCallback((x: number, y: number, count: number = 3) => {
     const now = Date.now();
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const offset = Math.random() * 25;
+      const offset = Math.random() * 20;
       sparklesRef.current.push({
         id: sparkleIdRef.current++,
         x: x + Math.cos(angle) * offset,
         y: y + Math.sin(angle) * offset,
-        startTime: now + Math.random() * 80,
+        startTime: now + Math.random() * 60,
         angle: Math.random() * Math.PI * 2,
-        length: 6 + Math.random() * 12,
+        length: 4 + Math.random() * 8,
         color: SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)],
       });
     }
     
-    if (sparklesRef.current.length > 80) {
-      sparklesRef.current = sparklesRef.current.slice(-80);
+    if (sparklesRef.current.length > 40) {
+      sparklesRef.current = sparklesRef.current.slice(-40);
     }
   }, []);
 
   const addRipple = useCallback((x: number, y: number) => {
     const now = Date.now();
-    if (now - lastMoveRef.current < 50) return;
+    if (now - lastMoveRef.current < 60) return;
     lastMoveRef.current = now;
     
     ripplesRef.current.push({
@@ -84,10 +80,13 @@ export function WaterRippleEffect() {
       startTime: now,
     });
     
-    addSparkles(x, y, 4);
+    // Occasional sparkles - reduced count
+    if (Math.random() > 0.5) {
+      addSparkles(x, y, 2);
+    }
     
-    if (ripplesRef.current.length > 20) {
-      ripplesRef.current = ripplesRef.current.slice(-20);
+    if (ripplesRef.current.length > 15) {
+      ripplesRef.current = ripplesRef.current.slice(-15);
     }
   }, [addSparkles]);
 
@@ -107,36 +106,31 @@ export function WaterRippleEffect() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    let lastMousePos = { x: 0, y: 0 };
     const handleMouseMove = (e: MouseEvent) => {
-      const dx = e.clientX - lastMousePos.x;
-      const dy = e.clientY - lastMousePos.y;
-      mouseVelRef.current = { x: dx, y: dy };
-      lastMousePos = { x: e.clientX, y: e.clientY };
       mousePosRef.current = { x: e.clientX, y: e.clientY };
       addRipple(e.clientX, e.clientY);
     };
 
     const handleClick = (e: MouseEvent) => {
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         setTimeout(() => {
           ripplesRef.current.push({
             id: rippleIdRef.current++,
-            x: e.clientX + (Math.random() - 0.5) * 40,
-            y: e.clientY + (Math.random() - 0.5) * 40,
+            x: e.clientX + (Math.random() - 0.5) * 30,
+            y: e.clientY + (Math.random() - 0.5) * 30,
             startTime: Date.now(),
           });
-        }, i * 60);
+        }, i * 80);
       }
-      addSparkles(e.clientX, e.clientY, 15);
+      addSparkles(e.clientX, e.clientY, 5);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('click', handleClick);
 
-    const RIPPLE_DURATION = 800;
-    const MAX_RADIUS = 100;
-    const SPARKLE_DURATION = 350;
+    const RIPPLE_DURATION = 600;
+    const MAX_RADIUS = 70;
+    const SPARKLE_DURATION = 300;
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -153,76 +147,73 @@ export function WaterRippleEffect() {
         sparkle => now - sparkle.startTime < SPARKLE_DURATION
       );
       
-      // Cursor distortion glow - larger and more visible
+      // Subtle cursor distortion glow
       const distortionGradient = ctx.createRadialGradient(
         mouseX, mouseY, 0,
-        mouseX, mouseY, 80
+        mouseX, mouseY, 50
       );
-      distortionGradient.addColorStop(0, 'hsla(0, 0%, 100%, 0.25)');
-      distortionGradient.addColorStop(0.3, 'hsla(180, 50%, 90%, 0.15)');
-      distortionGradient.addColorStop(0.6, 'hsla(45, 60%, 90%, 0.08)');
+      distortionGradient.addColorStop(0, 'hsla(0, 0%, 100%, 0.12)');
+      distortionGradient.addColorStop(0.4, 'hsla(180, 40%, 95%, 0.08)');
       distortionGradient.addColorStop(1, 'hsla(0, 0%, 100%, 0)');
       
       ctx.beginPath();
-      ctx.arc(mouseX, mouseY, 80, 0, Math.PI * 2);
+      ctx.arc(mouseX, mouseY, 50, 0, Math.PI * 2);
       ctx.fillStyle = distortionGradient;
       ctx.fill();
       
-      // Draw ripples - bright concentric rings
+      // Draw ripples - thin, faint concentric rings
       ripplesRef.current.forEach(ripple => {
         const elapsed = now - ripple.startTime;
         const progress = elapsed / RIPPLE_DURATION;
         const easeProgress = 1 - Math.pow(1 - progress, 3);
         
         const baseRadius = easeProgress * MAX_RADIUS;
-        const opacity = (1 - progress) * 0.95;
+        const opacity = (1 - progress) * 0.5; // Lower opacity
         
-        // Draw 3 concentric rings
-        for (let i = 0; i < 3; i++) {
-          const ringProgress = 0.25 + i * 0.3;
+        // Draw 2 thin concentric rings
+        for (let i = 0; i < 2; i++) {
+          const ringProgress = 0.3 + i * 0.35;
           const ringRadius = baseRadius * ringProgress + 16;
-          const ringOpacity = opacity * (1 - i * 0.25);
-          const lineWidth = 2.5 - i * 0.6;
+          const ringOpacity = opacity * (1 - i * 0.3);
+          const lineWidth = 1.2 - i * 0.3;
           
-          // Main bright white ring
+          // Faint white ring
           ctx.beginPath();
           ctx.arc(ripple.x, ripple.y, ringRadius, 0, Math.PI * 2);
-          ctx.strokeStyle = `hsla(0, 0%, 100%, ${ringOpacity * 0.9})`;
+          ctx.strokeStyle = `hsla(0, 0%, 100%, ${ringOpacity * 0.7})`;
           ctx.lineWidth = lineWidth;
           ctx.stroke();
           
-          // Subtle color tint glow
+          // Very subtle glow
           const gradient = ctx.createRadialGradient(
-            ripple.x, ripple.y, ringRadius - 5,
-            ripple.x, ripple.y, ringRadius + 15
+            ripple.x, ripple.y, ringRadius - 3,
+            ripple.x, ripple.y, ringRadius + 8
           );
-          gradient.addColorStop(0, `hsla(180, 50%, 95%, ${ringOpacity * 0.25})`);
-          gradient.addColorStop(0.5, `hsla(45, 70%, 92%, ${ringOpacity * 0.15})`);
+          gradient.addColorStop(0, `hsla(180, 40%, 95%, ${ringOpacity * 0.12})`);
           gradient.addColorStop(1, 'hsla(0, 0%, 100%, 0)');
           
           ctx.beginPath();
-          ctx.arc(ripple.x, ripple.y, ringRadius + 5, 0, Math.PI * 2);
+          ctx.arc(ripple.x, ripple.y, ringRadius + 3, 0, Math.PI * 2);
           ctx.fillStyle = gradient;
           ctx.fill();
         }
         
-        // Central bright highlight
-        const highlightOpacity = opacity * 0.4;
+        // Soft central highlight
+        const highlightOpacity = opacity * 0.2;
         const highlightGradient = ctx.createRadialGradient(
           ripple.x, ripple.y, 0,
-          ripple.x, ripple.y, 25
+          ripple.x, ripple.y, 18
         );
         highlightGradient.addColorStop(0, `hsla(0, 0%, 100%, ${highlightOpacity})`);
-        highlightGradient.addColorStop(0.4, `hsla(45, 75%, 95%, ${highlightOpacity * 0.6})`);
         highlightGradient.addColorStop(1, 'hsla(0, 0%, 100%, 0)');
         
         ctx.beginPath();
-        ctx.arc(ripple.x, ripple.y, 25, 0, Math.PI * 2);
+        ctx.arc(ripple.x, ripple.y, 18, 0, Math.PI * 2);
         ctx.fillStyle = highlightGradient;
         ctx.fill();
       });
       
-      // Draw sparkles - sun glints on water
+      // Draw sparkles - occasional tiny twinkles
       sparklesRef.current.forEach(sparkle => {
         const elapsed = now - sparkle.startTime;
         if (elapsed < 0) return;
@@ -235,28 +226,28 @@ export function WaterRippleEffect() {
         ctx.translate(sparkle.x, sparkle.y);
         ctx.rotate(sparkle.angle);
         
-        // Bright streak
+        // Soft streak
         const length = sparkle.length * scale;
         const gradient = ctx.createLinearGradient(-length / 2, 0, length / 2, 0);
-        const baseColor = sparkle.color.replace(/[\d.]+\)$/, `${opacity * 0.9})`);
+        const baseColor = sparkle.color.replace(/[\d.]+\)$/, `${opacity * 0.6})`);
         gradient.addColorStop(0, 'hsla(0, 0%, 100%, 0)');
-        gradient.addColorStop(0.2, baseColor);
-        gradient.addColorStop(0.5, sparkle.color.replace(/[\d.]+\)$/, `${opacity})`));
-        gradient.addColorStop(0.8, baseColor);
+        gradient.addColorStop(0.3, baseColor);
+        gradient.addColorStop(0.5, sparkle.color.replace(/[\d.]+\)$/, `${opacity * 0.7})`));
+        gradient.addColorStop(0.7, baseColor);
         gradient.addColorStop(1, 'hsla(0, 0%, 100%, 0)');
         
         ctx.beginPath();
         ctx.moveTo(-length / 2, 0);
         ctx.lineTo(length / 2, 0);
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.lineCap = 'round';
         ctx.stroke();
         
-        // Bright center dot
+        // Small center dot
         ctx.beginPath();
-        ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(0, 0%, 100%, ${opacity})`;
+        ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(0, 0%, 100%, ${opacity * 0.6})`;
         ctx.fill();
         
         ctx.restore();
