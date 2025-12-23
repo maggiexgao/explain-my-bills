@@ -141,7 +141,18 @@ function AllClearBox() {
   );
 }
 
-// Helper to check if an issue is about EOB mismatch
+// Helper to parse currency strings like "$151.77" to numbers
+function parseAmount(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[$,\s]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? undefined : num;
+  }
+  return undefined;
+}
+
+// Helper to check if an issue is about EOB/bill total mismatch
 function isEOBMismatchIssue(issue: BillingIssue): boolean {
   const title = issue.title?.toLowerCase() || '';
   const description = issue.description?.toLowerCase() || '';
@@ -149,57 +160,67 @@ function isEOBMismatchIssue(issue: BillingIssue): boolean {
     title.includes('eob') || 
     title.includes('mismatch') ||
     title.includes('bill total') ||
+    title.includes('patient responsibility') ||
     description.includes('eob') ||
-    description.includes('patient responsibility')
+    description.includes('patient responsibility') ||
+    description.includes('bill total')
   );
 }
 
-// Helper to check if issue description indicates a match (guardrail)
+// GUARDRAIL: Check if issue description/title indicates amounts actually match
+// If the AI says it's a match, we must NOT show it as a warning
 function descriptionIndicatesMatch(issue: BillingIssue): boolean {
-  const description = issue.description?.toLowerCase() || '';
+  const text = `${issue.title || ''} ${issue.description || ''}`.toLowerCase();
   return (
-    description.includes('perfect match') ||
-    description.includes('which is great') ||
-    description.includes('matches your eob') ||
-    description.includes('amounts match') ||
-    description.includes('good sign')
+    text.includes('perfect match') ||
+    text.includes('which is great') ||
+    text.includes('matches your eob') ||
+    text.includes('amounts match') ||
+    text.includes('good sign') ||
+    text.includes('this is a match') ||
+    text.includes('bill matches') ||
+    text.includes('totals match') ||
+    text.includes('are the same') ||
+    text.includes('are equal') ||
+    text.includes('correctly matches') ||
+    text.includes('appears correct')
   );
+}
+
+// Determine if an issue should be filtered out
+function shouldFilterIssue(issue: BillingIssue, totalsMatch: boolean): boolean {
+  // GUARDRAIL 1: If the description says it's a match, ALWAYS filter it out
+  // This prevents "Needs Attention" cards that say "perfect match"
+  if (descriptionIndicatesMatch(issue)) {
+    return true;
+  }
+  
+  // GUARDRAIL 2: If we computed that totals match, filter out EOB mismatch issues
+  if (totalsMatch && isEOBMismatchIssue(issue)) {
+    return true;
+  }
+  
+  return false;
 }
 
 export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCalloutsSectionProps) {
   const { t } = useTranslation();
   
-  // Parse bill total and EOB patient responsibility as numbers
-  const billTotal = typeof analysis.billTotal === 'number' ? analysis.billTotal : undefined;
-  const eobPatientResponsibility = typeof analysis.eobData?.patientResponsibility === 'number' 
-    ? analysis.eobData.patientResponsibility 
-    : undefined;
+  // Parse bill total and EOB patient responsibility as numbers (handle strings like "$151.77")
+  const billTotal = parseAmount(analysis.billTotal);
+  const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
   
   // Check if bill total matches EOB patient responsibility (within $0.01 tolerance for rounding)
   const canCompare = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
   const diff = canCompare ? Math.abs(billTotal - eobPatientResponsibility) : Infinity;
   const totalsMatch = canCompare && diff <= 0.01;
 
-  // Filter out EOB mismatch issues when totals actually match
-  // Also filter out any issue where the description says it's a match (guardrail)
+  // Filter out issues that shouldn't be shown as warnings
   const rawPotentialErrors = analysis.potentialErrors || [];
   const rawNeedsAttention = analysis.needsAttention || [];
   
-  const potentialErrors = rawPotentialErrors.filter(issue => {
-    // Remove EOB mismatch issues when totals match
-    if (totalsMatch && isEOBMismatchIssue(issue)) return false;
-    // Guardrail: if description says it's a match, don't show as error
-    if (descriptionIndicatesMatch(issue)) return false;
-    return true;
-  });
-  
-  const needsAttention = rawNeedsAttention.filter(issue => {
-    // Remove EOB mismatch issues when totals match
-    if (totalsMatch && isEOBMismatchIssue(issue)) return false;
-    // Guardrail: if description says it's a match, don't show as warning
-    if (descriptionIndicatesMatch(issue)) return false;
-    return true;
-  });
+  const potentialErrors = rawPotentialErrors.filter(issue => !shouldFilterIssue(issue, totalsMatch));
+  const needsAttention = rawNeedsAttention.filter(issue => !shouldFilterIssue(issue, totalsMatch));
   
   const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
 
