@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, MessageSquare, HelpCircle } from 'lucide-react';
+import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle } from 'lucide-react';
 import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -64,7 +64,7 @@ export function UploadPage({
       features: [
         { icon: BookOpen, label: 'Plain language', color: 'text-coral' },
         { icon: HelpCircle, label: 'Terms defined', color: 'text-purple' },
-        { icon: MessageSquare, label: 'Provider questions', color: 'text-teal' },
+        { icon: Lock, label: 'Secure', color: 'text-teal' },
       ],
       buttonText: 'Analyze Document',
     },
@@ -189,7 +189,7 @@ export function UploadPage({
             </span>
             <span className="text-gray-400">→</span>
             <span className="flex items-center gap-0.5">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-teal/20 text-teal font-bold text-[9px]">3</span>
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky/20 text-sky font-bold text-[9px]">3</span>
               next step
             </span>
           </div>
