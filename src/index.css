@@ -8,10 +8,10 @@
   :root {
     /* Pastel pond palette - soft aqua/turquoise with peach, pink, yellow */
     --background: 185 45% 85%;
-    --foreground: 200 40% 20%;
+    --foreground: 210 25% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 35% 20%;
+    --card-foreground: 210 25% 15%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 200 35% 20%;
@@ -27,7 +27,7 @@
 
     /* Muted pastel */
     --muted: 185 30% 75%;
-    --muted-foreground: 200 25% 40%;
+    --muted-foreground: 210 20% 35%;
 
     /* Golden accent */
     --accent: 45 80% 60%;

@@ -13,10 +13,10 @@ export function Header() {
             />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-mono text-sm text-foreground tracking-wide lowercase font-medium">
+            <span className="font-mono text-base text-gray-900 tracking-wide lowercase font-semibold">
               pond
             </span>
-            <span className="text-[8px] text-muted-foreground hidden sm:block">
+            <span className="text-[9px] text-gray-600 hidden sm:block">
               making healthcare clear.
             </span>
           </div>

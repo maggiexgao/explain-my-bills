@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import pondFrog from '@/assets/pond-frog.png';
+import lilypadButton from '@/assets/lilypad-button.png';
 
 interface PondIntroScreenProps {
   onComplete: () => void;
@@ -49,22 +50,22 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
     setRipples(prev => [...prev, { id, x: xPercent, y: yPercent }]);
     setTimeout(() => {
       setRipples(prev => prev.filter(r => r.id !== id));
-    }, 800);
+    }, 700);
   }, []);
 
-  const addSparkles = useCallback((xPercent: number, yPercent: number, count: number = 6) => {
+  const addSparkles = useCallback((xPercent: number, yPercent: number, count: number = 4) => {
     const newSparkles: IntroSparkle[] = [];
     for (let i = 0; i < count; i++) {
       const id = sparkleIdRef.current++;
       newSparkles.push({
         id,
-        x: xPercent + (Math.random() - 0.5) * 8,
-        y: yPercent + (Math.random() - 0.5) * 8,
+        x: xPercent + (Math.random() - 0.5) * 6,
+        y: yPercent + (Math.random() - 0.5) * 6,
         angle: Math.random() * 360,
       });
       setTimeout(() => {
         setSparkles(prev => prev.filter(s => s.id !== id));
-      }, 400);
+      }, 350);
     }
     setSparkles(prev => [...prev, ...newSparkles]);
   }, []);
@@ -134,8 +135,8 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         clearInterval(typeInterval);
         setTimeout(() => {
           setShowLilypad(true);
-          addRipple(50, 70);
-          addSparkles(50, 70, 8);
+          addRipple(50, 68);
+          addSparkles(50, 68, 5);
         }, 200);
       }
     }, 50);
@@ -146,10 +147,10 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const handleClick = useCallback(() => {
     if (!showLilypad) return;
     
-    addRipple(50, 70);
-    addSparkles(50, 70, 12);
-    setTimeout(() => addRipple(48, 68), 80);
-    setTimeout(() => addRipple(52, 72), 120);
+    addRipple(50, 68);
+    addSparkles(50, 68, 8);
+    setTimeout(() => addRipple(48, 66), 80);
+    setTimeout(() => addRipple(52, 70), 120);
     
     setTimeout(() => {
       setIsExiting(true);
@@ -177,11 +178,11 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         cursor: prefersReducedMotion ? 'auto' : 'none',
       }}
     >
-      {/* Subtle darkening overlay for better text readability */}
+      {/* Very light overlay for text readability */}
       <div 
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'linear-gradient(180deg, hsl(200 30% 15% / 0.15) 0%, hsl(200 30% 10% / 0.25) 100%)',
+          background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.05) 0%, hsl(0 0% 100% / 0.1) 100%)',
         }}
       />
 
@@ -219,20 +220,20 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
             transform: 'translate(-50%, -50%)',
           }}
         >
-          {[0, 1, 2].map(i => (
+          {[0, 1].map(i => (
             <div
               key={i}
               className="absolute rounded-full"
               style={{
-                animation: `rippleExpandIntro 0.8s ease-out forwards`,
+                animation: `rippleExpandIntro 0.7s ease-out forwards`,
                 animationDelay: `${i * 0.1}s`,
                 width: 0,
                 height: 0,
                 left: '50%',
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
-                border: `${2 - i * 0.4}px solid hsla(0, 0%, 100%, ${0.7 - i * 0.2})`,
-                boxShadow: `0 0 ${8 - i * 2}px hsla(45, 80%, 70%, ${0.4 - i * 0.1})`,
+                border: `${1.5 - i * 0.3}px solid hsla(0, 0%, 100%, ${0.5 - i * 0.15})`,
+                boxShadow: `0 0 ${6 - i * 2}px hsla(180, 50%, 85%, ${0.3 - i * 0.1})`,
               }}
             />
           ))}
@@ -248,13 +249,13 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
             left: `${sparkle.x}%`,
             top: `${sparkle.y}%`,
             transform: `translate(-50%, -50%) rotate(${sparkle.angle}deg)`,
-            animation: 'sparkleFlash 0.4s ease-out forwards',
+            animation: 'sparkleFlash 0.35s ease-out forwards',
           }}
         >
           <div 
-            className="w-3 h-0.5 rounded-full"
+            className="w-2 h-0.5 rounded-full"
             style={{
-              background: 'linear-gradient(90deg, transparent, hsla(45, 90%, 80%, 0.9), transparent)',
+              background: 'linear-gradient(90deg, transparent, hsla(0, 0%, 100%, 0.7), transparent)',
             }}
           />
         </div>
@@ -262,89 +263,65 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
 
       {/* Content */}
       <div className="text-center px-6 max-w-2xl relative z-10">
-        <div className="space-y-3 mb-6">
-          <p className="font-mono text-base md:text-lg lg:text-xl text-white/90 drop-shadow-md min-h-[1.25em] leading-relaxed">
+        <div className="space-y-4 mb-6">
+          {/* Dark text for better legibility */}
+          <p className="font-mono text-lg md:text-xl lg:text-2xl text-gray-800 drop-shadow-sm min-h-[1.5em] leading-relaxed">
             {displayedText1}
             {currentLine === 1 && displayedText1.length < line1.length && (
               <span className="animate-pulse">|</span>
             )}
           </p>
           
-          <p className="font-mono text-base md:text-lg lg:text-xl text-white drop-shadow-md min-h-[1.25em] leading-relaxed font-medium">
+          <p className="font-mono text-lg md:text-xl lg:text-2xl text-gray-900 drop-shadow-sm min-h-[1.5em] leading-relaxed font-medium">
             {displayedText2}
             {currentLine === 2 && displayedText2.length < line2.length && (
               <span className="animate-pulse">|</span>
             )}
           </p>
           
-          <div className="min-h-[8rem] flex flex-col items-center justify-center relative pt-4">
-            {/* Lilypad button */}
+          <div className="min-h-[14rem] flex flex-col items-center justify-center relative pt-6">
+            {/* Lilypad button using actual image */}
             {showLilypad ? (
               <button
                 onClick={handleClick}
                 onKeyDown={handleKeyDown}
                 onMouseEnter={() => {
                   setIsHovered(true);
-                  addSparkles(50, 70, 4);
+                  addSparkles(50, 68, 3);
                 }}
                 onMouseLeave={() => setIsHovered(false)}
                 className={`
-                  relative font-sans text-base md:text-lg text-white font-semibold
+                  relative
                   transition-all duration-300 ease-out
-                  focus:outline-none focus:ring-4 focus:ring-green-400/50
-                  ${isHovered ? 'scale-105' : 'scale-100'}
+                  focus:outline-none focus:ring-4 focus:ring-teal-400/40
+                  ${isHovered ? 'scale-105 brightness-110' : 'scale-100'}
                 `}
                 style={{
-                  width: '140px',
-                  height: '140px',
-                  borderRadius: '50%',
-                  background: `
-                    radial-gradient(ellipse at 40% 30%, hsl(130 55% 50%) 0%, hsl(135 50% 42%) 40%, hsl(140 45% 35%) 100%)
-                  `,
-                  boxShadow: isHovered 
-                    ? `
-                      0 8px 30px hsl(130 50% 25% / 0.5), 
-                      0 0 25px hsl(130 60% 45% / 0.4), 
-                      inset 0 2px 4px hsl(130 60% 70% / 0.4),
-                      inset 0 -4px 8px hsl(140 50% 25% / 0.3)
-                    `
-                    : `
-                      0 4px 20px hsl(130 50% 20% / 0.4), 
-                      inset 0 2px 4px hsl(130 60% 70% / 0.3),
-                      inset 0 -4px 8px hsl(140 50% 25% / 0.2)
-                    `,
-                  transform: isHovered ? 'scale(1.05) rotate(-2deg)' : 'scale(1)',
                   cursor: prefersReducedMotion ? 'pointer' : 'none',
-                  clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%, 12% 50%, 50% 45%)',
                 }}
               >
-                {/* Lilypad vein SVG overlay */}
-                <svg 
-                  className="absolute inset-0 w-full h-full opacity-25 pointer-events-none"
-                  viewBox="0 0 100 100"
-                >
-                  <path d="M50 15 L50 85" stroke="hsl(135, 35%, 30%)" strokeWidth="1.5" fill="none" />
-                  <path d="M50 50 L20 25" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
-                  <path d="M50 50 L80 25" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
-                  <path d="M50 50 L15 50" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
-                  <path d="M50 50 L85 50" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
-                  <path d="M50 50 L20 75" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
-                  <path d="M50 50 L80 75" stroke="hsl(135, 35%, 30%)" strokeWidth="1" fill="none" />
-                </svg>
-                
-                {/* Water highlight */}
-                <div 
-                  className="absolute inset-0 rounded-full pointer-events-none"
+                {/* Lilypad image */}
+                <img 
+                  src={lilypadButton} 
+                  alt="Lilypad"
+                  className="w-52 h-auto drop-shadow-lg"
                   style={{
-                    background: 'radial-gradient(ellipse at 35% 25%, hsla(0, 0%, 100%, 0.25) 0%, transparent 50%)',
-                    clipPath: 'inherit',
+                    filter: isHovered ? 'brightness(1.08) drop-shadow(0 8px 20px hsl(130 40% 30% / 0.4))' : 'drop-shadow(0 4px 12px hsl(130 40% 30% / 0.3))',
                   }}
                 />
                 
-                <span className="relative z-10 drop-shadow-lg">take a dip</span>
+                {/* Text overlay on the lilypad */}
+                <span 
+                  className="absolute inset-0 flex items-center justify-center font-sans text-lg md:text-xl font-semibold text-gray-900 drop-shadow-sm"
+                  style={{
+                    paddingTop: '1.5rem',
+                  }}
+                >
+                  take a dip
+                </span>
               </button>
             ) : (
-              <p className="font-mono text-base md:text-lg text-white/90 drop-shadow-md">
+              <p className="font-mono text-lg md:text-xl text-gray-800 drop-shadow-sm">
                 {displayedText3}
                 {currentLine === 3 && displayedText3.length < line3.length && (
                   <span className="animate-pulse">|</span>
@@ -363,8 +340,8 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
             opacity: 1;
           }
           100% {
-            width: 100px;
-            height: 100px;
+            width: 80px;
+            height: 80px;
             opacity: 0;
           }
         }
@@ -375,7 +352,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
             transform: translate(-50%, -50%) scale(0.5);
           }
           30% {
-            opacity: 1;
+            opacity: 0.8;
             transform: translate(-50%, -50%) scale(1);
           }
           100% {
@@ -388,25 +365,23 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
           position: absolute;
           inset: 0;
           background-image: 
-            radial-gradient(1px 1px at 10% 20%, hsla(45, 90%, 80%, 0.8) 0%, transparent 100%),
-            radial-gradient(1px 1px at 30% 40%, hsla(0, 0%, 100%, 0.6) 0%, transparent 100%),
-            radial-gradient(1.5px 1.5px at 50% 15%, hsla(180, 70%, 80%, 0.7) 0%, transparent 100%),
-            radial-gradient(1px 1px at 70% 60%, hsla(45, 85%, 75%, 0.6) 0%, transparent 100%),
-            radial-gradient(1px 1px at 85% 30%, hsla(0, 0%, 100%, 0.5) 0%, transparent 100%),
-            radial-gradient(1.5px 1.5px at 20% 70%, hsla(200, 70%, 80%, 0.6) 0%, transparent 100%),
-            radial-gradient(1px 1px at 60% 85%, hsla(45, 80%, 70%, 0.5) 0%, transparent 100%),
-            radial-gradient(1px 1px at 90% 75%, hsla(0, 0%, 100%, 0.4) 0%, transparent 100%);
-          animation: shimmerDrift 10s ease-in-out infinite;
+            radial-gradient(1px 1px at 10% 20%, hsla(0, 0%, 100%, 0.6) 0%, transparent 100%),
+            radial-gradient(1px 1px at 30% 40%, hsla(0, 0%, 100%, 0.5) 0%, transparent 100%),
+            radial-gradient(1px 1px at 50% 15%, hsla(180, 70%, 90%, 0.5) 0%, transparent 100%),
+            radial-gradient(1px 1px at 70% 60%, hsla(45, 85%, 85%, 0.4) 0%, transparent 100%),
+            radial-gradient(1px 1px at 85% 30%, hsla(0, 0%, 100%, 0.4) 0%, transparent 100%),
+            radial-gradient(1px 1px at 20% 70%, hsla(200, 70%, 90%, 0.4) 0%, transparent 100%);
+          animation: shimmerDrift 12s ease-in-out infinite;
         }
 
         @keyframes shimmerDrift {
           0%, 100% {
             transform: translateY(0) translateX(0);
-            opacity: 0.6;
+            opacity: 0.5;
           }
           50% {
-            transform: translateY(-10px) translateX(5px);
-            opacity: 0.8;
+            transform: translateY(-8px) translateX(4px);
+            opacity: 0.7;
           }
         }
       `}</style>
