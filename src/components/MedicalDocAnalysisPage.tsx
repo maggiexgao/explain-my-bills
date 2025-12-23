@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentViewer } from '@/components/DocumentViewer';
 import { MedicalDocExplanationPanel } from '@/components/MedicalDocExplanationPanel';
 import { ZoomControl } from '@/components/ZoomControl';
 import { useZoom } from '@/contexts/ZoomContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { UploadedFile, MedicalDocumentResult } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -17,8 +18,10 @@ interface MedicalDocAnalysisPageProps {
 
 export function MedicalDocAnalysisPage({ file, analysis, isAnalyzing, onBack }: MedicalDocAnalysisPageProps) {
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'document' | 'analysis'>('analysis');
   const { t } = useTranslation();
   const { zoomClass } = useZoom();
+  const isMobile = useIsMobile();
 
   if (isAnalyzing) {
     return (
@@ -74,6 +77,72 @@ export function MedicalDocAnalysisPage({ file, analysis, isAnalyzing, onBack }: 
     );
   }
 
+  // Mobile layout with tabs
+  if (isMobile) {
+    return (
+      <div className="h-full flex flex-col">
+        {/* Mobile header */}
+        <div className="shrink-0 z-40 glass-card border-t-0 border-x-0 border-b border-border/30">
+          <div className="flex items-center justify-between h-11 px-3">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onBack} 
+              className="gap-1 text-foreground/80 hover:text-foreground hover:bg-background/50 text-xs h-9 px-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">New</span>
+            </Button>
+            
+            {/* Tab switcher */}
+            <div className="flex items-center bg-muted/50 rounded-lg p-0.5">
+              <button
+                onClick={() => setMobileTab('document')}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  mobileTab === 'document' 
+                    ? 'bg-background text-foreground shadow-sm' 
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Document
+              </button>
+              <button
+                onClick={() => setMobileTab('analysis')}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  mobileTab === 'analysis' 
+                    ? 'bg-background text-foreground shadow-sm' 
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Analysis
+              </button>
+            </div>
+            
+            <ZoomControl />
+          </div>
+        </div>
+
+        {/* Mobile content */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {mobileTab === 'document' ? (
+            <div className="h-full p-2 animate-fade-in">
+              <div className="h-full glass-card-strong rounded-xl overflow-hidden">
+                <DocumentViewer file={file} activeHighlight={activeHighlight} />
+              </div>
+            </div>
+          ) : (
+            <div className={`h-full overflow-hidden animate-fade-in ${zoomClass}`}>
+              <MedicalDocExplanationPanel analysis={analysis} />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop layout
   return (
     <div className="h-full flex flex-col">
       {/* Compact sticky bar */}
@@ -108,4 +177,3 @@ export function MedicalDocAnalysisPage({ file, analysis, isAnalyzing, onBack }: 
     </div>
   );
 }
-
