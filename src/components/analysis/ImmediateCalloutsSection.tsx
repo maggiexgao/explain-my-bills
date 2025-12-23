@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, BillingIssue } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
@@ -70,24 +70,66 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
   );
 }
 
+// All Clear success box when no issues found
+function AllClearBox() {
+  const resources = [
+    { name: 'State Insurance Department', description: 'Find your state\'s consumer protection contacts' },
+    { name: 'Hospital Financial Assistance', description: 'Ask about charity care or payment plans' },
+    { name: 'Patient Advocate Foundation', description: 'Free case management and advocacy', url: 'https://www.patientadvocate.org' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="p-6 rounded-xl bg-success/10 border border-success/30">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-success/20">
+            <CheckCircle className="h-6 w-6 text-success" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-base font-semibold text-foreground mb-2">Overall, this bill looks reasonable</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+              No visible errors or areas of attention were detected based on the information we reviewed. The billing details appear consistent with what your insurance shows.
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              If you still feel something is off, it's always okay to ask questions. Here are resources you can use if you'd like to look deeper.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Resources for further verification */}
+      <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+        <h5 className="text-sm font-medium text-foreground mb-3">Resources for further verification:</h5>
+        <div className="space-y-2">
+          {resources.map((resource, idx) => (
+            <div key={idx} className="flex items-start gap-2 text-sm">
+              <ExternalLink className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <span className="font-medium text-foreground">{resource.name}</span>
+                <span className="text-muted-foreground"> – {resource.description}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Disclaimer for all-clear case */}
+      <p className="text-xs text-muted-foreground italic px-1">
+        This review is based only on the document(s) you uploaded and may not capture every detail of your care or coverage. If you believe something is wrong, use the resources above or contact your insurer or provider for a more complete review.
+      </p>
+    </div>
+  );
+}
+
 export function ImmediateCalloutsSection({ analysis }: ImmediateCalloutsSectionProps) {
   const { t } = useTranslation();
   const potentialErrors = analysis.potentialErrors || [];
   const needsAttention = analysis.needsAttention || [];
   const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
 
+  // Check if this is an "all clear" case
   if (!hasAnyIssues) {
-    return (
-      <div className="p-6 text-center rounded-xl bg-mint-light/50 border border-mint/20">
-        <div className="flex h-12 w-12 mx-auto mb-3 items-center justify-center rounded-full bg-mint/10">
-          <Info className="h-6 w-6 text-mint" />
-        </div>
-        <h4 className="text-sm font-medium text-foreground mb-1">No immediate issues detected</h4>
-        <p className="text-sm text-muted-foreground">
-          Review the other sections for a complete understanding.
-        </p>
-      </div>
-    );
+    return <AllClearBox />;
   }
 
   return (

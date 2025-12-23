@@ -45,7 +45,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const line1 = "welcome to pond.";
   const line2 = "clear answers to complex healthcare.";
   const line3 = "lower your costs. understand your care. own your health.";
-  const lilypadText = "take a dip";
+  const lilypadText = "let's dive in";
 
   const addRipple = useCallback((xPercent: number, yPercent: number) => {
     const id = rippleIdRef.current++;
@@ -340,14 +340,14 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
                   }}
                 />
                 
-                {/* Text overlay on the lilypad - larger text */}
+                {/* Text overlay on the lilypad - 30% smaller text */}
                 <span 
-                  className="absolute inset-0 flex items-center justify-center font-sans text-xl md:text-2xl lg:text-3xl font-semibold text-gray-900 drop-shadow-sm"
+                  className="absolute inset-0 flex items-center justify-center font-sans text-sm md:text-lg lg:text-xl font-semibold text-gray-900 drop-shadow-sm"
                   style={{
                     paddingTop: '2rem',
                   }}
                 >
-                  take a dip
+                  let's dive in
                 </span>
               </button>
             ) : (
