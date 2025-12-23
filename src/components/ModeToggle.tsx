@@ -11,13 +11,13 @@ const modes = [
   {
     value: 'bill' as const,
     label: 'Bill Analysis',
-    subtitle: 'Understand your medical bills and what you may owe.',
+    subtitle: 'Understand your medical bills.',
     icon: FileText,
   },
   {
     value: 'medical_document' as const,
     label: 'Medical Document',
-    subtitle: 'Understand your visit notes, test results, and medical paperwork.',
+    subtitle: 'Understand your visit notes and test results.',
     icon: Stethoscope,
   },
 ];
@@ -49,7 +49,7 @@ export function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
       </div>
       
       {/* Subtitle for active mode */}
-      <p className="text-center text-sm text-muted-foreground mt-3 animate-fade-in">
+      <p className="text-center text-xs text-gray-600 mt-2 animate-fade-in">
         {modes.find(m => m.value === mode)?.subtitle}
       </p>
     </div>
