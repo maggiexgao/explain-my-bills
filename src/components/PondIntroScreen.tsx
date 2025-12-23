@@ -23,6 +23,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const [displayedText1, setDisplayedText1] = useState('');
   const [displayedText2, setDisplayedText2] = useState('');
   const [displayedText3, setDisplayedText3] = useState('');
+  const [displayedText4, setDisplayedText4] = useState('');
   const [currentLine, setCurrentLine] = useState(1);
   const [showLilypad, setShowLilypad] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -41,9 +42,10 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
     setPrefersReducedMotion(mediaQuery.matches);
   }, []);
 
-  const line1 = "welcome to pond, your quiet corner of the healthcare ocean.";
-  const line2 = "you are your own best advocate.";
-  const line3 = "take a dip";
+  const line1 = "welcome to pond.";
+  const line2 = "clear answers to complex healthcare.";
+  const line3 = "lower your costs. understand your care. own your health.";
+  const lilypadText = "take a dip";
 
   const addRipple = useCallback((xPercent: number, yPercent: number) => {
     const id = rippleIdRef.current++;
@@ -85,7 +87,8 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
       setDisplayedText1(line1);
       setDisplayedText2(line2);
       setDisplayedText3(line3);
-      setCurrentLine(4);
+      setDisplayedText4(lilypadText);
+      setCurrentLine(5);
       setShowLilypad(true);
       return;
     }
@@ -117,7 +120,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         clearInterval(typeInterval);
         setTimeout(() => setCurrentLine(3), 300);
       }
-    }, 45);
+    }, 35);
 
     return () => clearInterval(typeInterval);
   }, [currentLine, prefersReducedMotion]);
@@ -133,10 +136,28 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         currentIndex++;
       } else {
         clearInterval(typeInterval);
+        setTimeout(() => setCurrentLine(4), 300);
+      }
+    }, 30);
+
+    return () => clearInterval(typeInterval);
+  }, [currentLine, prefersReducedMotion]);
+
+  // Show lilypad after line 3
+  useEffect(() => {
+    if (currentLine !== 4 || prefersReducedMotion) return;
+
+    let currentIndex = 0;
+    const typeInterval = setInterval(() => {
+      if (currentIndex < lilypadText.length) {
+        setDisplayedText4(lilypadText.slice(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        clearInterval(typeInterval);
         setTimeout(() => {
           setShowLilypad(true);
-          addRipple(50, 68);
-          addSparkles(50, 68, 5);
+          addRipple(50, 72);
+          addSparkles(50, 72, 5);
         }, 200);
       }
     }, 50);
@@ -147,10 +168,10 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const handleClick = useCallback(() => {
     if (!showLilypad) return;
     
-    addRipple(50, 68);
-    addSparkles(50, 68, 8);
-    setTimeout(() => addRipple(48, 66), 80);
-    setTimeout(() => addRipple(52, 70), 120);
+    addRipple(50, 72);
+    addSparkles(50, 72, 8);
+    setTimeout(() => addRipple(48, 70), 80);
+    setTimeout(() => addRipple(52, 74), 120);
     
     setTimeout(() => {
       setIsExiting(true);
@@ -194,7 +215,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
       {/* Frog cursor - using actual image */}
       {!prefersReducedMotion && (
         <div
-          className="fixed pointer-events-none z-[100] transition-transform duration-75"
+          className="fixed pointer-events-none z-[100] transition-transform duration-75 hidden md:block"
           style={{
             left: mousePos.x,
             top: mousePos.y,
@@ -262,32 +283,41 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
       ))}
 
       {/* Content */}
-      <div className="text-center px-6 max-w-2xl relative z-10">
-        <div className="space-y-4 mb-6">
-          {/* Dark text for better legibility */}
-          <p className="font-mono text-lg md:text-xl lg:text-2xl text-gray-800 drop-shadow-sm min-h-[1.5em] leading-relaxed">
+      <div className="text-center px-4 md:px-6 max-w-2xl relative z-10">
+        <div className="space-y-2 md:space-y-3 mb-4 md:mb-6">
+          {/* Line 1: welcome to pond. */}
+          <p className="font-mono text-base md:text-lg lg:text-xl text-gray-800 drop-shadow-sm min-h-[1.5em] leading-relaxed">
             {displayedText1}
             {currentLine === 1 && displayedText1.length < line1.length && (
               <span className="animate-pulse">|</span>
             )}
           </p>
           
-          <p className="font-mono text-lg md:text-xl lg:text-2xl text-gray-900 drop-shadow-sm min-h-[1.5em] leading-relaxed font-medium">
+          {/* Line 2: clear answers to complex healthcare. */}
+          <p className="font-mono text-base md:text-lg lg:text-xl text-gray-900 drop-shadow-sm min-h-[1.5em] leading-relaxed font-medium">
             {displayedText2}
             {currentLine === 2 && displayedText2.length < line2.length && (
               <span className="animate-pulse">|</span>
             )}
           </p>
           
-          <div className="min-h-[14rem] flex flex-col items-center justify-center relative pt-6">
-            {/* Lilypad button using actual image */}
+          {/* Line 3: lower your costs. understand your care. own your health. */}
+          <p className="font-mono text-sm md:text-base lg:text-lg text-gray-800 drop-shadow-sm min-h-[1.5em] leading-relaxed">
+            {displayedText3}
+            {currentLine === 3 && displayedText3.length < line3.length && (
+              <span className="animate-pulse">|</span>
+            )}
+          </p>
+          
+          {/* Lilypad button area - 2.5x larger */}
+          <div className="min-h-[18rem] md:min-h-[20rem] flex flex-col items-center justify-center relative pt-4 md:pt-6">
             {showLilypad ? (
               <button
                 onClick={handleClick}
                 onKeyDown={handleKeyDown}
                 onMouseEnter={() => {
                   setIsHovered(true);
-                  addSparkles(50, 68, 3);
+                  addSparkles(50, 72, 3);
                 }}
                 onMouseLeave={() => setIsHovered(false)}
                 className={`
@@ -300,30 +330,30 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
                   cursor: prefersReducedMotion ? 'pointer' : 'none',
                 }}
               >
-                {/* Lilypad image */}
+                {/* Lilypad image - 2.5x larger (was w-52, now ~w-[32.5rem] = ~520px) */}
                 <img 
                   src={lilypadButton} 
                   alt="Lilypad"
-                  className="w-52 h-auto drop-shadow-lg"
+                  className="w-72 md:w-[26rem] h-auto drop-shadow-lg"
                   style={{
-                    filter: isHovered ? 'brightness(1.08) drop-shadow(0 8px 20px hsl(130 40% 30% / 0.4))' : 'drop-shadow(0 4px 12px hsl(130 40% 30% / 0.3))',
+                    filter: isHovered ? 'brightness(1.08) drop-shadow(0 12px 30px hsl(130 40% 30% / 0.4))' : 'drop-shadow(0 6px 18px hsl(130 40% 30% / 0.3))',
                   }}
                 />
                 
-                {/* Text overlay on the lilypad */}
+                {/* Text overlay on the lilypad - larger text */}
                 <span 
-                  className="absolute inset-0 flex items-center justify-center font-sans text-lg md:text-xl font-semibold text-gray-900 drop-shadow-sm"
+                  className="absolute inset-0 flex items-center justify-center font-sans text-xl md:text-2xl lg:text-3xl font-semibold text-gray-900 drop-shadow-sm"
                   style={{
-                    paddingTop: '1.5rem',
+                    paddingTop: '2rem',
                   }}
                 >
                   take a dip
                 </span>
               </button>
             ) : (
-              <p className="font-mono text-lg md:text-xl text-gray-800 drop-shadow-sm">
-                {displayedText3}
-                {currentLine === 3 && displayedText3.length < line3.length && (
+              <p className="font-mono text-base md:text-lg text-gray-800 drop-shadow-sm">
+                {displayedText4}
+                {currentLine === 4 && displayedText4.length < lilypadText.length && (
                   <span className="animate-pulse">|</span>
                 )}
               </p>
@@ -340,8 +370,8 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
             opacity: 1;
           }
           100% {
-            width: 80px;
-            height: 80px;
+            width: 120px;
+            height: 120px;
             opacity: 0;
           }
         }

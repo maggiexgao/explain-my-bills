@@ -3,9 +3,9 @@ import pondFrog from '@/assets/pond-frog.png';
 export function Header() {
   return (
     <header className="shrink-0 sticky top-0 z-50 w-full glass-card border-b border-border/30 border-x-0 border-t-0">
-      <div className="container flex h-10 items-center justify-between px-4 md:px-6">
+      <div className="container flex h-12 md:h-10 items-center justify-between px-3 md:px-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full overflow-hidden bg-white/80 shadow-sm ring-2 ring-white/50">
+          <div className="flex h-8 md:h-7 w-8 md:w-7 items-center justify-center rounded-full overflow-hidden bg-white/80 shadow-sm ring-2 ring-white/50">
             <img 
               src={pondFrog} 
               alt="pond frog logo" 
@@ -13,10 +13,10 @@ export function Header() {
             />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-mono text-base text-gray-900 tracking-wide lowercase font-semibold">
+            <span className="font-mono text-lg md:text-base text-gray-900 tracking-wide lowercase font-semibold">
               pond
             </span>
-            <span className="text-[9px] text-gray-600 hidden sm:block">
+            <span className="text-[10px] md:text-[9px] text-gray-600">
               making healthcare clear.
             </span>
           </div>
