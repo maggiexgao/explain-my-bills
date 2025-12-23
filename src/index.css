@@ -4,6 +4,14 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;500;600;700&display=swap');
 
+/* Zoom level classes */
+.text-zoom-large {
+  font-size: 1.15em;
+}
+.text-zoom-xl {
+  font-size: 1.3em;
+}
+
 @layer base {
   :root {
     /* Pastel pond palette - soft aqua/turquoise with peach, pink, yellow */
