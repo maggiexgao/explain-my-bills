@@ -323,7 +323,8 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
                 className={`
                   relative
                   transition-all duration-300 ease-out
-                  focus:outline-none focus:ring-4 focus:ring-teal-400/40
+                  outline-none
+                  focus-visible:ring-0 focus-visible:shadow-[0_0_0_3px_rgba(255,255,255,0.35)]
                   ${isHovered ? 'scale-105 brightness-110' : 'scale-100'}
                 `}
                 style={{

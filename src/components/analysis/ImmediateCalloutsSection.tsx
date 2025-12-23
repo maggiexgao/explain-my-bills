@@ -71,8 +71,13 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
   );
 }
 
-// EOB Match confirmation box - shown when bill total matches EOB patient responsibility
-function EOBMatchBox({ billTotal, eobPatientResponsibility }: { billTotal: number; eobPatientResponsibility: number }) {
+// "Looks Good" confirmation card for positive checks
+interface LooksGoodItem {
+  title: string;
+  description: string;
+}
+
+function LooksGoodCard({ item }: { item: LooksGoodItem }) {
   return (
     <div className="p-4 rounded-xl bg-success/10 border border-success/30">
       <div className="flex items-start gap-3">
@@ -80,10 +85,11 @@ function EOBMatchBox({ billTotal, eobPatientResponsibility }: { billTotal: numbe
           <CheckCircle className="h-4 w-4 text-success" />
         </div>
         <div className="flex-1">
-          <h4 className="text-sm font-medium text-foreground mb-1">Bill matches EOB</h4>
-          <p className="text-sm text-muted-foreground">
-            Your bill's total (${billTotal.toLocaleString()}) matches your EOB's patient responsibility (${eobPatientResponsibility.toLocaleString()}). That's a good sign.
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-sm font-medium text-foreground">{item.title}</h4>
+            <Badge className="shrink-0 text-xs bg-success/10 text-success">Looks good</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
         </div>
       </div>
     </div>
@@ -210,27 +216,45 @@ export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCallouts
   const billTotal = parseAmount(analysis.billTotal);
   const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
   
-  // Check if bill total matches EOB patient responsibility (within $0.01 tolerance for rounding)
-  const canCompare = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
-  const diff = canCompare ? Math.abs(billTotal - eobPatientResponsibility) : Infinity;
-  const totalsMatch = canCompare && diff <= 0.01;
+  // === EOB vs Bill Comparison: Explicit branching ===
+  const canCompareEOB = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
+  let eobMatchStatus: 'match' | 'mismatch' | 'skip' = 'skip';
+  
+  if (canCompareEOB) {
+    const diff = Math.abs(billTotal - eobPatientResponsibility);
+    const tolerance = 0.01; // one cent tolerance
+    eobMatchStatus = diff <= tolerance ? 'match' : 'mismatch';
+  }
+
+  // Build "Looks Good" items for positive checks
+  const looksGoodItems: LooksGoodItem[] = [];
+  
+  // EOB match is a positive check
+  if (eobMatchStatus === 'match') {
+    looksGoodItems.push({
+      title: 'Bill total matches your EOB',
+      description: `Your bill's total patient responsibility ($${billTotal!.toFixed(2)}) matches the amount shown on your EOB. That's a good sign.`,
+    });
+  }
 
   // Filter out issues that shouldn't be shown as warnings
   const rawPotentialErrors = analysis.potentialErrors || [];
   const rawNeedsAttention = analysis.needsAttention || [];
   
+  const totalsMatch = eobMatchStatus === 'match';
   const potentialErrors = rawPotentialErrors.filter(issue => !shouldFilterIssue(issue, totalsMatch));
   const needsAttention = rawNeedsAttention.filter(issue => !shouldFilterIssue(issue, totalsMatch));
   
   const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
 
-  // Check if this is an "all clear" case
+  // Check if this is an "all clear" case (no issues found)
   if (!hasAnyIssues) {
     return (
       <div className="space-y-4">
-        {totalsMatch && (
-          <EOBMatchBox billTotal={billTotal!} eobPatientResponsibility={eobPatientResponsibility!} />
-        )}
+        {/* Show Looks Good items first */}
+        {looksGoodItems.map((item, idx) => (
+          <LooksGoodCard key={idx} item={item} />
+        ))}
         <AllClearBox />
       </div>
     );
@@ -238,9 +262,13 @@ export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCallouts
 
   return (
     <div className="space-y-6">
-      {/* Show EOB match confirmation if totals match */}
-      {totalsMatch && (
-        <EOBMatchBox billTotal={billTotal!} eobPatientResponsibility={eobPatientResponsibility!} />
+      {/* Show Looks Good items (positive confirmations) */}
+      {looksGoodItems.length > 0 && (
+        <div className="space-y-3">
+          {looksGoodItems.map((item, idx) => (
+            <LooksGoodCard key={idx} item={item} />
+          ))}
+        </div>
       )}
 
       {potentialErrors.length > 0 && (
