@@ -18,7 +18,7 @@ interface DisputePackageUpsellProps {
   onPurchase?: () => void;
 }
 
-const PACKAGE_PRICE = 19.99;
+const PACKAGE_PRICE = 12;
 
 export function DisputePackageUpsell({ eligibility, analysis, language, onPurchase }: DisputePackageUpsellProps) {
   const { t } = useTranslation();

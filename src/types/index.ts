@@ -1,4 +1,9 @@
-export type Language = 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'ar';
+export type Language = 
+  | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'pt-PT'
+  | 'zh-Hans' | 'zh-Hant' | 'ja' | 'ko'
+  | 'hi' | 'bn' | 'ur' | 'ar' | 'tr' | 'ru' | 'uk' | 'pl' | 'nl'
+  | 'sv' | 'no' | 'da' | 'fi' | 'el' | 'cs' | 'hu' | 'ro'
+  | 'th' | 'vi' | 'id' | 'tl' | 'he' | 'sw' | 'am' | 'fa' | 'ms' | 'ta' | 'pa' | 'mr';
 
 export type DocumentType = 'bill' | 'eob' | 'chart' | 'denial' | 'unknown';
 
@@ -363,6 +368,9 @@ export interface AnalysisResult {
 
   // EOB data (optional - present when EOB uploaded)
   eobData?: EOBData;
+  
+  // Bill total for comparison with EOB
+  billTotal?: number;
 
   // === MONETIZATION FEATURES ===
   disputePackageEligibility?: DisputePackageEligibility;
@@ -439,7 +447,42 @@ export const US_STATES = [
 export const LANGUAGES: { value: Language; label: string; nativeLabel: string }[] = [
   { value: 'en', label: 'English', nativeLabel: 'English' },
   { value: 'es', label: 'Spanish', nativeLabel: 'Español' },
-  { value: 'zh-Hans', label: 'Simplified Chinese', nativeLabel: '简体中文' },
-  { value: 'zh-Hant', label: 'Traditional Chinese', nativeLabel: '繁體中文' },
+  { value: 'fr', label: 'French', nativeLabel: 'Français' },
+  { value: 'de', label: 'German', nativeLabel: 'Deutsch' },
+  { value: 'it', label: 'Italian', nativeLabel: 'Italiano' },
+  { value: 'pt-BR', label: 'Portuguese (Brazil)', nativeLabel: 'Português (Brasil)' },
+  { value: 'pt-PT', label: 'Portuguese (Portugal)', nativeLabel: 'Português (Portugal)' },
+  { value: 'zh-Hans', label: 'Chinese (Simplified)', nativeLabel: '简体中文' },
+  { value: 'zh-Hant', label: 'Chinese (Traditional)', nativeLabel: '繁體中文' },
+  { value: 'ja', label: 'Japanese', nativeLabel: '日本語' },
+  { value: 'ko', label: 'Korean', nativeLabel: '한국어' },
+  { value: 'hi', label: 'Hindi', nativeLabel: 'हिन्दी' },
+  { value: 'bn', label: 'Bengali', nativeLabel: 'বাংলা' },
+  { value: 'ur', label: 'Urdu', nativeLabel: 'اردو' },
   { value: 'ar', label: 'Arabic', nativeLabel: 'العربية' },
+  { value: 'tr', label: 'Turkish', nativeLabel: 'Türkçe' },
+  { value: 'ru', label: 'Russian', nativeLabel: 'Русский' },
+  { value: 'uk', label: 'Ukrainian', nativeLabel: 'Українська' },
+  { value: 'pl', label: 'Polish', nativeLabel: 'Polski' },
+  { value: 'nl', label: 'Dutch', nativeLabel: 'Nederlands' },
+  { value: 'sv', label: 'Swedish', nativeLabel: 'Svenska' },
+  { value: 'no', label: 'Norwegian', nativeLabel: 'Norsk' },
+  { value: 'da', label: 'Danish', nativeLabel: 'Dansk' },
+  { value: 'fi', label: 'Finnish', nativeLabel: 'Suomi' },
+  { value: 'el', label: 'Greek', nativeLabel: 'Ελληνικά' },
+  { value: 'cs', label: 'Czech', nativeLabel: 'Čeština' },
+  { value: 'hu', label: 'Hungarian', nativeLabel: 'Magyar' },
+  { value: 'ro', label: 'Romanian', nativeLabel: 'Română' },
+  { value: 'th', label: 'Thai', nativeLabel: 'ไทย' },
+  { value: 'vi', label: 'Vietnamese', nativeLabel: 'Tiếng Việt' },
+  { value: 'id', label: 'Indonesian', nativeLabel: 'Bahasa Indonesia' },
+  { value: 'tl', label: 'Filipino / Tagalog', nativeLabel: 'Filipino' },
+  { value: 'he', label: 'Hebrew', nativeLabel: 'עברית' },
+  { value: 'sw', label: 'Swahili', nativeLabel: 'Kiswahili' },
+  { value: 'am', label: 'Amharic', nativeLabel: 'አማርኛ' },
+  { value: 'fa', label: 'Persian / Farsi', nativeLabel: 'فارسی' },
+  { value: 'ms', label: 'Malay', nativeLabel: 'Bahasa Melayu' },
+  { value: 'ta', label: 'Tamil', nativeLabel: 'தமிழ்' },
+  { value: 'pa', label: 'Punjabi', nativeLabel: 'ਪੰਜਾਬੀ' },
+  { value: 'mr', label: 'Marathi', nativeLabel: 'मराठी' },
 ];

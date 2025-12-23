@@ -34,16 +34,17 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
 
   return (
     <div className="p-4 rounded-lg border border-border/30 bg-muted/10 space-y-3">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 md:gap-3">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <code className="text-sm font-mono font-semibold text-primary">{code.code}</code>
-            <span className="text-muted-foreground">–</span>
+          {/* Mobile: CPT code on top */}
+          <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 mb-1">
+            <code className="text-sm font-mono font-semibold text-primary w-fit">{code.code}</code>
+            <span className="hidden md:inline text-muted-foreground">–</span>
             <span className="text-sm font-medium text-foreground">{code.shortLabel}</span>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">{code.explanation}</p>
         </div>
-        <Badge className={cn('shrink-0 text-xs', categoryColors[code.category] || categoryColors.other)}>
+        <Badge className={cn('shrink-0 text-xs w-fit', categoryColors[code.category] || categoryColors.other)}>
           {categoryLabels[code.category] || 'Other'}
         </Badge>
       </div>
@@ -98,8 +99,8 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
     <div className="space-y-3">
       <SubcategoryCard
         icon={<Code className="h-5 w-5 text-primary" />}
-        title={hasCptCodes ? t('explainer.cptCodes') : 'Service Explanations'}
-        teaser={cptTeaser}
+        title="Service explanations"
+        teaser="Based on CPT codes or descriptions"
         badge={hasCptCodes ? `${analysis.cptCodes.length} codes` : 'No codes detected'}
         defaultOpen={false}
       >
@@ -157,7 +158,7 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
                 <div className="flex-1">
                   <p className="text-sm text-foreground">{step.description}</p>
                   {step.relatedCodes && step.relatedCodes.length > 0 && (
-                    <div className="flex gap-1 mt-1">
+                    <div className="flex flex-wrap gap-1 mt-2">
                       {step.relatedCodes.map((code) => (
                         <code key={code} className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                           {code}
@@ -183,8 +184,9 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
         <div className="space-y-3">
           {analysis.codeQuestions.map((q, idx) => (
             <div key={idx} className="p-4 rounded-lg border border-border/30 bg-muted/10">
-              <div className="flex items-start gap-2 mb-2">
-                <code className="text-xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
+              {/* Mobile: CPT code on its own row */}
+              <div className="flex flex-col gap-2 mb-2">
+                <code className="text-xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded w-fit">
                   {q.cptCode}
                 </code>
                 <h4 className="text-sm font-medium text-foreground">{q.question}</h4>

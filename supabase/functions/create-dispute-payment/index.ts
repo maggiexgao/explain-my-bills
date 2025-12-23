@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DISPUTE_PACKAGE_PRICE_ID = "price_1ShKVt5GGNHuTlZntG8LWsBP";
+const DISPUTE_PACKAGE_PRICE_ID = "price_1ShO3P5GGNHuTlZn5pRL8mpj";
 
 serve(async (req) => {
   // Handle CORS preflight requests

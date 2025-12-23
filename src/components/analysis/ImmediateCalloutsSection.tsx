@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n/LanguageContext';
 
 interface ImmediateCalloutsSectionProps {
   analysis: AnalysisResult;
+  hasEOB?: boolean;
 }
 
 const severityConfig = {
@@ -70,6 +71,25 @@ function CalloutCard({ issue }: { issue: BillingIssue }) {
   );
 }
 
+// EOB Match confirmation box - shown when bill total matches EOB patient responsibility
+function EOBMatchBox({ billTotal, eobPatientResponsibility }: { billTotal: number; eobPatientResponsibility: number }) {
+  return (
+    <div className="p-4 rounded-xl bg-success/10 border border-success/30">
+      <div className="flex items-start gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/20">
+          <CheckCircle className="h-4 w-4 text-success" />
+        </div>
+        <div className="flex-1">
+          <h4 className="text-sm font-medium text-foreground mb-1">Bill matches EOB</h4>
+          <p className="text-sm text-muted-foreground">
+            Your bill's total (${billTotal.toLocaleString()}) matches your EOB's patient responsibility (${eobPatientResponsibility.toLocaleString()}). That's a good sign.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // All Clear success box when no issues found
 function AllClearBox() {
   const resources = [
@@ -121,19 +141,39 @@ function AllClearBox() {
   );
 }
 
-export function ImmediateCalloutsSection({ analysis }: ImmediateCalloutsSectionProps) {
+export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCalloutsSectionProps) {
   const { t } = useTranslation();
   const potentialErrors = analysis.potentialErrors || [];
   const needsAttention = analysis.needsAttention || [];
   const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
 
+  // Check if bill total matches EOB patient responsibility (within $1 tolerance for rounding)
+  const billTotal = analysis.billTotal;
+  const eobPatientResponsibility = analysis.eobData?.patientResponsibility;
+  const totalsMatch = hasEOB && 
+    billTotal !== undefined && 
+    eobPatientResponsibility !== undefined && 
+    Math.abs(billTotal - eobPatientResponsibility) <= 1;
+
   // Check if this is an "all clear" case
   if (!hasAnyIssues) {
-    return <AllClearBox />;
+    return (
+      <div className="space-y-4">
+        {totalsMatch && (
+          <EOBMatchBox billTotal={billTotal!} eobPatientResponsibility={eobPatientResponsibility!} />
+        )}
+        <AllClearBox />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+      {/* Show EOB match confirmation if totals match */}
+      {totalsMatch && (
+        <EOBMatchBox billTotal={billTotal!} eobPatientResponsibility={eobPatientResponsibility!} />
+      )}
+
       {potentialErrors.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
