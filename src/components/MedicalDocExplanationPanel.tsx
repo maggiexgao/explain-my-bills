@@ -113,11 +113,13 @@ export function MedicalDocExplanationPanel({ analysis }: MedicalDocExplanationPa
             </Badge>
           </div>
           <h2 className="text-lg font-display font-bold text-foreground mb-2">
-            What your document means
+            pond's analysis
           </h2>
-          <p className="text-sm text-muted-foreground">
-            {analysis.overview.summary}
-          </p>
+          <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
+            {analysis.overview.summary.split('. ').filter(s => s.trim()).slice(0, 6).map((point, idx) => (
+              <li key={idx}>{point.trim().replace(/\.$/, '')}.</li>
+            ))}
+          </ul>
         </div>
 
         {/* Sections */}
