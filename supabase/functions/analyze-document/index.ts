@@ -171,7 +171,40 @@ For CPT 43239 (Upper GI endoscopy with biopsy):
 2. "You have at least 12 months before most medical debt can be reported to credit bureaus."
 3. "Paid medical debt must be removed from credit reports within 45 days."
 
-## SECTION 4: NEXT STEPS
+## SECTION 4: NEXT STEPS (SAVINGS-FOCUSED)
+
+The overarching goal of the action plan is to help the patient SAVE MONEY or avoid overpaying. Prioritize actions in this order:
+
+### ACTION PRIORITY ORDER:
+1. **Fix possible errors / overbilling** (highest priority - direct savings)
+   - Dispute specific line items with errors
+   - Request correction of coding/quantity mistakes
+   - Challenge duplicate charges
+   
+2. **Reduce the amount owed via programs and policies**
+   - Ask about financial assistance / charity care
+   - Request self-pay discounts, prompt-pay discounts, or income-based reductions
+   - Check eligibility for state or hospital programs that limit medical debt
+   
+3. **Escalate when necessary**
+   - Appeal with insurer if coverage seems wrong
+   - Contact regulators or legal aid if billing seems illegal (surprise billing, illegal collections)
+   
+4. **If all else fails, set up manageable payments** (lowest priority)
+   - Negotiate zero-interest or low-interest payment plans
+   - Ensure payment terms are documented and affordable
+
+### ALL CLEAR SCENARIO:
+If after running all checks you find:
+- No Potential Errors
+- No "Needs Attention" items
+- Charges and coverage appear internally consistent
+
+Then set potentialErrors and needsAttention to empty arrays [], and generate ONLY 1-2 minimal action steps focused on:
+- "Save a copy of this bill and EOB for your records."
+- "If you still have concerns, contact your insurer or provider for verification."
+
+Do NOT generate a long list of tasks for all-clear cases.
 
 ### providerContactInfo - ALWAYS extract from the bill:
 Extract the provider's contact information from the bill and populate this object. Look for these in the "billing questions", "customer service", "payment information", or header sections of the bill:
@@ -189,42 +222,71 @@ Extract the provider's contact information from the bill and populate this objec
 
 If a field cannot be found on the documents, set it to null. Never make up contact information - only use what's actually on the documents.
 
-### actionSteps - ALWAYS generate 3-5 specific action items with ACTUAL details from the bill:
-Generate actionSteps as an array of objects with this EXACT structure:
+### actionSteps - Generate SAVINGS-FOCUSED action items:
+Each action step MUST have a clear money-saving goal. Structure:
 [
   {
     "order": 1,
-    "action": "Request an itemized bill",
-    "details": "Call the billing department at [PROVIDER NAME] and request a fully itemized statement showing each charge with CPT codes, dates of service, and amounts.",
-    "relatedIssue": null
-  },
-  {
-    "order": 2,
-    "action": "Get your Explanation of Benefits (EOB)",
-    "details": "Contact your insurance company and request the EOB for services on [DATE]. This shows what insurance paid and what you actually owe.",
-    "relatedIssue": null
-  },
-  {
-    "order": 3,
-    "action": "Compare bill with EOB",
-    "details": "Once you have both documents, verify the amounts match. Your bill should not exceed what the EOB says you owe.",
-    "relatedIssue": null
-  },
-  {
-    "order": 4,
-    "action": "Question any issues found",
-    "details": "If you found discrepancies or potential errors, call [PROVIDER] billing and reference the specific issues with claim numbers and amounts.",
-    "relatedIssue": "[Reference specific issue if found]"
-  },
-  {
-    "order": 5,
-    "action": "Ask about financial assistance",
-    "details": "If the balance is significant, ask [PROVIDER] about payment plans, charity care, or prompt-pay discounts.",
-    "relatedIssue": null
+    "action": "[Money-focused action title]",
+    "details": "[Plain language explanation of how this saves money]",
+    "relatedIssue": "[Link to specific issue from Immediate Callouts if applicable]"
   }
 ]
 
-CRITICAL: actionSteps MUST NOT be empty. Always generate at least 3 actionable steps with specific details from the bill.
+PRIORITY-ORDERED EXAMPLES (use only relevant ones based on bill analysis):
+
+**If errors found:**
+{
+  "order": 1,
+  "action": "Dispute the [specific error/duplicate charge]",
+  "details": "Call [PROVIDER] billing and ask them to review [specific CPT code or charge]. This may reduce your bill by $[AMOUNT].",
+  "relatedIssue": "[Title of related error from potentialErrors]"
+}
+
+**If high balance:**
+{
+  "order": 2,
+  "action": "Ask about financial assistance",
+  "details": "Contact [PROVIDER] billing and ask: 'Do you offer charity care, income-based discounts, or financial hardship programs?' Many hospitals reduce bills by 50-100% for qualifying patients.",
+  "relatedIssue": null
+}
+
+{
+  "order": 3,
+  "action": "Request a prompt-pay or self-pay discount",
+  "details": "Ask [PROVIDER]: 'If I pay in full today, can I get a discount?' Many providers offer 10-30% off for immediate payment.",
+  "relatedIssue": null
+}
+
+**If insurance issues:**
+{
+  "order": 4,
+  "action": "Appeal the insurance denial",
+  "details": "Contact your insurance at [PHONE] and file a formal appeal. Reference claim #[NUMBER] and ask for a supervisor review.",
+  "relatedIssue": "[Title of related denial issue]"
+}
+
+**If out-of-network / surprise billing:**
+{
+  "order": 5,
+  "action": "File a No Surprises Act complaint",
+  "details": "This may be a surprise bill covered by federal law. Contact CMS at 1-800-985-3059 or file online at cms.gov/nosurprises.",
+  "relatedIssue": "[Title of related out-of-network issue]"
+}
+
+**Last resort:**
+{
+  "order": 6,
+  "action": "Set up a 0% interest payment plan",
+  "details": "If you must pay the full amount, ask [PROVIDER] for a monthly payment plan with NO interest. Get the terms in writing before agreeing.",
+  "relatedIssue": null
+}
+
+CRITICAL: 
+- Each step title must clearly state the money-saving goal
+- Include "relatedIssue" that ties back to specific issues from Immediate Callouts when applicable
+- De-emphasize "get more information" steps unless tied to a downstream savings action
+- For all-clear cases, generate only 1-2 simple record-keeping steps
 
 ### billingTemplates - Generate ONE ready-to-send email template:
 Create a SINGLE professional, ready-to-send email/message template for the billing department. This template must:

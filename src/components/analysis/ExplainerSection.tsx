@@ -75,6 +75,8 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
 
 export function ExplainerSection({ analysis }: ExplainerSectionProps) {
   const { t } = useTranslation();
+  const hasCptCodes = analysis.cptCodes && analysis.cptCodes.length > 0;
+  
   const groupedCodes = analysis.cptCodes.reduce((acc, code) => {
     const cat = code.category || 'other';
     if (!acc[cat]) acc[cat] = [];
@@ -84,9 +86,9 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
 
   const categoryOrder = ['evaluation', 'lab', 'radiology', 'surgery', 'medicine', 'other'];
   
-  const cptTeaser = analysis.cptCodes.length > 0 
+  const cptTeaser = hasCptCodes 
     ? `${analysis.cptCodes[0].shortLabel}${analysis.cptCodes.length > 1 ? ` and ${analysis.cptCodes.length - 1} more` : ''}`
-    : 'No codes found';
+    : 'Explanations based on service descriptions';
     
   const visitTeaser = analysis.visitWalkthrough.length > 0
     ? analysis.visitWalkthrough[0].description.slice(0, 60) + '...'
@@ -96,29 +98,46 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
     <div className="space-y-3">
       <SubcategoryCard
         icon={<Code className="h-5 w-5 text-primary" />}
-        title={t('explainer.cptCodes')}
+        title={hasCptCodes ? t('explainer.cptCodes') : 'Service Explanations'}
         teaser={cptTeaser}
-        badge={`${analysis.cptCodes.length} codes`}
+        badge={hasCptCodes ? `${analysis.cptCodes.length} codes` : 'No codes detected'}
         defaultOpen={false}
       >
-        <div className="space-y-4">
-          {categoryOrder.map((category) => {
-            const codes = groupedCodes[category];
-            if (!codes || codes.length === 0) return null;
-            return (
-              <div key={category}>
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                  {categoryLabels[category]}
-                </h4>
-                <div className="space-y-2">
-                  {codes.map((code, idx) => (
-                    <CPTCodeCard key={`${code.code}-${idx}`} code={code} />
-                  ))}
+        {!hasCptCodes ? (
+          <div className="space-y-4">
+            {/* No CPT codes detected message */}
+            <div className="p-4 rounded-xl bg-info/5 border border-info/20">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-info shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-foreground font-medium mb-1">No billing codes detected on this document</p>
+                  <p className="text-sm text-muted-foreground">
+                    These explanations are based on the service names and descriptions instead. The visit walkthrough below shows what services appear on your bill.
+                  </p>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {categoryOrder.map((category) => {
+              const codes = groupedCodes[category];
+              if (!codes || codes.length === 0) return null;
+              return (
+                <div key={category}>
+                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    {categoryLabels[category]}
+                  </h4>
+                  <div className="space-y-2">
+                    {codes.map((code, idx) => (
+                      <CPTCodeCard key={`${code.code}-${idx}`} code={code} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </SubcategoryCard>
 
       <SubcategoryCard

@@ -214,10 +214,13 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
   // Compute referral context from analysis
   const referralContext = analysis.referralContext || computeReferralContext(analysis);
 
+  // Check if this is an "all clear" case (no errors, no attention needed)
+  const isAllClear = (analysis.potentialErrors?.length || 0) === 0 && (analysis.needsAttention?.length || 0) === 0;
+
   return (
     <div className="space-y-3">
-      {/* Dispute Package Upsell - shown first if eligible */}
-      {disputePackageEligibility.eligible && (
+      {/* Dispute Package Upsell - shown first if eligible (not for all-clear cases) */}
+      {!isAllClear && disputePackageEligibility.eligible && (
         <DisputePackageUpsell 
           eligibility={disputePackageEligibility} 
           analysis={analysis}
@@ -244,8 +247,8 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
 
       <SubcategoryCard
         icon={<CheckSquare className="h-5 w-5 text-mint" />}
-        title={t('nextSteps.actionPlan')}
-        teaser={actionSteps.length > 0 ? `${actionSteps.length} recommended steps` : 'Review and take action'}
+        title={isAllClear ? 'Quick Steps' : t('nextSteps.actionPlan')}
+        teaser={isAllClear ? 'Simple steps to wrap up' : (actionSteps.length > 0 ? `${actionSteps.length} savings-focused steps` : 'Review and take action')}
         badge={actionSteps.length > 0 ? `${actionSteps.length} steps` : undefined}
         badgeVariant="success"
         defaultOpen={true}
@@ -255,6 +258,27 @@ export function NextStepsSection({ analysis }: NextStepsSectionProps) {
             actionSteps.map((step, idx) => (
               <ActionStepCard key={idx} step={step} />
             ))
+          ) : isAllClear ? (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-success/5 border border-success/20">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-mint text-mint-foreground text-sm font-semibold">
+                  1
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-foreground mb-1">Save a copy for your records</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">Keep this bill and any EOB documents in a safe place for future reference.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-success/5 border border-success/20">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-mint text-mint-foreground text-sm font-semibold">
+                  2
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-foreground mb-1">Verify if you have concerns</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">If anything feels off, contact your provider or insurer for clarification.</p>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="p-4 rounded-xl bg-muted/20 border border-border/30">
               <p className="text-sm text-muted-foreground">
