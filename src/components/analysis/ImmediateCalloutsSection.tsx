@@ -141,19 +141,67 @@ function AllClearBox() {
   );
 }
 
+// Helper to check if an issue is about EOB mismatch
+function isEOBMismatchIssue(issue: BillingIssue): boolean {
+  const title = issue.title?.toLowerCase() || '';
+  const description = issue.description?.toLowerCase() || '';
+  return (
+    title.includes('eob') || 
+    title.includes('mismatch') ||
+    title.includes('bill total') ||
+    description.includes('eob') ||
+    description.includes('patient responsibility')
+  );
+}
+
+// Helper to check if issue description indicates a match (guardrail)
+function descriptionIndicatesMatch(issue: BillingIssue): boolean {
+  const description = issue.description?.toLowerCase() || '';
+  return (
+    description.includes('perfect match') ||
+    description.includes('which is great') ||
+    description.includes('matches your eob') ||
+    description.includes('amounts match') ||
+    description.includes('good sign')
+  );
+}
+
 export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCalloutsSectionProps) {
   const { t } = useTranslation();
-  const potentialErrors = analysis.potentialErrors || [];
-  const needsAttention = analysis.needsAttention || [];
-  const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
+  
+  // Parse bill total and EOB patient responsibility as numbers
+  const billTotal = typeof analysis.billTotal === 'number' ? analysis.billTotal : undefined;
+  const eobPatientResponsibility = typeof analysis.eobData?.patientResponsibility === 'number' 
+    ? analysis.eobData.patientResponsibility 
+    : undefined;
+  
+  // Check if bill total matches EOB patient responsibility (within $0.01 tolerance for rounding)
+  const canCompare = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
+  const diff = canCompare ? Math.abs(billTotal - eobPatientResponsibility) : Infinity;
+  const totalsMatch = canCompare && diff <= 0.01;
 
-  // Check if bill total matches EOB patient responsibility (within $1 tolerance for rounding)
-  const billTotal = analysis.billTotal;
-  const eobPatientResponsibility = analysis.eobData?.patientResponsibility;
-  const totalsMatch = hasEOB && 
-    billTotal !== undefined && 
-    eobPatientResponsibility !== undefined && 
-    Math.abs(billTotal - eobPatientResponsibility) <= 1;
+  // Filter out EOB mismatch issues when totals actually match
+  // Also filter out any issue where the description says it's a match (guardrail)
+  const rawPotentialErrors = analysis.potentialErrors || [];
+  const rawNeedsAttention = analysis.needsAttention || [];
+  
+  const potentialErrors = rawPotentialErrors.filter(issue => {
+    // Remove EOB mismatch issues when totals match
+    if (totalsMatch && isEOBMismatchIssue(issue)) return false;
+    // Guardrail: if description says it's a match, don't show as error
+    if (descriptionIndicatesMatch(issue)) return false;
+    return true;
+  });
+  
+  const needsAttention = rawNeedsAttention.filter(issue => {
+    // Remove EOB mismatch issues when totals match
+    if (totalsMatch && isEOBMismatchIssue(issue)) return false;
+    // Guardrail: if description says it's a match, don't show as warning
+    if (descriptionIndicatesMatch(issue)) return false;
+    return true;
+  });
+  
+  const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
 
   // Check if this is an "all clear" case
   if (!hasAnyIssues) {
