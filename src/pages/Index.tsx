@@ -7,6 +7,7 @@ import { MedicalDocAnalysisPage } from '@/components/MedicalDocAnalysisPage';
 import { WaterRippleEffect } from '@/components/WaterRippleEffect';
 import { PondIntroScreen } from '@/components/PondIntroScreen';
 import { LanguageProvider } from '@/i18n/LanguageContext';
+import { ZoomProvider } from '@/contexts/ZoomContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult } from '@/types';
 import { toast } from 'sonner';
@@ -351,64 +352,65 @@ const Index = () => {
     setShowIntro(false);
   }, []);
 
-  // Wrap everything in LanguageProvider to avoid context errors
+  // Wrap everything in LanguageProvider and ZoomProvider
   return (
     <LanguageProvider language={state.selectedLanguage} setLanguage={handleLanguageChange}>
-      {showIntro ? (
-        <PondIntroScreen onComplete={handleIntroComplete} />
-      ) : (
-        <div className="h-screen flex flex-col relative overflow-hidden">
-          {/* Pond Background with shimmer */}
-          <div className="pond-bg">
-            <div className="shimmer-overlay" />
-          </div>
-          <WaterRippleEffect />
-          
-          <Header />
-          <main className="flex-1 relative z-10 overflow-hidden min-h-0">
-            {state.currentStep === 'upload' ? (
-              <UploadPage
-                uploadedFile={state.uploadedFile}
-                eobFile={state.eobFile}
-                selectedState={state.selectedState}
-                selectedLanguage={state.selectedLanguage}
-                analysisMode={state.analysisMode}
-                onFileSelect={handleFileSelect}
-                onRemoveFile={handleRemoveFile}
-                onEOBSelect={handleEOBSelect}
-                onRemoveEOB={handleRemoveEOB}
-                onStateChange={handleStateChange}
-                onLanguageChange={handleLanguageChange}
-                onModeChange={handleModeChange}
-                onAnalyze={handleAnalyze}
-              />
-            ) : (
-              state.uploadedFile && (
-                state.analysisMode === 'medical_document' ? (
-                  <MedicalDocAnalysisPage
-                    file={state.uploadedFile}
-                    analysis={state.medicalDocResult}
-                    isAnalyzing={state.isAnalyzing}
-                    onBack={handleBack}
-                  />
-                ) : (
-                  <AnalysisPage
-                    file={state.uploadedFile}
-                    analysis={state.analysisResult}
-                    isAnalyzing={state.isAnalyzing}
-                    onBack={handleBack}
-                    hasEOB={!!state.eobFile}
-                  />
+      <ZoomProvider>
+        {showIntro ? (
+          <PondIntroScreen onComplete={handleIntroComplete} />
+        ) : (
+          <div className="h-screen flex flex-col relative overflow-hidden">
+            {/* Pond Background with shimmer */}
+            <div className="pond-bg">
+              <div className="shimmer-overlay" />
+            </div>
+            <WaterRippleEffect />
+            
+            <Header />
+            <main className="flex-1 relative z-10 overflow-hidden min-h-0">
+              {state.currentStep === 'upload' ? (
+                <UploadPage
+                  uploadedFile={state.uploadedFile}
+                  eobFile={state.eobFile}
+                  selectedState={state.selectedState}
+                  selectedLanguage={state.selectedLanguage}
+                  analysisMode={state.analysisMode}
+                  onFileSelect={handleFileSelect}
+                  onRemoveFile={handleRemoveFile}
+                  onEOBSelect={handleEOBSelect}
+                  onRemoveEOB={handleRemoveEOB}
+                  onStateChange={handleStateChange}
+                  onLanguageChange={handleLanguageChange}
+                  onModeChange={handleModeChange}
+                  onAnalyze={handleAnalyze}
+                />
+              ) : (
+                state.uploadedFile && (
+                  state.analysisMode === 'medical_document' ? (
+                    <MedicalDocAnalysisPage
+                      file={state.uploadedFile}
+                      analysis={state.medicalDocResult}
+                      isAnalyzing={state.isAnalyzing}
+                      onBack={handleBack}
+                    />
+                  ) : (
+                    <AnalysisPage
+                      file={state.uploadedFile}
+                      analysis={state.analysisResult}
+                      isAnalyzing={state.isAnalyzing}
+                      onBack={handleBack}
+                      hasEOB={!!state.eobFile}
+                    />
+                  )
                 )
-              )
-            )}
-          </main>
-          <Footer />
-        </div>
-      )}
+              )}
+            </main>
+            <Footer />
+          </div>
+        )}
+      </ZoomProvider>
     </LanguageProvider>
   );
-
 };
 
 export default Index;

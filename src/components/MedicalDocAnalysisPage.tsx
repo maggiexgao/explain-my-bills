@@ -3,6 +3,8 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentViewer } from '@/components/DocumentViewer';
 import { MedicalDocExplanationPanel } from '@/components/MedicalDocExplanationPanel';
+import { ZoomControl } from '@/components/ZoomControl';
+import { useZoom } from '@/contexts/ZoomContext';
 import { UploadedFile, MedicalDocumentResult } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -16,6 +18,7 @@ interface MedicalDocAnalysisPageProps {
 export function MedicalDocAnalysisPage({ file, analysis, isAnalyzing, onBack }: MedicalDocAnalysisPageProps) {
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
   const { t } = useTranslation();
+  const { zoomClass } = useZoom();
 
   if (isAnalyzing) {
     return (
@@ -75,7 +78,7 @@ export function MedicalDocAnalysisPage({ file, analysis, isAnalyzing, onBack }: 
     <div className="h-full flex flex-col">
       {/* Compact sticky bar */}
       <div className="shrink-0 z-40 glass-card border-t-0 border-x-0 border-b border-border/30">
-        <div className="container flex items-center h-8 px-4 md:px-6">
+        <div className="container flex items-center justify-between h-8 px-4 md:px-6">
           <Button 
             variant="ghost" 
             size="sm" 
@@ -85,6 +88,7 @@ export function MedicalDocAnalysisPage({ file, analysis, isAnalyzing, onBack }: 
             <ArrowLeft className="h-3 w-3" />
             {t('analysis.newDocument')}
           </Button>
+          <ZoomControl />
         </div>
       </div>
 
@@ -96,7 +100,7 @@ export function MedicalDocAnalysisPage({ file, analysis, isAnalyzing, onBack }: 
               <DocumentViewer file={file} activeHighlight={activeHighlight} />
             </div>
           </div>
-          <div className="h-full min-h-0 glass-card-strong rounded-xl overflow-hidden animate-slide-up">
+          <div className={`h-full min-h-0 glass-card-strong rounded-xl overflow-hidden animate-slide-up ${zoomClass}`}>
             <MedicalDocExplanationPanel analysis={analysis} />
           </div>
         </div>

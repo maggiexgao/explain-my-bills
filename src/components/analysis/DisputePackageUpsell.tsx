@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FileText, Download, Check, ArrowRight, Shield, Clock, FileCheck, Package, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, Download, Check, ArrowRight, Shield, Clock, FileCheck, Package, AlertCircle, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { generateDisputePackage } from '@/lib/disputePackageGenerator';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DisputePackageUpsellProps {
   eligibility: DisputePackageEligibility;
@@ -22,15 +23,60 @@ const PACKAGE_PRICE = 19.99;
 export function DisputePackageUpsell({ eligibility, analysis, language, onPurchase }: DisputePackageUpsellProps) {
   const { t } = useTranslation();
   const [isPurchased, setIsPurchased] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [patientName, setPatientName] = useState('');
-  const [showNameInput, setShowNameInput] = useState(false);
+  const [email, setEmail] = useState('');
+  const [showForm, setShowForm] = useState(false);
+
+  // Check for successful payment return
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get('payment');
+    const sessionId = urlParams.get('session_id');
+
+    if (paymentStatus === 'success' && sessionId) {
+      verifyPaymentAndDownload(sessionId);
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const verifyPaymentAndDownload = async (sessionId: string) => {
+    setIsProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-payment', {
+        body: { sessionId },
+      });
+
+      if (error) throw error;
+
+      if (data.verified) {
+        setPatientName(data.patientName || 'Patient');
+        await generateDisputePackage(analysis, eligibility, language, data.patientName || 'Patient');
+        setIsPurchased(true);
+        toast.success('Payment verified! Your Dispute Package has been downloaded.');
+        onPurchase?.();
+      } else {
+        toast.error('Payment verification failed. Please contact support.');
+      }
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      toast.error('Failed to verify payment. Please try again or contact support.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   if (!eligibility.eligible) return null;
 
   const handlePurchase = async () => {
-    if (!showNameInput) {
-      setShowNameInput(true);
+    if (!showForm) {
+      setShowForm(true);
+      return;
+    }
+
+    if (!email.trim() || !email.includes('@')) {
+      toast.error('Please enter a valid email address');
       return;
     }
 
@@ -39,25 +85,32 @@ export function DisputePackageUpsell({ eligibility, analysis, language, onPurcha
       return;
     }
 
-    // For now, simulate purchase flow - in production this would integrate with Stripe
-    toast.info('Payment integration coming soon. Generating your free preview...');
-    setIsGenerating(true);
+    setIsProcessing(true);
     
     try {
-      await generateDisputePackage(analysis, eligibility, language, patientName.trim());
-      setIsPurchased(true);
-      toast.success('Your Dispute Package has been downloaded!');
-      onPurchase?.();
+      const { data, error } = await supabase.functions.invoke('create-dispute-payment', {
+        body: { email: email.trim(), patientName: patientName.trim() },
+      });
+
+      if (error) throw error;
+
+      if (data.url) {
+        // Open Stripe Checkout in new tab
+        window.open(data.url, '_blank');
+        toast.info('Complete your payment in the new tab. Your download will begin automatically when you return.');
+      } else {
+        throw new Error('No checkout URL returned');
+      }
     } catch (error) {
-      console.error('Error generating package:', error);
-      toast.error('Failed to generate package. Please try again.');
+      console.error('Error creating payment:', error);
+      toast.error('Failed to start payment. Please try again.');
     } finally {
-      setIsGenerating(false);
+      setIsProcessing(false);
     }
   };
 
   const handleRedownload = async () => {
-    setIsGenerating(true);
+    setIsProcessing(true);
     try {
       await generateDisputePackage(analysis, eligibility, language, patientName.trim() || 'Patient');
       toast.success('Package downloaded again!');
@@ -65,7 +118,7 @@ export function DisputePackageUpsell({ eligibility, analysis, language, onPurcha
       console.error('Error generating package:', error);
       toast.error('Failed to generate package. Please try again.');
     } finally {
-      setIsGenerating(false);
+      setIsProcessing(false);
     }
   };
 
@@ -110,11 +163,11 @@ export function DisputePackageUpsell({ eligibility, analysis, language, onPurcha
         
         <Button 
           onClick={handleRedownload} 
-          disabled={isGenerating}
+          disabled={isProcessing}
           className="w-full bg-mint hover:bg-mint/90 text-mint-foreground"
         >
           <Download className="h-4 w-4 mr-2" />
-          {isGenerating ? 'Generating...' : 'Download Again'}
+          {isProcessing ? 'Generating...' : 'Download Again'}
         </Button>
       </div>
     );
@@ -187,19 +240,35 @@ export function DisputePackageUpsell({ eligibility, analysis, language, onPurcha
           </div>
         </div>
 
-        {/* Name input (shown after first click) */}
-        {showNameInput && (
-          <div className="mb-4 p-3 rounded-xl bg-background border border-border">
-            <Label htmlFor="patientName" className="text-xs font-medium">
-              Your name (for the letters)
-            </Label>
-            <Input
-              id="patientName"
-              value={patientName}
-              onChange={(e) => setPatientName(e.target.value)}
-              placeholder="Enter your full name"
-              className="mt-1.5"
-            />
+        {/* Email and Name input (shown after first click) */}
+        {showForm && (
+          <div className="mb-4 space-y-3 p-3 rounded-xl bg-background border border-border">
+            <div>
+              <Label htmlFor="patientEmail" className="text-xs font-medium flex items-center gap-1">
+                <Mail className="h-3 w-3" />
+                Your email (for payment receipt)
+              </Label>
+              <Input
+                id="patientEmail"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="patientName" className="text-xs font-medium">
+                Your name (for the letters)
+              </Label>
+              <Input
+                id="patientName"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                placeholder="Enter your full name"
+                className="mt-1.5"
+              />
+            </div>
           </div>
         )}
 
@@ -211,15 +280,15 @@ export function DisputePackageUpsell({ eligibility, analysis, language, onPurcha
           </div>
           <Button 
             onClick={handlePurchase} 
-            disabled={isGenerating}
+            disabled={isProcessing}
             className="flex-1 sm:flex-initial accent-gradient hover:opacity-90 text-white"
           >
-            {isGenerating ? (
-              <>Generating...</>
-            ) : showNameInput ? (
+            {isProcessing ? (
+              <>Processing...</>
+            ) : showForm ? (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Download Package
+                Pay & Download
               </>
             ) : (
               <>
