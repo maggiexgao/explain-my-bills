@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, AlertCircle, Info, CheckCircle, ExternalLink } from 'lucide-react';
+import { AlertTriangle, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, BillingIssue } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
@@ -209,41 +209,50 @@ function shouldFilterIssue(issue: BillingIssue, totalsMatch: boolean): boolean {
   return false;
 }
 
-export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCalloutsSectionProps) {
-  const { t } = useTranslation();
-  
-  // Parse bill total and EOB patient responsibility as numbers (handle strings like "$151.77")
+// Shared function to calculate visible callout counts - used by ExplanationPanel for badge
+function getFilteredCallouts(analysis: AnalysisResult, hasEOB?: boolean) {
   const billTotal = parseAmount(analysis.billTotal);
   const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
   
-  // === EOB vs Bill Comparison: Explicit branching ===
   const canCompareEOB = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
-  let eobMatchStatus: 'match' | 'mismatch' | 'skip' = 'skip';
+  let totalsMatch = false;
   
   if (canCompareEOB) {
     const diff = Math.abs(billTotal - eobPatientResponsibility);
-    const tolerance = 0.01; // one cent tolerance
-    eobMatchStatus = diff <= tolerance ? 'match' : 'mismatch';
+    const tolerance = 0.01;
+    totalsMatch = diff <= tolerance;
   }
+
+  const rawPotentialErrors = analysis.potentialErrors || [];
+  const rawNeedsAttention = analysis.needsAttention || [];
+  
+  const potentialErrors = rawPotentialErrors.filter(issue => !shouldFilterIssue(issue, totalsMatch));
+  const needsAttention = rawNeedsAttention.filter(issue => !shouldFilterIssue(issue, totalsMatch));
+  
+  return { potentialErrors, needsAttention, totalsMatch, billTotal, eobPatientResponsibility };
+}
+
+// Hook to get visible callout count for the badge
+export function useVisibleCalloutCount(analysis: AnalysisResult, hasEOB?: boolean): number {
+  const { potentialErrors, needsAttention } = getFilteredCallouts(analysis, hasEOB);
+  return potentialErrors.length + needsAttention.length;
+}
+
+export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCalloutsSectionProps) {
+  const { t } = useTranslation();
+  
+  const { potentialErrors, needsAttention, totalsMatch, billTotal, eobPatientResponsibility } = getFilteredCallouts(analysis, hasEOB);
 
   // Build "Looks Good" items for positive checks
   const looksGoodItems: LooksGoodItem[] = [];
   
   // EOB match is a positive check
-  if (eobMatchStatus === 'match') {
+  if (totalsMatch && billTotal !== undefined) {
     looksGoodItems.push({
       title: 'Bill total matches your EOB',
-      description: `Your bill's total patient responsibility ($${billTotal!.toFixed(2)}) matches the amount shown on your EOB. That's a good sign.`,
+      description: `Your bill's total patient responsibility ($${billTotal.toFixed(2)}) matches the amount shown on your EOB. That's a good sign.`,
     });
   }
-
-  // Filter out issues that shouldn't be shown as warnings
-  const rawPotentialErrors = analysis.potentialErrors || [];
-  const rawNeedsAttention = analysis.needsAttention || [];
-  
-  const totalsMatch = eobMatchStatus === 'match';
-  const potentialErrors = rawPotentialErrors.filter(issue => !shouldFilterIssue(issue, totalsMatch));
-  const needsAttention = rawNeedsAttention.filter(issue => !shouldFilterIssue(issue, totalsMatch));
   
   const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
 
