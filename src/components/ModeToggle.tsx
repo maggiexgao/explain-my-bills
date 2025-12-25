@@ -10,14 +10,14 @@ interface ModeToggleProps {
 const modes = [
   {
     value: 'bill' as const,
-    label: 'Bill Analysis',
-    subtitle: 'Understand your medical bills.',
+    label: 'bill analysis',
+    subtitle: 'understand your medical bills.',
     icon: FileText,
   },
   {
     value: 'medical_document' as const,
-    label: 'Medical Document',
-    subtitle: 'Understand your visit notes and test results.',
+    label: 'medical document',
+    subtitle: 'understand your visit notes and test results.',
     icon: Stethoscope,
   },
 ];
@@ -25,13 +25,14 @@ const modes = [
 export function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
   return (
     <div className="w-full">
-      <div className="flex rounded-xl bg-background/40 backdrop-blur-sm p-1 border border-border/50 relative">
-        {/* Sliding background indicator */}
+      <div className="flex rounded-full bg-white/40 backdrop-blur-md p-1.5 border border-white/60 relative">
+        {/* Sliding pill background */}
         <div 
-          className="absolute top-1 bottom-1 rounded-lg bg-primary shadow-glow transition-all duration-300 ease-out"
+          className="absolute top-1.5 bottom-1.5 rounded-full bg-white shadow-soft transition-all duration-500 ease-out"
           style={{
-            width: 'calc(50% - 4px)',
-            left: mode === 'bill' ? '4px' : 'calc(50% + 0px)',
+            width: 'calc(50% - 6px)',
+            left: mode === 'bill' ? '6px' : 'calc(50%)',
+            boxShadow: '0 2px 8px hsl(200 30% 50% / 0.15), 0 0 0 1px hsl(0 0% 100% / 0.8)',
           }}
         />
         
@@ -44,14 +45,11 @@ export function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
               key={m.value}
               onClick={() => onModeChange(m.value)}
               className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all duration-300 text-sm font-medium relative z-10',
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-full transition-all duration-300 text-sm font-medium relative z-10',
                 isActive
-                  ? 'text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground/80'
               )}
-              style={{
-                boxShadow: isActive ? 'inset 0 1px 2px rgba(0,0,0,0.1)' : 'none',
-              }}
             >
               <Icon className="h-4 w-4" />
               <span className="hidden sm:inline">{m.label}</span>
@@ -61,7 +59,7 @@ export function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
       </div>
       
       {/* Subtitle for active mode */}
-      <p className="text-center text-xs text-muted-foreground/80 mt-2 animate-fade-in lowercase">
+      <p className="text-center text-xs text-muted-foreground/70 mt-2 animate-fade-in lowercase">
         {modes.find(m => m.value === mode)?.subtitle}
       </p>
     </div>
