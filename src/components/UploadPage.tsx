@@ -75,7 +75,8 @@ export function UploadPage({
   return (
     <div className="h-full flex flex-col items-center justify-start md:justify-center px-3 md:px-4 py-4 md:py-0 overflow-y-auto">
       <div className="w-full max-w-sm animate-fade-in">
-        <div className="glass-card-strong p-3 md:p-4 space-y-2.5 md:space-y-2.5 animate-slide-up">
+        {/* Enhanced glassmorphism card - sitting on water effect */}
+        <div className="glass-card-enhanced p-3 md:p-4 space-y-2.5 md:space-y-2.5 animate-slide-up">
           {/* Mode Toggle - Full width on mobile */}
           <ModeToggle mode={analysisMode} onModeChange={onModeChange} />
 
@@ -110,10 +111,10 @@ export function UploadPage({
             )}
           </div>
 
-          {/* State and Language selectors - stack on mobile */}
+          {/* State and Language selectors - staggered entrance */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <div className="space-y-0.5">
-              <label className="flex items-center gap-1 text-xs font-medium text-gray-700">
+            <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.15s' }}>
+              <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
                 <MapPin className="h-2.5 w-2.5 text-purple" />
                 {t('upload.state.label')}
               </label>
@@ -131,8 +132,8 @@ export function UploadPage({
               </Select>
             </div>
 
-            <div className="space-y-0.5">
-              <label className="flex items-center gap-1 text-xs font-medium text-gray-700">
+            <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+              <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
                 <Globe className="h-2.5 w-2.5 text-coral" />
                 {t('upload.language.label')}
               </label>
@@ -180,19 +181,19 @@ export function UploadPage({
         </div>
 
         {/* Condensed steps + features */}
-        <div className="mt-2.5 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div className="mt-2.5 animate-slide-up" style={{ animationDelay: '0.25s' }}>
           {/* Step indicators - wrap on very small screens */}
-          <div className="flex items-center justify-center gap-1 md:gap-1.5 text-[11px] md:text-xs text-gray-600 mb-1.5 flex-wrap">
+          <div className="flex items-center justify-center gap-1 md:gap-1.5 text-[11px] md:text-xs text-muted-foreground mb-1.5 flex-wrap lowercase">
             <span className="flex items-center gap-0.5">
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-coral/20 text-coral font-bold text-[9px]">1</span>
               upload
             </span>
-            <span className="text-gray-400">→</span>
+            <span className="text-muted-foreground/50">→</span>
             <span className="flex items-center gap-0.5">
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple/20 text-purple font-bold text-[9px]">2</span>
               pond decodes
             </span>
-            <span className="text-gray-400">→</span>
+            <span className="text-muted-foreground/50">→</span>
             <span className="flex items-center gap-0.5">
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky/20 text-sky font-bold text-[9px]">3</span>
               next step
@@ -200,13 +201,13 @@ export function UploadPage({
           </div>
 
           {/* Feature pills - wrap properly */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-1 text-[11px] md:text-[10px]">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-1 text-[11px] md:text-[10px] lowercase">
             {currentContent.features.map((feature, idx) => {
               const Icon = feature.icon;
               return (
-                <div key={idx} className="flex items-center gap-0.5 px-2 md:px-1.5 py-1 md:py-0.5 rounded-full bg-white/50 backdrop-blur-sm border border-white/60">
+                <div key={idx} className="flex items-center gap-0.5 px-2 md:px-1.5 py-1 md:py-0.5 rounded-full bg-background/50 backdrop-blur-sm border border-background/60">
                   <Icon className={`h-3 md:h-2.5 w-3 md:w-2.5 ${feature.color}`} />
-                  <span className="text-gray-700">{feature.label}</span>
+                  <span className="text-muted-foreground">{feature.label}</span>
                 </div>
               );
             })}

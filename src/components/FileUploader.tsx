@@ -161,10 +161,10 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={cn(
-          "relative rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer",
+          "relative rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer upload-zone",
           isDragging
-            ? "border-primary bg-primary/10 shadow-glow-active scale-[1.02]"
-            : "border-border/60 hover:border-primary/50 hover:bg-primary/5",
+            ? "border-primary bg-primary/10 shadow-glow-active scale-[1.02] marching-ants"
+            : "border-border/60 hover:border-primary/50 hover:bg-primary/5 hover:marching-ants",
           error && "border-destructive/50"
         )}
       >
