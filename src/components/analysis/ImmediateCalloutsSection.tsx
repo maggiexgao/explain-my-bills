@@ -1,12 +1,14 @@
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
+import { AlertTriangle, AlertCircle, CheckCircle, ExternalLink, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, BillingIssue } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { EobBillComparison, buildEobBillComparison } from '@/lib/eobBillComparison';
 
 interface ImmediateCalloutsSectionProps {
   analysis: AnalysisResult;
   hasEOB?: boolean;
+  comparison?: EobBillComparison; // Optional: will be computed if not provided
 }
 
 const severityConfig = {
@@ -30,7 +32,7 @@ const severityConfig = {
   },
 };
 
-function CalloutCard({ issue }: { issue: BillingIssue }) {
+function CalloutCard({ issue, category }: { issue: BillingIssue; category?: string }) {
   const { t } = useTranslation();
   const config = severityConfig[issue.severity] || severityConfig.info;
 
@@ -147,120 +149,72 @@ function AllClearBox() {
   );
 }
 
-// Helper to parse currency strings like "$151.77" to numbers
-function parseAmount(value: unknown): number | undefined {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const cleaned = value.replace(/[$,\s]/g, '');
-    const num = parseFloat(cleaned);
-    return isNaN(num) ? undefined : num;
-  }
-  return undefined;
-}
-
-// Helper to check if an issue is about EOB/bill total mismatch
-function isEOBMismatchIssue(issue: BillingIssue): boolean {
-  const title = issue.title?.toLowerCase() || '';
-  const description = issue.description?.toLowerCase() || '';
-  return (
-    title.includes('eob') || 
-    title.includes('mismatch') ||
-    title.includes('bill total') ||
-    title.includes('patient responsibility') ||
-    description.includes('eob') ||
-    description.includes('patient responsibility') ||
-    description.includes('bill total')
-  );
-}
-
-// GUARDRAIL: Check if issue description/title indicates amounts actually match
-// If the AI says it's a match, we must NOT show it as a warning
-function descriptionIndicatesMatch(issue: BillingIssue): boolean {
-  const text = `${issue.title || ''} ${issue.description || ''}`.toLowerCase();
-  return (
-    text.includes('perfect match') ||
-    text.includes('which is great') ||
-    text.includes('matches your eob') ||
-    text.includes('amounts match') ||
-    text.includes('good sign') ||
-    text.includes('this is a match') ||
-    text.includes('bill matches') ||
-    text.includes('totals match') ||
-    text.includes('are the same') ||
-    text.includes('are equal') ||
-    text.includes('correctly matches') ||
-    text.includes('appears correct')
-  );
-}
-
-// Determine if an issue should be filtered out
-function shouldFilterIssue(issue: BillingIssue, totalsMatch: boolean): boolean {
-  // GUARDRAIL 1: If the description says it's a match, ALWAYS filter it out
-  // This prevents "Needs Attention" cards that say "perfect match"
-  if (descriptionIndicatesMatch(issue)) {
-    return true;
+// Intro text based on comparison state
+function SectionIntro({ comparison }: { comparison: EobBillComparison }) {
+  if (comparison.totalsMatchButWarnings) {
+    return (
+      <div className="p-3 rounded-lg bg-info/5 border border-info/20 mb-4">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-info mt-0.5 shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            Your total amount owed matches the "Total you owe" on your Explanation of Benefits (EOB). However, there are still some details below that may be worth reviewing before you pay.
+          </p>
+        </div>
+      </div>
+    );
   }
   
-  // GUARDRAIL 2: If we computed that totals match, filter out EOB mismatch issues
-  if (totalsMatch && isEOBMismatchIssue(issue)) {
-    return true;
+  if (comparison.totalsMismatch && comparison.canCompareEOB) {
+    return (
+      <div className="p-3 rounded-lg bg-warning/5 border border-warning/20 mb-4">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            The total on your bill doesn't match your EOB's "patient responsibility" amount. Review the discrepancies below and consider contacting your provider or insurer to resolve the difference.
+          </p>
+        </div>
+      </div>
+    );
   }
   
-  return false;
-}
-
-// Shared function to calculate visible callout counts - used by ExplanationPanel for badge
-export function getFilteredCallouts(analysis: AnalysisResult, hasEOB?: boolean) {
-  const billTotal = parseAmount(analysis.billTotal);
-  const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
-  
-  const canCompareEOB = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
-  let totalsMatch = false;
-  
-  if (canCompareEOB) {
-    const diff = Math.abs(billTotal - eobPatientResponsibility);
-    const tolerance = 0.01;
-    totalsMatch = diff <= tolerance;
+  if (!comparison.hasEOB) {
+    return (
+      <div className="p-3 rounded-lg bg-muted/30 border border-border/20 mb-4">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            Upload your Explanation of Benefits (EOB) to compare with this bill and get a more complete analysis.
+          </p>
+        </div>
+      </div>
+    );
   }
-
-  const rawPotentialErrors = analysis.potentialErrors || [];
-  const rawNeedsAttention = analysis.needsAttention || [];
   
-  const potentialErrors = rawPotentialErrors.filter(issue => !shouldFilterIssue(issue, totalsMatch));
-  const needsAttention = rawNeedsAttention.filter(issue => !shouldFilterIssue(issue, totalsMatch));
-  
-  // Debug logging
-  console.log('🔍 getFilteredCallouts Debug:', {
-    hasEOB,
-    billTotal,
-    eobPatientResponsibility,
-    canCompareEOB,
-    totalsMatch,
-    rawPotentialErrorsCount: rawPotentialErrors.length,
-    rawNeedsAttentionCount: rawNeedsAttention.length,
-    filteredPotentialErrorsCount: potentialErrors.length,
-    filteredNeedsAttentionCount: needsAttention.length
-  });
-  
-  return { potentialErrors, needsAttention, totalsMatch, billTotal, eobPatientResponsibility, canCompareEOB };
+  return null;
 }
 
-// Hook to get visible callout count for the badge
-export function useVisibleCalloutCount(analysis: AnalysisResult, hasEOB?: boolean): number {
-  const { potentialErrors, needsAttention } = getFilteredCallouts(analysis, hasEOB);
-  return potentialErrors.length + needsAttention.length;
-}
-
-export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCalloutsSectionProps) {
+export function ImmediateCalloutsSection({ analysis, hasEOB, comparison: providedComparison }: ImmediateCalloutsSectionProps) {
   const { t } = useTranslation();
   
-  const { potentialErrors, needsAttention, totalsMatch, billTotal, eobPatientResponsibility } = getFilteredCallouts(analysis, hasEOB);
+  // Use provided comparison or compute it
+  const comparison = providedComparison || buildEobBillComparison(analysis, hasEOB);
+  
+  const { 
+    potentialErrors, 
+    needsAttention, 
+    totalsMatch, 
+    billTotal, 
+    eobPatientResponsibility,
+    hasBillHigherThanEOB,
+    totalsDiscrepancyAmount,
+    overallClean,
+  } = comparison;
 
   // Build "Looks Good" items for positive checks
   const looksGoodItems: LooksGoodItem[] = [];
   
-  // EOB match is a positive check
-  if (totalsMatch && billTotal !== undefined) {
+  // EOB match is a positive check - but only show if truly clean
+  if (totalsMatch && billTotal !== undefined && !hasBillHigherThanEOB) {
     looksGoodItems.push({
       title: 'Bill total matches your EOB',
       description: `Your bill's total patient responsibility ($${billTotal.toFixed(2)}) matches the amount shown on your EOB. That's a good sign.`,
@@ -269,11 +223,10 @@ export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCallouts
   
   const hasAnyIssues = potentialErrors.length > 0 || needsAttention.length > 0;
 
-  // Check if this is an "all clear" case (no issues found)
-  if (!hasAnyIssues) {
+  // "All clear" case: no issues and amounts match
+  if (!hasAnyIssues && overallClean) {
     return (
       <div className="space-y-4">
-        {/* Show Looks Good items first */}
         {looksGoodItems.map((item, idx) => (
           <LooksGoodCard key={idx} item={item} />
         ))}
@@ -282,9 +235,21 @@ export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCallouts
     );
   }
 
+  // Group issues by category for better organization
+  const categorizeIssue = (issue: BillingIssue): string => {
+    const text = `${issue.title || ''} ${issue.description || ''}`.toLowerCase();
+    if (text.includes('total') || text.includes('eob') || text.includes('patient responsibility')) return 'totals';
+    if (text.includes('code') || text.includes('cpt') || text.includes('hcpcs') || text.includes('itemized')) return 'structure';
+    if (text.includes('coverage') || text.includes('network') || text.includes('deductible') || text.includes('coinsurance')) return 'coverage';
+    return 'line_item';
+  };
+
   return (
     <div className="space-y-6">
-      {/* Show Looks Good items (positive confirmations) */}
+      {/* Section intro based on comparison state */}
+      <SectionIntro comparison={comparison} />
+
+      {/* Show Looks Good items (positive confirmations) when totals match */}
       {looksGoodItems.length > 0 && (
         <div className="space-y-3">
           {looksGoodItems.map((item, idx) => (
@@ -304,7 +269,7 @@ export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCallouts
           </div>
           <div className="space-y-3">
             {potentialErrors.map((issue, idx) => (
-              <CalloutCard key={idx} issue={issue} />
+              <CalloutCard key={idx} issue={issue} category={categorizeIssue(issue)} />
             ))}
           </div>
         </div>
@@ -321,11 +286,30 @@ export function ImmediateCalloutsSection({ analysis, hasEOB }: ImmediateCallouts
           </div>
           <div className="space-y-3">
             {needsAttention.map((issue, idx) => (
-              <CalloutCard key={idx} issue={issue} />
+              <CalloutCard key={idx} issue={issue} category={categorizeIssue(issue)} />
             ))}
           </div>
         </div>
       )}
     </div>
   );
+}
+
+// Legacy export for backward compatibility - now uses the centralized utility
+export function useVisibleCalloutCount(analysis: AnalysisResult, hasEOB?: boolean): number {
+  const comparison = buildEobBillComparison(analysis, hasEOB);
+  return comparison.visibleCalloutCount;
+}
+
+// Legacy export for backward compatibility
+export function getFilteredCallouts(analysis: AnalysisResult, hasEOB?: boolean) {
+  const comparison = buildEobBillComparison(analysis, hasEOB);
+  return {
+    potentialErrors: comparison.potentialErrors,
+    needsAttention: comparison.needsAttention,
+    totalsMatch: comparison.totalsMatch,
+    billTotal: comparison.billTotal,
+    eobPatientResponsibility: comparison.eobPatientResponsibility,
+    canCompareEOB: comparison.canCompareEOB,
+  };
 }
