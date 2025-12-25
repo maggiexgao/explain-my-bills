@@ -9,11 +9,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult } from '@/types';
-import { ImmediateCalloutsSection, useVisibleCalloutCount, getFilteredCallouts } from '@/components/analysis/ImmediateCalloutsSection';
+import { ImmediateCalloutsSection } from '@/components/analysis/ImmediateCalloutsSection';
 import { ExplainerSection } from '@/components/analysis/ExplainerSection';
 import { BillingSection } from '@/components/analysis/BillingSection';
 import { NextStepsSection } from '@/components/analysis/NextStepsSection';
 import { SuccessResultsCard } from '@/components/analysis/SuccessResultsCard';
+import { TotalsLineUpCard } from '@/components/analysis/TotalsLineUpCard';
+import { buildEobBillComparison } from '@/lib/eobBillComparison';
 import { useState } from 'react';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -78,47 +80,23 @@ function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = 
   );
 }
 
-// Helper to parse currency strings like "$151.77" to numbers
-function parseAmount(value: unknown): number | undefined {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const cleaned = value.replace(/[$,\s]/g, '');
-    const num = parseFloat(cleaned);
-    return isNaN(num) ? undefined : num;
-  }
-  return undefined;
-}
-
 export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: ExplanationPanelProps) {
   const { t } = useTranslation();
   
-  // Use the SHARED getFilteredCallouts function for complete consistency
-  // This is the SAME function that ImmediateCalloutsSection uses
-  const { 
-    potentialErrors, 
-    needsAttention, 
-    totalsMatch: amountsMatch, 
-    billTotal, 
-    eobPatientResponsibility,
-    canCompareEOB 
-  } = getFilteredCallouts(analysis, hasEOB);
+  // Use the centralized comparison utility - single source of truth
+  const comparison = buildEobBillComparison(analysis, hasEOB);
   
-  const visibleCalloutCount = potentialErrors.length + needsAttention.length;
-  const hasCallouts = visibleCalloutCount > 0;
-
-  // Debug logging to trace actual runtime values
-  console.log('🔍 ExplanationPanel Success Card Check:', {
-    hasEOB,
+  const {
     billTotal,
     eobPatientResponsibility,
+    overallClean,
+    totalsMatchButWarnings,
+    totalsMismatch,
+    visibleCalloutCount,
     canCompareEOB,
-    amountsMatch,
-    showSuccessCard: amountsMatch && billTotal !== undefined && eobPatientResponsibility !== undefined,
-    visibleCalloutCount
-  });
+  } = comparison;
 
-  // Show success card when amounts match (requires hasEOB, billTotal, and eobPatientResponsibility)
-  const showSuccessCard = amountsMatch && billTotal !== undefined && eobPatientResponsibility !== undefined;
+  const hasCallouts = visibleCalloutCount > 0;
 
   return (
     <div className="h-full overflow-auto">
@@ -141,19 +119,34 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
           </div>
         </div>
 
-        {/* Success Results Card - shown when bill and EOB amounts match */}
-        {showSuccessCard && (
+        {/* SUCCESS STATE: Green "all clear" card - only when everything matches and no issues */}
+        {overallClean && billTotal !== undefined && eobPatientResponsibility !== undefined && (
           <SuccessResultsCard 
             billTotal={billTotal} 
             eobPatientResponsibility={eobPatientResponsibility} 
           />
         )}
 
+        {/* SOFT STATE: Totals match but there are warnings/issues to review */}
+        {totalsMatchButWarnings && billTotal !== undefined && eobPatientResponsibility !== undefined && (
+          <TotalsLineUpCard 
+            billTotal={billTotal} 
+            eobPatientResponsibility={eobPatientResponsibility}
+            hasWarnings={hasCallouts}
+          />
+        )}
+
+        {/* NO CARD: When totals mismatch or no EOB, let Immediate Callouts lead */}
+
         {/* Four Main Sections */}
         <div className="space-y-4">
           <AccordionSection
             title={t('section.immediateCallouts')}
-            subtitle={t('section.immediateCallouts.subtitle')}
+            subtitle={
+              totalsMatchButWarnings 
+                ? "Totals match, but review these details"
+                : t('section.immediateCallouts.subtitle')
+            }
             icon={<AlertCircle className="h-5 w-5 text-coral" />}
             iconBg="bg-coral-light"
             badge={
@@ -163,9 +156,13 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
                 </Badge>
               ) : undefined
             }
-            defaultOpen={hasCallouts && !amountsMatch}
+            defaultOpen={hasCallouts && !overallClean}
           >
-            <ImmediateCalloutsSection analysis={analysis} hasEOB={hasEOB} />
+            <ImmediateCalloutsSection 
+              analysis={analysis} 
+              hasEOB={hasEOB} 
+              comparison={comparison}
+            />
           </AccordionSection>
 
           <AccordionSection
