@@ -210,7 +210,7 @@ function shouldFilterIssue(issue: BillingIssue, totalsMatch: boolean): boolean {
 }
 
 // Shared function to calculate visible callout counts - used by ExplanationPanel for badge
-function getFilteredCallouts(analysis: AnalysisResult, hasEOB?: boolean) {
+export function getFilteredCallouts(analysis: AnalysisResult, hasEOB?: boolean) {
   const billTotal = parseAmount(analysis.billTotal);
   const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
   
@@ -229,7 +229,20 @@ function getFilteredCallouts(analysis: AnalysisResult, hasEOB?: boolean) {
   const potentialErrors = rawPotentialErrors.filter(issue => !shouldFilterIssue(issue, totalsMatch));
   const needsAttention = rawNeedsAttention.filter(issue => !shouldFilterIssue(issue, totalsMatch));
   
-  return { potentialErrors, needsAttention, totalsMatch, billTotal, eobPatientResponsibility };
+  // Debug logging
+  console.log('🔍 getFilteredCallouts Debug:', {
+    hasEOB,
+    billTotal,
+    eobPatientResponsibility,
+    canCompareEOB,
+    totalsMatch,
+    rawPotentialErrorsCount: rawPotentialErrors.length,
+    rawNeedsAttentionCount: rawNeedsAttention.length,
+    filteredPotentialErrorsCount: potentialErrors.length,
+    filteredNeedsAttentionCount: needsAttention.length
+  });
+  
+  return { potentialErrors, needsAttention, totalsMatch, billTotal, eobPatientResponsibility, canCompareEOB };
 }
 
 // Hook to get visible callout count for the badge
