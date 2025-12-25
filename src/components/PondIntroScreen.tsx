@@ -19,6 +19,10 @@ interface IntroSparkle {
   angle: number;
 }
 
+// Preload lilypad image immediately
+const lilypadImage = new Image();
+lilypadImage.src = lilypadButton;
+
 export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const [displayedText1, setDisplayedText1] = useState('');
   const [displayedText2, setDisplayedText2] = useState('');
@@ -26,7 +30,9 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const [displayedText4, setDisplayedText4] = useState('');
   const [currentLine, setCurrentLine] = useState(1);
   const [showLilypad, setShowLilypad] = useState(false);
+  const [lilypadReady, setLilypadReady] = useState(lilypadImage.complete);
   const [isExiting, setIsExiting] = useState(false);
+  const [diveExpanding, setDiveExpanding] = useState(false);
   const [ripples, setRipples] = useState<IntroRipple[]>([]);
   const [sparkles, setSparkles] = useState<IntroSparkle[]>([]);
   const [isHovered, setIsHovered] = useState(false);
@@ -34,8 +40,16 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   const rippleIdRef = useRef(0);
   const sparkleIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lilypadRef = useRef<HTMLButtonElement>(null);
 
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  // Ensure lilypad is preloaded
+  useEffect(() => {
+    if (!lilypadImage.complete) {
+      lilypadImage.onload = () => setLilypadReady(true);
+    }
+  }, []);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -173,10 +187,12 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
     setTimeout(() => addRipple(48, 70), 80);
     setTimeout(() => addRipple(52, 74), 120);
     
+    // Start dive expansion effect
     setTimeout(() => {
-      setIsExiting(true);
-      setTimeout(onComplete, 400);
-    }, 250);
+      setDiveExpanding(true);
+      // Complete after liquid transition
+      setTimeout(onComplete, 800);
+    }, 200);
   }, [showLilypad, onComplete, addRipple, addSparkles]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -189,9 +205,7 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
   return (
     <div 
       ref={containerRef}
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-400 ${
-        isExiting ? 'opacity-0' : 'opacity-100'
-      }`}
+      className="fixed inset-0 z-50 flex items-center justify-center"
       style={{
         backgroundImage: `url('/images/pond-water-bg.png')`,
         backgroundSize: 'cover',
@@ -199,6 +213,19 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
         cursor: prefersReducedMotion ? 'auto' : 'none',
       }}
     >
+      {/* Liquid dive transition overlay */}
+      <div 
+        className={`fixed inset-0 z-[200] pointer-events-none transition-all duration-700 ease-out ${
+          diveExpanding ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          background: 'radial-gradient(circle at 50% 70%, hsl(185 50% 75% / 0.95) 0%, hsl(175 45% 80% / 0.9) 30%, hsl(180 40% 85% / 0.85) 100%)',
+          clipPath: diveExpanding 
+            ? 'circle(150% at 50% 70%)' 
+            : 'circle(0% at 50% 70%)',
+          transition: 'clip-path 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease',
+        }}
+      />
       {/* Very light overlay for text readability */}
       <div 
         className="absolute inset-0 pointer-events-none"
@@ -309,50 +336,65 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
             )}
           </p>
           
-          {/* Lilypad button area - 2.5x larger */}
+          {/* Lilypad button area - pre-rendered, always in DOM */}
           <div className="min-h-[18rem] md:min-h-[20rem] flex flex-col items-center justify-center relative pt-4 md:pt-6">
-            {showLilypad ? (
-              <button
-                onClick={handleClick}
-                onKeyDown={handleKeyDown}
-                onMouseEnter={() => {
+            {/* Pre-render lilypad (invisible until showLilypad) for zero pop-in */}
+            <button
+              ref={lilypadRef}
+              onClick={handleClick}
+              onKeyDown={handleKeyDown}
+              onMouseEnter={() => {
+                if (showLilypad) {
                   setIsHovered(true);
                   addSparkles(50, 72, 3);
-                }}
-                onMouseLeave={() => setIsHovered(false)}
+                }
+              }}
+              onMouseLeave={() => setIsHovered(false)}
+              disabled={!showLilypad}
+              className={`
+                relative
+                outline-none
+                focus-visible:ring-0 focus-visible:shadow-[0_0_0_3px_rgba(255,255,255,0.35)]
+                ${showLilypad 
+                  ? 'opacity-100 pointer-events-auto' 
+                  : 'opacity-0 pointer-events-none absolute'}
+              `}
+              style={{
+                cursor: prefersReducedMotion ? 'pointer' : 'none',
+                animation: showLilypad ? 'lilypadSpring 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none',
+              }}
+            >
+              {/* Lilypad image with continuous float animation */}
+              <img 
+                src={lilypadButton} 
+                alt="Lilypad - Let's dive in"
                 className={`
-                  relative
+                  w-72 md:w-[26rem] h-auto drop-shadow-lg
                   transition-all duration-300 ease-out
-                  outline-none
-                  focus-visible:ring-0 focus-visible:shadow-[0_0_0_3px_rgba(255,255,255,0.35)]
-                  ${isHovered ? 'scale-105 brightness-110' : 'scale-100'}
+                  ${isHovered ? 'scale-105' : 'scale-100'}
+                  ${showLilypad ? 'animate-lilypad-float' : ''}
                 `}
                 style={{
-                  cursor: prefersReducedMotion ? 'pointer' : 'none',
+                  filter: isHovered 
+                    ? 'brightness(1.08) drop-shadow(0 12px 30px hsl(130 40% 30% / 0.4))' 
+                    : 'drop-shadow(0 6px 18px hsl(130 40% 30% / 0.3))',
+                }}
+              />
+              
+              {/* Text overlay on the lilypad */}
+              <span 
+                className="absolute inset-0 flex items-center justify-center font-sans text-sm md:text-lg lg:text-xl font-semibold text-gray-900 drop-shadow-sm lowercase"
+                style={{
+                  paddingTop: '2rem',
                 }}
               >
-                {/* Lilypad image - 2.5x larger (was w-52, now ~w-[32.5rem] = ~520px) */}
-                <img 
-                  src={lilypadButton} 
-                  alt="Lilypad"
-                  className="w-72 md:w-[26rem] h-auto drop-shadow-lg"
-                  style={{
-                    filter: isHovered ? 'brightness(1.08) drop-shadow(0 12px 30px hsl(130 40% 30% / 0.4))' : 'drop-shadow(0 6px 18px hsl(130 40% 30% / 0.3))',
-                  }}
-                />
-                
-                {/* Text overlay on the lilypad - 30% smaller text */}
-                <span 
-                  className="absolute inset-0 flex items-center justify-center font-sans text-sm md:text-lg lg:text-xl font-semibold text-gray-900 drop-shadow-sm"
-                  style={{
-                    paddingTop: '2rem',
-                  }}
-                >
-                  let's dive in
-                </span>
-              </button>
-            ) : (
-              <p className="font-mono text-base md:text-lg text-gray-800 drop-shadow-sm">
+                let's dive in
+              </span>
+            </button>
+            
+            {/* Typing text shown before lilypad appears */}
+            {!showLilypad && (
+              <p className="font-mono text-base md:text-lg text-gray-800 drop-shadow-sm absolute">
                 {displayedText4}
                 {currentLine === 4 && displayedText4.length < lilypadText.length && (
                   <span className="animate-pulse">|</span>
@@ -389,6 +431,46 @@ export function PondIntroScreen({ onComplete }: PondIntroScreenProps) {
           100% {
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.3);
+          }
+        }
+
+        /* Spring entrance animation for lilypad */
+        @keyframes lilypadSpring {
+          0% {
+            opacity: 0;
+            transform: scale(0.3) translateY(20px);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.08) translateY(-8px);
+          }
+          75% {
+            transform: scale(0.96) translateY(2px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        /* Continuous floating animation for lilypad */
+        .animate-lilypad-float {
+          animation: lilypadFloat 4s ease-in-out infinite;
+          animation-delay: 0.6s;
+        }
+
+        @keyframes lilypadFloat {
+          0%, 100% {
+            transform: translateY(0) rotate(0deg);
+          }
+          25% {
+            transform: translateY(-6px) rotate(0.5deg);
+          }
+          50% {
+            transform: translateY(-3px) rotate(-0.3deg);
+          }
+          75% {
+            transform: translateY(-8px) rotate(0.3deg);
           }
         }
 
