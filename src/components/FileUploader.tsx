@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Upload, FileText, Image, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, Image, X, AlertCircle, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { UploadedFile, AnalysisMode } from '@/types';
@@ -30,6 +30,7 @@ const ACCEPTED_TYPES = ['application/pdf', ...ACCEPTED_IMAGE_TYPES];
 export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 'bill' }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showRipple, setShowRipple] = useState(false);
   const { convertFile, isConverting } = useHeicConverter();
   const { t } = useTranslation();
   const isMedicalDoc = mode === 'medical_document';
@@ -57,11 +58,16 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 
     }
 
     setError(null);
+    setShowRipple(true);
+    
     const fileName = file.name.toLowerCase();
     const isPdf = file.type === 'application/pdf' || fileName.endsWith('.pdf');
     const fileType = isPdf ? 'pdf' : 'image';
     
     const conversionResult = await convertFile(file);
+    
+    // Keep ripple visible briefly
+    setTimeout(() => setShowRipple(false), 800);
     
     onFileSelect({
       id: crypto.randomUUID(),
@@ -100,10 +106,10 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 
   if (isConverting) {
     return (
       <div className="animate-scale-in">
-        <div className="relative rounded-2xl border-2 border-primary/40 bg-primary/10 backdrop-blur-sm p-8">
+        <div className="relative rounded-2xl border border-primary/20 bg-primary/5 backdrop-blur-md p-8">
           <div className="flex items-center justify-center gap-4">
             <div className="liquid-loader rounded-full p-3">
-              <Loader2 className="h-8 w-8 text-primary-foreground animate-spin" />
+              <Loader2 className="h-8 w-8 text-primary animate-spin" />
             </div>
             <div>
               <p className="font-medium text-foreground">{t('heic.converting')}</p>
@@ -118,7 +124,7 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 
   if (uploadedFile) {
     return (
       <div className="animate-scale-in">
-        <div className="relative rounded-2xl border border-primary/30 bg-primary/5 backdrop-blur-sm p-6">
+        <div className="relative rounded-2xl border border-primary/20 glass-card-enhanced p-6">
           <Button
             variant="ghost"
             size="icon"
@@ -129,12 +135,8 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 
           </Button>
           
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl accent-gradient shadow-glow">
-              {uploadedFile.type === 'pdf' ? (
-                <FileText className="h-7 w-7 text-primary-foreground" />
-              ) : (
-                <Image className="h-7 w-7 text-primary-foreground" />
-              )}
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-success/20 border border-success/30">
+              <Check className="h-7 w-7 text-success" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-foreground truncate">
@@ -161,44 +163,55 @@ export function FileUploader({ onFileSelect, uploadedFile, onRemoveFile, mode = 
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={cn(
-          "relative rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer upload-zone",
-          isDragging
-            ? "border-primary bg-primary/10 shadow-glow-active scale-[1.02] marching-ants"
-            : "border-border/60 hover:border-primary/50 hover:bg-primary/5 hover:marching-ants",
-          error && "border-destructive/50"
+          "relative rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden",
+          "glass-card-enhanced hover:scale-[1.01] hover:bg-white/90",
+          isDragging && "scale-[1.02] bg-white/95 border-primary/30 shadow-glow-active",
+          !isDragging && "border-white/60 hover:border-white/80",
+          error && "border-destructive/30"
         )}
+        style={{
+          transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease'
+        }}
       >
+        {/* Ripple effect on file drop */}
+        {showRipple && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="ripple-effect" />
+            <div className="ripple-effect" style={{ animationDelay: '0.2s' }} />
+            <div className="ripple-effect" style={{ animationDelay: '0.4s' }} />
+          </div>
+        )}
+        
         <input
           type="file"
           accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.tiff,.tif,.bmp,.heic,.heif"
           onChange={handleFileInput}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
         />
         
         <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
           <div className={cn(
             "flex h-16 w-16 items-center justify-center rounded-2xl mb-4 transition-all duration-300",
-            isDragging 
-              ? "accent-gradient shadow-glow scale-110" 
-              : "bg-muted/50"
+            "bg-muted/30 border border-border/30",
+            isDragging && "bg-primary/10 border-primary/30 animate-icon-wiggle"
           )}>
             <Upload className={cn(
               "h-8 w-8 transition-all duration-300",
-              isDragging ? "text-primary-foreground" : "text-muted-foreground"
+              isDragging ? "text-primary" : "text-muted-foreground"
             )} />
           </div>
           
           <h3 className="text-lg font-semibold text-foreground mb-1">
             {isDragging 
-              ? (isMedicalDoc ? 'Drop your document here' : t('upload.bill.dragDrop'))
-              : (isMedicalDoc ? 'Upload Your Medical Document' : t('upload.bill.title'))}
+              ? (isMedicalDoc ? 'drop your document here' : t('upload.bill.dragDrop'))
+              : (isMedicalDoc ? 'upload your medical document' : t('upload.bill.title'))}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
             {isMedicalDoc 
-              ? 'We accept images, PDFs, and HEIC files'
+              ? 'we accept images, pdfs, and heic files'
               : t('upload.bill.subtitle')}
           </p>
-          <p className="text-xs text-muted-foreground/80">
+          <p className="text-xs text-muted-foreground/70">
             {t('upload.bill.formats')}
           </p>
         </div>

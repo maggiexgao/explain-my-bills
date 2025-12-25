@@ -352,32 +352,38 @@
       inset 0 1px 0 hsl(0 0% 100% / 0.6);
   }
 
-  /* Marching ants animation for upload zone */
-  .marching-ants {
-    background-image: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 4px,
-      hsl(var(--primary) / 0.4) 4px,
-      hsl(var(--primary) / 0.4) 8px
-    );
-    background-size: 2px 100%;
-    background-position: 0 0;
-    animation: marchingAnts 0.5s linear infinite;
+  /* Ripple effect for file drop success */
+  .ripple-effect {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid hsl(var(--primary) / 0.4);
+    animation: rippleExpand 0.8s ease-out forwards;
   }
 
-  .upload-zone:hover .marching-ants,
-  .upload-zone.marching-ants {
-    border-style: solid;
-  }
-
-  @keyframes marchingAnts {
+  @keyframes rippleExpand {
     0% {
-      background-position: 0 0;
+      width: 40px;
+      height: 40px;
+      opacity: 1;
     }
     100% {
-      background-position: 0 16px;
+      width: 300px;
+      height: 300px;
+      opacity: 0;
     }
+  }
+
+  /* Icon wiggle animation on drag */
+  .animate-icon-wiggle {
+    animation: iconWiggle 0.5s ease-in-out infinite;
+  }
+
+  @keyframes iconWiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
   }
 
   .hero-gradient {
