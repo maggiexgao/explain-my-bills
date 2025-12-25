@@ -9,10 +9,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult } from '@/types';
-import { ImmediateCalloutsSection } from '@/components/analysis/ImmediateCalloutsSection';
+import { ImmediateCalloutsSection, useVisibleCalloutCount } from '@/components/analysis/ImmediateCalloutsSection';
 import { ExplainerSection } from '@/components/analysis/ExplainerSection';
 import { BillingSection } from '@/components/analysis/BillingSection';
 import { NextStepsSection } from '@/components/analysis/NextStepsSection';
+import { SuccessResultsCard } from '@/components/analysis/SuccessResultsCard';
 import { useState } from 'react';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -77,10 +78,36 @@ function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = 
   );
 }
 
+// Helper to parse currency strings like "$151.77" to numbers
+function parseAmount(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[$,\s]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? undefined : num;
+  }
+  return undefined;
+}
+
 export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: ExplanationPanelProps) {
   const { t } = useTranslation();
-  const hasCallouts = (analysis.potentialErrors?.length || 0) + (analysis.needsAttention?.length || 0) > 0;
-  const calloutCount = (analysis.potentialErrors?.length || 0) + (analysis.needsAttention?.length || 0);
+  
+  // Calculate visible callout count using the shared hook
+  const visibleCalloutCount = useVisibleCalloutCount(analysis, hasEOB);
+  const hasCallouts = visibleCalloutCount > 0;
+  
+  // Determine if bill and EOB amounts match
+  const billTotal = parseAmount(analysis.billTotal);
+  const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
+  
+  const canCompareEOB = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
+  let amountsMatch = false;
+  
+  if (canCompareEOB) {
+    const diff = Math.abs(billTotal - eobPatientResponsibility);
+    const tolerance = 0.01; // one cent tolerance
+    amountsMatch = diff <= tolerance;
+  }
 
   return (
     <div className="h-full overflow-auto">
@@ -103,6 +130,14 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
           </div>
         </div>
 
+        {/* Success Results Card - shown when amounts match */}
+        {amountsMatch && billTotal !== undefined && eobPatientResponsibility !== undefined && (
+          <SuccessResultsCard 
+            billTotal={billTotal} 
+            eobPatientResponsibility={eobPatientResponsibility} 
+          />
+        )}
+
         {/* Four Main Sections */}
         <div className="space-y-4">
           <AccordionSection
@@ -113,13 +148,13 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
             badge={
               hasCallouts ? (
                 <Badge className="bg-coral-light text-coral border-0 text-xs">
-                  {calloutCount} items
+                  {visibleCalloutCount} {visibleCalloutCount === 1 ? 'item' : 'items'}
                 </Badge>
               ) : undefined
             }
-            defaultOpen={hasCallouts}
+            defaultOpen={hasCallouts && !amountsMatch}
           >
-            <ImmediateCalloutsSection analysis={analysis} />
+            <ImmediateCalloutsSection analysis={analysis} hasEOB={hasEOB} />
           </AccordionSection>
 
           <AccordionSection
