@@ -321,6 +321,13 @@ const Index = () => {
           severity: i.severity || 'info',
           relatedCodes: ensureArray(i.relatedCodes),
         })),
+        // Calculate billTotal from charges if not provided by API
+        billTotal: ai.billTotal !== undefined 
+          ? (typeof ai.billTotal === 'number' ? ai.billTotal : parseFloat(String(ai.billTotal).replace(/[^0-9.-]/g, '')) || 0)
+          : ensureArray(ai.lineItems || ai.charges).reduce((sum: number, item: any) => {
+              const amount = typeof item.amount === 'number' ? item.amount : parseFloat(String(item.amount).replace(/[^0-9.-]/g, '')) || 0;
+              return sum + amount;
+            }, 0),
         eobData: state.eobFile && ai.eobData ? {
           claimNumber: ai.eobData.claimNumber,
           processedDate: ai.eobData.processedDate,
