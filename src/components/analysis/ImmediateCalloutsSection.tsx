@@ -157,7 +157,7 @@ function SectionIntro({ comparison }: { comparison: EobBillComparison }) {
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-info mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Your total amount owed matches the "Total you owe" on your Explanation of Benefits (EOB). However, there are still some details below that may be worth reviewing before you pay.
+            Even though your total patient responsibility matches your EOB, the details below highlight areas where individual services or bill formatting may still need a closer look.
           </p>
         </div>
       </div>
@@ -202,10 +202,10 @@ export function ImmediateCalloutsSection({ analysis, hasEOB, comparison: provide
   const { 
     potentialErrors, 
     needsAttention, 
-    totalsMatch, 
+    patientTotalsMatch, 
     billTotal, 
     eobPatientResponsibility,
-    hasBillHigherThanEOB,
+    hasBillHigherThanEOBLineItem,
     totalsDiscrepancyAmount,
     overallClean,
   } = comparison;
@@ -213,8 +213,9 @@ export function ImmediateCalloutsSection({ analysis, hasEOB, comparison: provide
   // Build "Looks Good" items for positive checks
   const looksGoodItems: LooksGoodItem[] = [];
   
-  // EOB match is a positive check - but only show if truly clean
-  if (totalsMatch && billTotal !== undefined && !hasBillHigherThanEOB) {
+  // EOB match is a positive check - show when patient totals match
+  // This is independent of line-item issues
+  if (patientTotalsMatch && billTotal !== undefined) {
     looksGoodItems.push({
       title: 'Bill total matches your EOB',
       description: `Your bill's total patient responsibility ($${billTotal.toFixed(2)}) matches the amount shown on your EOB. That's a good sign.`,
