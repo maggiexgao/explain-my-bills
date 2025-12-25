@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult } from '@/types';
-import { ImmediateCalloutsSection, useVisibleCalloutCount } from '@/components/analysis/ImmediateCalloutsSection';
+import { ImmediateCalloutsSection, useVisibleCalloutCount, getFilteredCallouts } from '@/components/analysis/ImmediateCalloutsSection';
 import { ExplainerSection } from '@/components/analysis/ExplainerSection';
 import { BillingSection } from '@/components/analysis/BillingSection';
 import { NextStepsSection } from '@/components/analysis/NextStepsSection';
@@ -92,22 +92,33 @@ function parseAmount(value: unknown): number | undefined {
 export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: ExplanationPanelProps) {
   const { t } = useTranslation();
   
-  // Calculate visible callout count using the shared hook
-  const visibleCalloutCount = useVisibleCalloutCount(analysis, hasEOB);
+  // Use the SHARED getFilteredCallouts function for complete consistency
+  // This is the SAME function that ImmediateCalloutsSection uses
+  const { 
+    potentialErrors, 
+    needsAttention, 
+    totalsMatch: amountsMatch, 
+    billTotal, 
+    eobPatientResponsibility,
+    canCompareEOB 
+  } = getFilteredCallouts(analysis, hasEOB);
+  
+  const visibleCalloutCount = potentialErrors.length + needsAttention.length;
   const hasCallouts = visibleCalloutCount > 0;
-  
-  // Determine if bill and EOB amounts match
-  const billTotal = parseAmount(analysis.billTotal);
-  const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
-  
-  const canCompareEOB = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
-  let amountsMatch = false;
-  
-  if (canCompareEOB) {
-    const diff = Math.abs(billTotal - eobPatientResponsibility);
-    const tolerance = 0.01; // one cent tolerance
-    amountsMatch = diff <= tolerance;
-  }
+
+  // Debug logging to trace actual runtime values
+  console.log('🔍 ExplanationPanel Success Card Check:', {
+    hasEOB,
+    billTotal,
+    eobPatientResponsibility,
+    canCompareEOB,
+    amountsMatch,
+    showSuccessCard: amountsMatch && billTotal !== undefined && eobPatientResponsibility !== undefined,
+    visibleCalloutCount
+  });
+
+  // Show success card when amounts match (requires hasEOB, billTotal, and eobPatientResponsibility)
+  const showSuccessCard = amountsMatch && billTotal !== undefined && eobPatientResponsibility !== undefined;
 
   return (
     <div className="h-full overflow-auto">
@@ -130,8 +141,8 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
           </div>
         </div>
 
-        {/* Success Results Card - shown when amounts match */}
-        {amountsMatch && billTotal !== undefined && eobPatientResponsibility !== undefined && (
+        {/* Success Results Card - shown when bill and EOB amounts match */}
+        {showSuccessCard && (
           <SuccessResultsCard 
             billTotal={billTotal} 
             eobPatientResponsibility={eobPatientResponsibility} 
