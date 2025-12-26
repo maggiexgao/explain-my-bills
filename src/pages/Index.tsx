@@ -350,7 +350,8 @@ const Index = () => {
               ? ai.billTotal
               : parseFloat(String(ai.billTotal ?? "").replace(/[^0-9.-]/g, "")) || 0
             : ensureArray(ai.lineItems || ai.charges).reduce((sum: number, item: any) => {
-                const raw = typeof item.amount === "number" ? item.amount : String(item.amount ?? "");
+                const amountValue = typeof item.amount === "number" ? item.amount : (item.amount ?? "");
+                const raw = String(amountValue);
                 const parsed = parseFloat(raw.replace(/[^0-9.-]/g, "")) || 0;
                 return sum + parsed;
               }, 0),
