@@ -105,9 +105,22 @@ export function evaluateCptLinesAgainstMedicare(
   }>();
   
   for (const input of lineInputs) {
-    const serviceType = classifyServiceType(input.cpt);
+    // Normalize CPT code - trim whitespace, remove common suffixes
+    const normCpt = input.cpt.trim().replace(/ CPT®?$/i, '').padStart(5, '0');
+    const normModifier = input.modifier?.trim() || undefined;
+    
+    const serviceType = classifyServiceType(normCpt);
     const units = input.units || 1;
     const isFacility = input.siteOfService === 'facility';
+    
+    console.log('[CPT Medicare Eval] evaluating', { 
+      cpt: normCpt, 
+      modifier: normModifier, 
+      state, 
+      locality: localityOrNull,
+      site: isFacility ? 'facility' : 'nonfacility',
+      billed: input.billed
+    });
     
     // Get Medicare fee
     const feeResult = getLocalityOrMedianFee(
@@ -115,17 +128,25 @@ export function evaluateCptLinesAgainstMedicare(
       year,
       state,
       localityOrNull,
-      input.cpt,
-      input.modifier,
+      normCpt,
+      normModifier,
       isFacility
     );
     
     const medicareAllowed = feeResult.fee !== null ? feeResult.fee * units : null;
     const notes: string[] = [];
     
+    console.log('[CPT Medicare Eval] fee result', { 
+      cpt: normCpt, 
+      mpfsAllowed: medicareAllowed, 
+      fee: feeResult.fee,
+      isMedian: feeResult.isMedian,
+      localityName: feeResult.localityName
+    });
+    
     if (feeResult.fee === null) {
-      codesNotFound.push(input.cpt);
-      notes.push('Medicare fee not found for this code');
+      codesNotFound.push(normCpt);
+      notes.push('Not in Medicare fee schedule dataset');
     } else if (feeResult.isMedian) {
       notes.push(`Using ${state} state median (locality not matched)`);
     } else if (feeResult.localityName) {

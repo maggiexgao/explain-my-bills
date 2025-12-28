@@ -82,59 +82,71 @@ For each issue found, provide:
 - category: MUST be one of: evaluation | lab | radiology | surgery | medicine | other
 - whereUsed: Standard location phrase: "Doctor's office", "Hospital", "Lab", "Imaging center", etc.
 - complexityLevel: MUST be one of: simple | moderate | complex
-- commonQuestions: 2-4 Q&As that are SPECIFIC to this CPT code (see CPT-SPECIFIC COMMON QUESTIONS below)
+- commonQuestions: 2-4 Q&As that focus on PATIENT CONCERNS ABOUT THE TREATMENT ITSELF (see TREATMENT-FOCUSED COMMON QUESTIONS below)
 
-### CPT-SPECIFIC COMMON QUESTIONS
-For EACH CPT code, generate commonQuestions based on what REAL PATIENTS actually ask about that specific code on forums like Reddit, health Q&A sites, and patient advocacy forums.
+### TREATMENT-FOCUSED COMMON QUESTIONS
+For EACH CPT code, generate commonQuestions that help patients understand THE MEDICAL TREATMENT OR SERVICE itself - NOT billing format questions.
+
+CRITICAL: Focus on what real patients ask about the underlying medical procedure, treatment, or test - NOT on billing mechanics like "why does this code appear multiple times."
 
 QUESTION GENERATION APPROACH:
-1. Think about common patient concerns for THIS SPECIFIC CPT code:
-   - For lab/pathology codes (88xxx): "Why is there a separate lab bill?", "Why is pathology so expensive?", "Is this biopsy charge normal?"
-   - For E&M codes (992xx): "Why is my office visit coded this level?", "Is this visit level accurate for what happened?"
-   - For radiology (7xxxx): "Why am I getting separate bills for reading and facility?", "Is this imaging code correct for my scan?"
-   - For surgery (1xxxx-6xxxx): "Why are there so many codes for one procedure?", "What are these assistant surgeon charges?"
-   - For anesthesia (0xxxx): "Why is anesthesia billed separately?", "How is anesthesia time calculated?"
+1. Research what the CPT code represents clinically:
+   - What treatment, procedure, or service does this code describe?
+   - What does the patient actually experience during this service?
+   - What are typical patient concerns about this specific treatment?
 
-2. Use these common patient question patterns:
-   - "Why do I have a separate [type] bill for this?"
-   - "Is CPT [code] normal for [procedure/visit type]?"
-   - "Why is [code] so expensive / why wasn't it covered?"
-   - "Why am I seeing multiple charges with the same code?"
-   - "What does this [code] actually mean I received?"
-   - "Should this have been billed differently?"
+2. Generate questions about THE TREATMENT, such as:
+   - "What does this [treatment/procedure] do and why do I need it?"
+   - "How many sessions/treatments are typical for [procedure]?"
+   - "What side effects should I watch for from [treatment]?"
+   - "How should I prepare for [procedure] and what will it feel like?"
+   - "What happens during a [treatment name] session?"
+   - "Are there any precautions I need to take after [procedure]?"
+   - "How long does recovery take from [treatment]?"
 
 3. For each question, provide:
-   - question: The actual patient question in plain language (specific to this CPT)
-   - answer: 2-4 sentence explanation that:
-     * Explains the issue at a patient level
-     * Avoids medical/clinical advice
-     * Suggests who to ask (billing office vs insurer) if still unsure
+   - question: Patient-friendly question about the treatment/procedure itself
+   - answer: 2-4 sentence educational explanation that:
+     * Explains what the treatment does in plain language
+     * Describes what to expect (sensations, duration, recovery)
+     * Mentions common side effects if applicable
+     * References reputable sources like MedlinePlus, RadiologyInfo, or major medical centers
+     * Ends with "Discuss any specific concerns with your healthcare provider."
 
-4. FALLBACK for rare CPT codes with little patient-facing content:
-   - Use more generic but still code-specific questions like:
-     * "Why is there a separate bill for this test/service?"
-     * "Is this usually done in a hospital versus an outpatient setting?"
-     * "How do I know if this was billed correctly?"
+4. CODE-SPECIFIC TREATMENT QUESTIONS:
 
-EXAMPLES BY CODE TYPE:
+For radiation therapy codes (77386 - IMRT, 77385, etc.):
+- "What is IMRT radiation therapy and how does it work?"
+  Answer: Explains IMRT targets tumors precisely, what a session feels like, typical 5-7 week course
+- "What side effects should I expect from radiation therapy?"
+  Answer: Common effects like fatigue, skin changes, and when to call the doctor
+- "Will I be radioactive after treatment? Are there precautions for my family?"
+  Answer: External beam doesn't make you radioactive, no special precautions needed
 
-For CPT 88305 (Pathology - Tissue exam):
-- "Why is there a separate pathology bill when I already paid the doctor?"
-- "Is $200+ for a biopsy reading normal?"
-- "Why was this tissue sent to a different lab than my doctor's office?"
+For radiation physics codes (77336 - Continuing medical physics):
+- "What does the physics consult do for my radiation treatment?"
+  Answer: Explains quality checks, calibration, safety monitoring by medical physicists
+- "Why is there a separate physics charge for my radiation treatment?"
+  Answer: Explains weekly QA is standard of care for treatment accuracy
 
-For CPT 99214 (Office visit - Established, moderate):
-- "My visit was only 10 minutes - why is this coded as 'moderate complexity'?"
-- "What makes this a Level 4 visit instead of Level 3?"
-- "Should I question if my quick follow-up is coded 99214?"
+For imaging codes (7xxxx):
+- "How should I prepare for this imaging test?"
+- "Is the radiation exposure from this scan safe?"
+- "How long will this imaging procedure take?"
 
-For CPT 71046 (Chest X-ray):
-- "Why are there two charges - one for the X-ray and one for reading it?"
-- "Is it normal to have separate facility and professional fees for an X-ray?"
+For surgery codes (1xxxx-6xxxx):
+- "What happens during this surgical procedure?"
+- "What is the typical recovery time for this surgery?"
+- "What complications should I watch for after the procedure?"
 
-For CPT 43239 (Upper GI endoscopy with biopsy):
-- "Why are there so many separate charges for one endoscopy?"
-- "What's the difference between the facility fee and the doctor's fee?"
+For lab/pathology codes (88xxx):
+- "What will the lab results tell my doctor?"
+- "How long does it take to get results from this test?"
+- "What does it mean if my test results are abnormal?"
+
+5. ONLY ONE billing question allowed per CPT (if needed):
+   - "Why might I receive multiple bills for this service?"
+   - Place this LAST after the treatment-focused questions.
 
 ### visitWalkthrough - Generate 4-6 steps in chronological order:
 - order: Step number (1, 2, 3...)
@@ -143,8 +155,8 @@ For CPT 43239 (Upper GI endoscopy with biopsy):
 
 ### codeQuestions - One Q&A per major CPT code:
 - cptCode: The code
-- question: Standard patient question about billing SPECIFIC to this code
-- answer: 2-3 sentence plain language answer based on what real patients commonly ask
+- question: Patient question about THE TREATMENT or what to expect - NOT billing format questions
+- answer: 2-3 sentence educational answer about the medical service, what to expect, or common patient concerns. Reference reputable sources when relevant.
 - suggestCall: "billing" | "insurance" | "either"
 
 ## SECTION 3: BILLING

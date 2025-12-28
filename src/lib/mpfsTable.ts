@@ -111,25 +111,40 @@ export function getMpfsRowsForCpt(
   cpt: string,
   modifier?: string
 ): MpfsRow[] {
+  // Normalize CPT code - trim whitespace, remove common suffixes
+  const normCpt = cpt.trim().replace(/ CPT®?$/i, '').padStart(5, '0');
+  const modKey = (modifier || '').trim();
+  
   const yearMap = index.byCpt.get(year);
-  if (!yearMap) return [];
+  if (!yearMap) {
+    console.log('[MPFS] lookup miss: year not found', { year, state, cpt: normCpt, modifier: modKey });
+    return [];
+  }
   
   const stateMap = yearMap.get(state);
-  if (!stateMap) return [];
+  if (!stateMap) {
+    console.log('[MPFS] lookup miss: state not found', { year, state, cpt: normCpt, modifier: modKey });
+    return [];
+  }
   
-  const cptMap = stateMap.get(cpt);
-  if (!cptMap) return [];
-  
-  const modKey = modifier || '';
+  const cptMap = stateMap.get(normCpt);
+  if (!cptMap) {
+    console.log('[MPFS] lookup miss: CPT not found in state data', { year, state, cpt: normCpt, modifier: modKey });
+    return [];
+  }
   
   // Try exact modifier match first
   if (cptMap.has(modKey)) {
-    return cptMap.get(modKey)!;
+    const rows = cptMap.get(modKey)!;
+    console.log('[MPFS] lookup hit', { year, state, cpt: normCpt, modifier: modKey, rowsFound: rows.length });
+    return rows;
   }
   
   // If no modifier specified, try to get global (no modifier)
-  if (!modifier && cptMap.has('')) {
-    return cptMap.get('')!;
+  if (!modKey && cptMap.has('')) {
+    const rows = cptMap.get('')!;
+    console.log('[MPFS] lookup hit (no modifier)', { year, state, cpt: normCpt, rowsFound: rows.length });
+    return rows;
   }
   
   // Return all modifier variants if no exact match
@@ -137,6 +152,7 @@ export function getMpfsRowsForCpt(
   for (const rows of cptMap.values()) {
     allRows.push(...rows);
   }
+  console.log('[MPFS] lookup fallback (all modifiers)', { year, state, cpt: normCpt, rowsFound: allRows.length });
   return allRows;
 }
 
@@ -172,6 +188,7 @@ export function getStateMedianAllowed(
   const rows = getMpfsRowsForCpt(index, year, state, cpt, modifier);
   
   if (rows.length === 0) {
+    console.log('[MPFS] getStateMedianAllowed: no rows found', { year, state, cpt, modifier });
     return { nonfacilityMedian: null, facilityMedian: null, count: 0 };
   }
   
@@ -183,11 +200,14 @@ export function getStateMedianAllowed(
     .map(r => r.facilityFee)
     .filter((f): f is number => f !== null);
   
-  return {
+  const result = {
     nonfacilityMedian: nonfacilityFees.length > 0 ? median(nonfacilityFees) : null,
     facilityMedian: facilityFees.length > 0 ? median(facilityFees) : null,
     count: rows.length,
   };
+  
+  console.log('[MPFS] getStateMedianAllowed result', { year, state, cpt, modifier, ...result });
+  return result;
 }
 
 /**
