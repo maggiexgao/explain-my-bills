@@ -36,8 +36,15 @@ export type TranslationKey =
   | 'analysis.errorDesc'
   | 'analysis.tryAgain'
   | 'analysis.previewUnavailable'
+  | 'analysis.patientTotalsMatchPill'
+  | 'analysis.overallCleanTitle'
+  | 'analysis.overallCleanBody'
+  | 'analysis.totalsMatchButWarningsTitle'
+  | 'analysis.totalsMatchButWarningsBody'
+  | 'analysis.looksGood'
   | 'section.immediateCallouts'
   | 'section.immediateCallouts.subtitle'
+  | 'section.immediateCallouts.totalsMatchIntro'
   | 'section.explainer'
   | 'section.explainer.subtitle'
   | 'section.billing'
@@ -150,8 +157,15 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'We encountered an issue analyzing your document. Please try again.',
     'analysis.tryAgain': 'Try Again',
     'analysis.previewUnavailable': 'Preview not available for this file type',
+    'analysis.patientTotalsMatchPill': 'Your total amount owed on the bill matches the "Total you owe" on your EOB.',
+    'analysis.overallCleanTitle': 'Bill and EOB amounts match',
+    'analysis.overallCleanBody': 'At first glance, your bill and Explanation of Benefits (EOB) line up and the amounts you owe appear to be in order. Review the sections below for a line-by-line explanation of your charges and tips for lowering your costs.',
+    'analysis.totalsMatchButWarningsTitle': 'Totals line up, but there\'s more to review',
+    'analysis.totalsMatchButWarningsBody': 'At a glance, your total amount owed matches your Explanation of Benefits (EOB). However, there are still a few details worth reviewing below, including how individual services were billed and how your insurance applied discounts and adjustments.',
+    'analysis.looksGood': 'Looks good',
     'section.immediateCallouts': 'Immediate Callouts',
     'section.immediateCallouts.subtitle': 'Potential errors or areas that may need further review',
+    'section.immediateCallouts.totalsMatchIntro': 'Even though your total patient responsibility matches your EOB, the details below highlight areas where individual services or bill formatting may still need a closer look.',
     'section.explainer': 'Explainer',
     'section.explainer.subtitle': 'What your CPT codes mean, your visit walkthrough, and common questions about your CPT codes + answers',
     'section.billing': 'Billing',
@@ -256,8 +270,15 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'Hubo un problema al analizar tu documento. Por favor intenta de nuevo.',
     'analysis.tryAgain': 'Intentar de nuevo',
     'analysis.previewUnavailable': 'Vista previa no disponible para este tipo de archivo',
+    'analysis.patientTotalsMatchPill': 'El total que debes en la factura coincide con el "Total que debes" en tu EOB.',
+    'analysis.overallCleanTitle': 'Los montos de la factura y el EOB coinciden',
+    'analysis.overallCleanBody': 'A primera vista, tu factura y la Explicación de Beneficios (EOB) coinciden y los montos que debes parecen estar en orden. Revisa las secciones a continuación para una explicación línea por línea de tus cargos y consejos para reducir tus costos.',
+    'analysis.totalsMatchButWarningsTitle': 'Los totales coinciden, pero hay más por revisar',
+    'analysis.totalsMatchButWarningsBody': 'A primera vista, el total que debes coincide con tu Explicación de Beneficios (EOB). Sin embargo, hay algunos detalles que vale la pena revisar a continuación, incluyendo cómo se facturaron los servicios individuales y cómo tu seguro aplicó descuentos y ajustes.',
+    'analysis.looksGood': 'Se ve bien',
     'section.immediateCallouts': 'Avisos inmediatos',
     'section.immediateCallouts.subtitle': 'Posibles errores o áreas que pueden necesitar revisión adicional',
+    'section.immediateCallouts.totalsMatchIntro': 'Aunque el total de tu responsabilidad como paciente coincide con tu EOB, los detalles a continuación resaltan áreas donde los servicios individuales o el formato de la factura aún pueden necesitar una revisión más detallada.',
     'section.explainer': 'Explicador',
     'section.explainer.subtitle': 'Qué significan tus códigos CPT, el recorrido de tu visita y preguntas frecuentes sobre tus códigos CPT con respuestas',
     'section.billing': 'Facturación',
@@ -362,8 +383,15 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': '分析文档时遇到问题。请重试。',
     'analysis.tryAgain': '重试',
     'analysis.previewUnavailable': '此文件类型无法预览',
+    'analysis.patientTotalsMatchPill': '您账单上的应付总额与EOB上的"您应支付的总额"一致。',
+    'analysis.overallCleanTitle': '账单和EOB金额一致',
+    'analysis.overallCleanBody': '初看之下，您的账单和保险理赔说明(EOB)一致，您应付的金额似乎没有问题。查看以下部分，了解逐行收费说明和降低成本的建议。',
+    'analysis.totalsMatchButWarningsTitle': '总额一致，但还有更多需要审查',
+    'analysis.totalsMatchButWarningsBody': '初看之下，您应付的总额与保险理赔说明(EOB)一致。但是，以下还有一些值得审查的细节，包括各项服务的计费方式以及保险如何应用折扣和调整。',
+    'analysis.looksGood': '看起来不错',
     'section.immediateCallouts': '即时提醒',
     'section.immediateCallouts.subtitle': '可能需要进一步审查的潜在错误或问题',
+    'section.immediateCallouts.totalsMatchIntro': '尽管您的患者责任总额与EOB一致，以下详情仍强调了个别服务或账单格式可能需要仔细检查的地方。',
     'section.explainer': '解释器',
     'section.explainer.subtitle': '您的CPT代码含义、就诊流程以及关于CPT代码的常见问题与答案',
     'section.billing': '账单',
@@ -468,8 +496,15 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': '分析文件時遇到問題。請重試。',
     'analysis.tryAgain': '重試',
     'analysis.previewUnavailable': '此檔案類型無法預覽',
+    'analysis.patientTotalsMatchPill': '您帳單上的應付總額與EOB上的「您應支付的總額」一致。',
+    'analysis.overallCleanTitle': '帳單和EOB金額一致',
+    'analysis.overallCleanBody': '初看之下，您的帳單和保險理賠說明(EOB)一致，您應付的金額似乎沒有問題。查看以下部分，了解逐行收費說明和降低成本的建議。',
+    'analysis.totalsMatchButWarningsTitle': '總額一致，但還有更多需要審查',
+    'analysis.totalsMatchButWarningsBody': '初看之下，您應付的總額與保險理賠說明(EOB)一致。但是，以下還有一些值得審查的細節，包括各項服務的計費方式以及保險如何應用折扣和調整。',
+    'analysis.looksGood': '看起來不錯',
     'section.immediateCallouts': '即時提醒',
     'section.immediateCallouts.subtitle': '可能需要進一步審查的潛在錯誤或問題',
+    'section.immediateCallouts.totalsMatchIntro': '儘管您的患者責任總額與EOB一致，以下詳情仍強調了個別服務或帳單格式可能需要仔細檢查的地方。',
     'section.explainer': '解釋器',
     'section.explainer.subtitle': '您的CPT代碼含義、就診流程以及關於CPT代碼的常見問題與答案',
     'section.billing': '帳單',
@@ -574,8 +609,15 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'واجهنا مشكلة في تحليل مستندك. يرجى المحاولة مرة أخرى.',
     'analysis.tryAgain': 'حاول مرة أخرى',
     'analysis.previewUnavailable': 'المعاينة غير متوفرة لهذا النوع من الملفات',
+    'analysis.patientTotalsMatchPill': 'إجمالي المبلغ المستحق على فاتورتك يتطابق مع "إجمالي ما تدين به" في EOB الخاص بك.',
+    'analysis.overallCleanTitle': 'مبالغ الفاتورة و EOB متطابقة',
+    'analysis.overallCleanBody': 'للوهلة الأولى، تتطابق فاتورتك مع شرح المزايا (EOB) والمبالغ المستحقة عليك تبدو صحيحة. راجع الأقسام أدناه للحصول على شرح سطر بسطر لرسومك ونصائح لتقليل تكاليفك.',
+    'analysis.totalsMatchButWarningsTitle': 'الإجماليات متطابقة، لكن هناك المزيد للمراجعة',
+    'analysis.totalsMatchButWarningsBody': 'للوهلة الأولى، إجمالي المبلغ المستحق يتطابق مع شرح المزايا (EOB). ومع ذلك، لا تزال هناك بعض التفاصيل التي تستحق المراجعة أدناه، بما في ذلك كيفية فوترة الخدمات الفردية وكيف طبق تأمينك الخصومات والتعديلات.',
+    'analysis.looksGood': 'يبدو جيداً',
     'section.immediateCallouts': 'تنبيهات فورية',
     'section.immediateCallouts.subtitle': 'أخطاء محتملة أو مجالات قد تحتاج إلى مراجعة إضافية',
+    'section.immediateCallouts.totalsMatchIntro': 'على الرغم من تطابق إجمالي مسؤولية المريض مع EOB، تسلط التفاصيل أدناه الضوء على المجالات التي قد تحتاج فيها الخدمات الفردية أو تنسيق الفاتورة إلى نظرة أقرب.',
     'section.explainer': 'الشارح',
     'section.explainer.subtitle': 'ما تعنيه رموز CPT الخاصة بك، مسار زيارتك، والأسئلة الشائعة حول رموز CPT مع الإجابات',
     'section.billing': 'الفواتير',
