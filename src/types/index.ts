@@ -323,6 +323,21 @@ export interface ReferralContext {
   recommendedServices: ReferralService[];
 }
 
+// Suggested CPT code from reverse search
+export interface SuggestedCptCandidate {
+  cpt: string;
+  shortLabel: string;
+  explanation: string;
+  category: string;
+  score: number;
+  relevance: 'high' | 'medium' | 'low';
+}
+
+export interface SuggestedCpt {
+  sourceDescription: string;
+  candidates: SuggestedCptCandidate[];
+}
+
 // Main analysis result - restructured for 4 sections
 export interface AnalysisResult {
   // Document basics
@@ -346,6 +361,7 @@ export interface AnalysisResult {
 
   // === SECTION 2: EXPLAINER ===
   cptCodes: CPTCode[];
+  suggestedCpts?: SuggestedCpt[]; // Suggested CPT codes from reverse search
   visitWalkthrough: VisitStep[];
   codeQuestions: CodeQuestion[];
 

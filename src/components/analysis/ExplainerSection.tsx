@@ -1,10 +1,11 @@
 import { Badge } from '@/components/ui/badge';
-import { Code, Footprints, HelpCircle, Info, ChevronRight } from 'lucide-react';
+import { Code, Footprints, HelpCircle, Info, ChevronRight, Search, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AnalysisResult, CPTCode } from '@/types';
-import { useState } from 'react';
+import { AnalysisResult, CPTCode, SuggestedCpt } from '@/types';
+import { useState, useEffect } from 'react';
 import { SubcategoryCard } from './SubcategoryCard';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { findSuggestedCptsForDescriptions } from '@/lib/cptReverseIndex';
 
 interface ExplainerSectionProps {
   analysis: AnalysisResult;
@@ -36,7 +37,6 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
     <div className="p-4 rounded-lg border border-border/30 bg-muted/10 space-y-3">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 md:gap-3">
         <div className="flex-1">
-          {/* Mobile: CPT code on top */}
           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 mb-1">
             <code className="text-sm font-mono font-semibold text-primary w-fit">{code.code}</code>
             <span className="hidden md:inline text-muted-foreground">–</span>
@@ -74,9 +74,90 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
   );
 }
 
+const relevanceColors: Record<string, string> = {
+  high: 'bg-success/10 text-success border-success/30',
+  medium: 'bg-warning/10 text-warning border-warning/30',
+  low: 'bg-muted text-muted-foreground border-border',
+};
+
+function SuggestedCptCard({ suggestion }: { suggestion: SuggestedCpt }) {
+  const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
+
+  return (
+    <div className="p-4 rounded-lg border border-border/30 bg-muted/10 space-y-3">
+      <div className="flex items-start gap-2">
+        <Search className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-foreground mb-1">
+            Possible codes for: "{suggestion.sourceDescription}"
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Based on service description matching
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {suggestion.candidates.slice(0, expanded ? undefined : 2).map((candidate, idx) => (
+          <div 
+            key={`${candidate.cpt}-${idx}`}
+            className={cn(
+              "p-3 rounded-md border",
+              relevanceColors[candidate.relevance]
+            )}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <code className="text-sm font-mono font-semibold">
+                {candidate.cpt}
+              </code>
+              <Badge variant="outline" className="text-xs">
+                {candidate.relevance} match
+              </Badge>
+            </div>
+            <p className="text-sm font-medium mb-0.5">{candidate.shortLabel}</p>
+            <p className="text-xs text-muted-foreground">{candidate.explanation}</p>
+          </div>
+        ))}
+      </div>
+
+      {suggestion.candidates.length > 2 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 text-xs text-primary hover:underline"
+        >
+          <Info className="h-3 w-3" />
+          {expanded ? 'Show less' : `Show ${suggestion.candidates.length - 2} more`}
+          <ChevronRight className={cn('h-3 w-3 transition-transform', expanded && 'rotate-90')} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ExplainerSection({ analysis }: ExplainerSectionProps) {
   const { t } = useTranslation();
   const hasCptCodes = analysis.cptCodes && analysis.cptCodes.length > 0;
+  const [suggestedCpts, setSuggestedCpts] = useState<SuggestedCpt[]>([]);
+  
+  // Run reverse search if no CPT codes exist
+  useEffect(() => {
+    if (!hasCptCodes && analysis.charges && analysis.charges.length > 0) {
+      // Extract descriptions from charges and visit walkthrough
+      const descriptions = [
+        ...analysis.charges.map(c => c.description),
+        ...analysis.visitWalkthrough.map(v => v.description),
+      ].filter(Boolean);
+      
+      if (descriptions.length > 0) {
+        const suggestions = findSuggestedCptsForDescriptions(descriptions, 3);
+        setSuggestedCpts(suggestions);
+      }
+    } else if (analysis.suggestedCpts) {
+      // Use pre-computed suggestions if available
+      setSuggestedCpts(analysis.suggestedCpts);
+    }
+  }, [analysis, hasCptCodes]);
   
   const groupedCodes = analysis.cptCodes.reduce((acc, code) => {
     const cat = code.category || 'other';
@@ -89,8 +170,10 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
   
   const cptTeaser = hasCptCodes 
     ? `${analysis.cptCodes[0].shortLabel}${analysis.cptCodes.length > 1 ? ` and ${analysis.cptCodes.length - 1} more` : ''}`
-    : 'Explanations based on service descriptions';
-    
+    : suggestedCpts.length > 0 
+      ? 'Suggested codes based on descriptions'
+      : 'Explanations based on service descriptions';
+
   const visitTeaser = analysis.visitWalkthrough.length > 0
     ? analysis.visitWalkthrough[0].description.slice(0, 60) + '...'
     : 'What happened during your visit';
@@ -101,23 +184,50 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
         icon={<Code className="h-5 w-5 text-primary" />}
         title="Service explanations"
         teaser="Based on CPT codes or descriptions"
-        badge={hasCptCodes ? `${analysis.cptCodes.length} codes` : 'No codes detected'}
+        badge={hasCptCodes ? `${analysis.cptCodes.length} codes` : suggestedCpts.length > 0 ? 'Suggestions' : 'No codes detected'}
         defaultOpen={false}
       >
         {!hasCptCodes ? (
           <div className="space-y-4">
-            {/* No CPT codes detected message */}
-            <div className="p-4 rounded-xl bg-info/5 border border-info/20">
-              <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-info shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm text-foreground font-medium mb-1">No billing codes detected on this document</p>
-                  <p className="text-sm text-muted-foreground">
-                    These explanations are based on the service names and descriptions instead. The visit walkthrough below shows what services appear on your bill.
-                  </p>
+            {suggestedCpts.length > 0 ? (
+              <>
+                {/* Suggested CPT codes intro */}
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                  <div className="flex items-start gap-3">
+                    <Lightbulb className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-foreground font-medium mb-1">
+                        No billing codes detected — here are possible matches
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Based on the service descriptions on your bill, these CPT codes may apply. 
+                        You can use these to better understand your charges or ask your provider for clarification.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Suggested CPT cards */}
+                <div className="space-y-3">
+                  {suggestedCpts.map((suggestion, idx) => (
+                    <SuggestedCptCard key={idx} suggestion={suggestion} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              /* No CPT codes detected message */
+              <div className="p-4 rounded-xl bg-info/5 border border-info/20">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-info shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-foreground font-medium mb-1">No billing codes detected on this document</p>
+                    <p className="text-sm text-muted-foreground">
+                      These explanations are based on the service names and descriptions instead. The visit walkthrough below shows what services appear on your bill.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
