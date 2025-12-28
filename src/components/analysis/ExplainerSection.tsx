@@ -1,10 +1,11 @@
 import { Badge } from '@/components/ui/badge';
-import { Code, Footprints, HelpCircle, Info, ChevronRight } from 'lucide-react';
+import { Code, Footprints, HelpCircle, Info, ChevronRight, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, CPTCode } from '@/types';
 import { useState } from 'react';
 import { SubcategoryCard } from './SubcategoryCard';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { MedicareComparisonSection } from './MedicareComparisonSection';
 
 interface ExplainerSectionProps {
   analysis: AnalysisResult;
@@ -77,6 +78,8 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
 export function ExplainerSection({ analysis }: ExplainerSectionProps) {
   const { t } = useTranslation();
   const hasCptCodes = analysis.cptCodes && analysis.cptCodes.length > 0;
+  const hasMedicareEvaluation = analysis.cptMedicareEvaluation && 
+    analysis.cptMedicareEvaluation.lines.length > 0;
   
   const groupedCodes = analysis.cptCodes.reduce((acc, code) => {
     const cat = code.category || 'other';
@@ -97,6 +100,20 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
 
   return (
     <div className="space-y-3">
+      {/* Medicare Comparison Section - show first if available */}
+      {hasMedicareEvaluation && analysis.cptMedicareEvaluation && (
+        <SubcategoryCard
+          icon={<DollarSign className="h-5 w-5 text-primary" />}
+          title={t('medicare.sectionTitle')}
+          teaser={t('medicare.sectionSubtitle')}
+          badge="Medicare 2025"
+          badgeVariant="success"
+          defaultOpen={true}
+        >
+          <MedicareComparisonSection evaluation={analysis.cptMedicareEvaluation} />
+        </SubcategoryCard>
+      )}
+
       <SubcategoryCard
         icon={<Code className="h-5 w-5 text-primary" />}
         title="Service explanations"
