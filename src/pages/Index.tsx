@@ -107,18 +107,24 @@ export default function Index() {
       const base64Content = await fileToBase64(uploadedFile.file);
       const eobBase64 = eobFile ? await fileToBase64(eobFile.file) : undefined;
 
+      // Build document content with data URI prefix for the edge function
+      const mimeType = uploadedFile.file.type || 'application/octet-stream';
+      const documentContent = `data:${mimeType};base64,${base64Content}`;
+      
+      // Build EOB content if provided
+      const eobContent = eobFile && eobBase64 
+        ? `data:${eobFile.file.type || 'application/octet-stream'};base64,${eobBase64}`
+        : undefined;
+
       // Call the edge function
       const { data, error } = await supabase.functions.invoke('analyze-document', {
         body: {
-          file: base64Content,
-          fileName: uploadedFile.file.name,
-          fileType: uploadedFile.file.type,
-          eobFile: eobBase64,
-          eobFileName: eobFile?.file.name,
-          eobFileType: eobFile?.file.type,
+          documentContent: documentContent,
+          documentType: analysisMode === 'medical_document' ? 'medical_document' : 'bill',
+          eobContent: eobContent,
           state: selectedState,
           language: language,
-          mode: analysisMode,
+          analysisMode: analysisMode,
         },
       });
 
