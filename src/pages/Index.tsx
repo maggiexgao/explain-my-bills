@@ -7,9 +7,10 @@ import { UploadPage } from '@/components/UploadPage';
 import { AnalysisPage } from '@/components/AnalysisPage';
 import { MedicalDocAnalysisPage } from '@/components/MedicalDocAnalysisPage';
 import { ZoomProvider } from '@/contexts/ZoomContext';
-import { UploadedFile, AnalysisResult, MedicalDocumentResult, Language, AnalysisMode } from '@/types';
+import { UploadedFile, AnalysisResult, MedicalDocumentResult, Language, AnalysisMode, CptMedicareEvaluation } from '@/types';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { evaluateCptLinesAgainstMedicare, CptLineInput } from '@/lib/cptEvaluationEngine';
 
 // Helper to ensure a value is an array
 function ensureArray<T>(value: unknown): T[] {
@@ -189,7 +190,45 @@ export default function Index() {
           billTotal: data.billTotal,
           disputePackageEligibility: data.disputePackageEligibility,
           referralContext: data.referralContext,
+          cptMedicareEvaluation: undefined, // Will be enriched below
+          suggestedCpts: data.suggestedCpts,
         };
+        
+        // Enrich with Medicare evaluation if we have CPT codes
+        if (result.cptCodes && result.cptCodes.length > 0 && selectedState) {
+          try {
+            const lineInputs: CptLineInput[] = result.cptCodes.map(cpt => ({
+              cpt: cpt.code,
+              description: cpt.explanation || cpt.shortLabel,
+              // Try to get amounts from charges if available
+              billedAmount: result.charges.find(c => 
+                c.description?.includes(cpt.code) || c.description?.includes(cpt.shortLabel)
+              )?.amount,
+            }));
+            
+            const medicareEval = await evaluateCptLinesAgainstMedicare(
+              2025,
+              selectedState,
+              null,
+              lineInputs
+            );
+            
+            // Convert to the type expected by the UI
+            result.cptMedicareEvaluation = {
+              lines: medicareEval.lines,
+              byServiceType: medicareEval.byServiceType,
+              overallSummary: medicareEval.overallSummary,
+              state: selectedState,
+              year: 2025,
+            };
+            
+            console.log('Medicare evaluation added:', result.cptMedicareEvaluation.lines.length, 'lines');
+          } catch (evalError) {
+            console.warn('Medicare evaluation failed:', evalError);
+            // Continue without Medicare data - it's optional
+          }
+        }
+        
         setAnalysisResult(result);
       }
     } catch (err) {

@@ -111,9 +111,25 @@ export type TranslationKey =
   | 'common.converting'
   | 'common.remove'
   | 'heic.converting'
-  | 'heic.conversionFailed';
-
-// Only require full translations for implemented languages, others fallback to English
+  | 'heic.conversionFailed'
+  | 'medicare.overallBilled'
+  | 'medicare.vsMedicare'
+  | 'medicare.compareWithMedicare'
+  | 'medicare.overallComparison'
+  | 'medicare.totalBilled'
+  | 'medicare.medicareRate'
+  | 'medicare.insurerAllowed'
+  | 'medicare.billedVsMedicare'
+  | 'medicare.basedOn'
+  | 'medicare.byServiceType'
+  | 'medicare.byServiceTypeDesc'
+  | 'medicare.categories'
+  | 'medicare.lineByLine'
+  | 'medicare.items'
+  | 'medicare.lineByLineDesc'
+  | 'medicare.educationalNote'
+  | 'medicare.sectionTitle'
+  | 'medicare.sectionSubtitle';
 type TranslationDictionary = {
   [key in 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'ar']: {
     [k in TranslationKey]: string;
@@ -233,6 +249,24 @@ export const translations: TranslationDictionary = {
     'common.remove': 'Remove',
     'heic.converting': 'Converting HEIC image...',
     'heic.conversionFailed': 'HEIC conversion failed',
+    'medicare.overallBilled': 'Overall billed at',
+    'medicare.vsMedicare': 'Medicare rate',
+    'medicare.compareWithMedicare': 'Compare your charges with Medicare rates',
+    'medicare.overallComparison': 'Overall Medicare Comparison',
+    'medicare.totalBilled': 'Total Billed',
+    'medicare.medicareRate': 'Medicare Rate',
+    'medicare.insurerAllowed': 'Insurer Allowed',
+    'medicare.billedVsMedicare': 'Billed vs Medicare',
+    'medicare.basedOn': 'Based on',
+    'medicare.byServiceType': 'By Service Type',
+    'medicare.byServiceTypeDesc': 'How charges compare by category',
+    'medicare.categories': 'categories',
+    'medicare.lineByLine': 'Line-by-Line Comparison',
+    'medicare.items': 'items',
+    'medicare.lineByLineDesc': 'Each service compared to Medicare\'s 2025 Physician Fee Schedule rate for your state.',
+    'medicare.educationalNote': 'Medicare rates are a benchmark, not what you should pay. Private insurers negotiate their own rates. This comparison helps you understand if charges are reasonable relative to standard Medicare allowances.',
+    'medicare.sectionTitle': 'Medicare Comparison',
+    'medicare.sectionSubtitle': 'How your charges compare to Medicare rates',
   },
   es: {
     'app.title': 'pond',
@@ -346,6 +380,24 @@ export const translations: TranslationDictionary = {
     'common.remove': 'Eliminar',
     'heic.converting': 'Convirtiendo imagen HEIC...',
     'heic.conversionFailed': 'Falló la conversión HEIC',
+    'medicare.overallBilled': 'Facturado en total',
+    'medicare.vsMedicare': 'tarifa Medicare',
+    'medicare.compareWithMedicare': 'Compare sus cargos con las tarifas de Medicare',
+    'medicare.overallComparison': 'Comparación General con Medicare',
+    'medicare.totalBilled': 'Total Facturado',
+    'medicare.medicareRate': 'Tarifa Medicare',
+    'medicare.insurerAllowed': 'Permitido por Asegurador',
+    'medicare.billedVsMedicare': 'Facturado vs Medicare',
+    'medicare.basedOn': 'Basado en',
+    'medicare.byServiceType': 'Por Tipo de Servicio',
+    'medicare.byServiceTypeDesc': 'Cómo se comparan los cargos por categoría',
+    'medicare.categories': 'categorías',
+    'medicare.lineByLine': 'Comparación Línea por Línea',
+    'medicare.items': 'artículos',
+    'medicare.lineByLineDesc': 'Cada servicio comparado con la tarifa del Programa de Honorarios Médicos de Medicare 2025 para su estado.',
+    'medicare.educationalNote': 'Las tarifas de Medicare son un punto de referencia, no lo que debe pagar. Las aseguradoras privadas negocian sus propias tarifas. Esta comparación le ayuda a entender si los cargos son razonables.',
+    'medicare.sectionTitle': 'Comparación con Medicare',
+    'medicare.sectionSubtitle': 'Cómo se comparan sus cargos con las tarifas de Medicare',
   },
   'zh-Hans': {
     'app.title': 'pond',
@@ -459,6 +511,24 @@ export const translations: TranslationDictionary = {
     'common.remove': '移除',
     'heic.converting': '正在转换HEIC图片...',
     'heic.conversionFailed': 'HEIC转换失败',
+    'medicare.overallBilled': '总账单金额',
+    'medicare.vsMedicare': 'Medicare费率',
+    'medicare.compareWithMedicare': '将您的费用与Medicare费率进行比较',
+    'medicare.overallComparison': 'Medicare整体比较',
+    'medicare.totalBilled': '总账单',
+    'medicare.medicareRate': 'Medicare费率',
+    'medicare.insurerAllowed': '保险公司批准',
+    'medicare.billedVsMedicare': '账单vs Medicare',
+    'medicare.basedOn': '基于',
+    'medicare.byServiceType': '按服务类型',
+    'medicare.byServiceTypeDesc': '各类别费用比较',
+    'medicare.categories': '类别',
+    'medicare.lineByLine': '逐项比较',
+    'medicare.items': '项目',
+    'medicare.lineByLineDesc': '每项服务与您所在州2025年Medicare医师收费表费率的比较。',
+    'medicare.educationalNote': 'Medicare费率是基准，不是您应该支付的金额。私人保险公司会协商自己的费率。此比较帮助您了解费用是否合理。',
+    'medicare.sectionTitle': 'Medicare比较',
+    'medicare.sectionSubtitle': '您的费用与Medicare费率的比较',
   },
   'zh-Hant': {
     'app.title': 'Rosetta',
@@ -572,6 +642,24 @@ export const translations: TranslationDictionary = {
     'common.remove': '移除',
     'heic.converting': '正在轉換HEIC圖片...',
     'heic.conversionFailed': 'HEIC轉換失敗',
+    'medicare.overallBilled': '總帳單金額',
+    'medicare.vsMedicare': 'Medicare費率',
+    'medicare.compareWithMedicare': '將您的費用與Medicare費率進行比較',
+    'medicare.overallComparison': 'Medicare整體比較',
+    'medicare.totalBilled': '總帳單',
+    'medicare.medicareRate': 'Medicare費率',
+    'medicare.insurerAllowed': '保險公司批准',
+    'medicare.billedVsMedicare': '帳單vs Medicare',
+    'medicare.basedOn': '基於',
+    'medicare.byServiceType': '按服務類型',
+    'medicare.byServiceTypeDesc': '各類別費用比較',
+    'medicare.categories': '類別',
+    'medicare.lineByLine': '逐項比較',
+    'medicare.items': '項目',
+    'medicare.lineByLineDesc': '每項服務與您所在州2025年Medicare醫師收費表費率的比較。',
+    'medicare.educationalNote': 'Medicare費率是基準，不是您應該支付的金額。私人保險公司會協商自己的費率。此比較幫助您了解費用是否合理。',
+    'medicare.sectionTitle': 'Medicare比較',
+    'medicare.sectionSubtitle': '您的費用與Medicare費率的比較',
   },
   ar: {
     'app.title': 'روزيتا',
@@ -685,6 +773,24 @@ export const translations: TranslationDictionary = {
     'common.remove': 'إزالة',
     'heic.converting': 'جارٍ تحويل صورة HEIC...',
     'heic.conversionFailed': 'فشل تحويل HEIC',
+    'medicare.overallBilled': 'المبلغ الإجمالي',
+    'medicare.vsMedicare': 'سعر Medicare',
+    'medicare.compareWithMedicare': 'قارن رسومك بأسعار Medicare',
+    'medicare.overallComparison': 'مقارنة Medicare الشاملة',
+    'medicare.totalBilled': 'المبلغ الإجمالي',
+    'medicare.medicareRate': 'سعر Medicare',
+    'medicare.insurerAllowed': 'المبلغ المسموح من التأمين',
+    'medicare.billedVsMedicare': 'الفاتورة مقابل Medicare',
+    'medicare.basedOn': 'بناءً على',
+    'medicare.byServiceType': 'حسب نوع الخدمة',
+    'medicare.byServiceTypeDesc': 'كيفية مقارنة الرسوم حسب الفئة',
+    'medicare.categories': 'فئات',
+    'medicare.lineByLine': 'مقارنة سطر بسطر',
+    'medicare.items': 'عناصر',
+    'medicare.lineByLineDesc': 'كل خدمة مقارنة بسعر جدول رسوم أطباء Medicare 2025 لولايتك.',
+    'medicare.educationalNote': 'أسعار Medicare هي مرجع وليس ما يجب أن تدفعه. تتفاوض شركات التأمين الخاصة على أسعارها. تساعدك هذه المقارنة على فهم ما إذا كانت الرسوم معقولة.',
+    'medicare.sectionTitle': 'مقارنة Medicare',
+    'medicare.sectionSubtitle': 'كيف تقارن رسومك بأسعار Medicare',
   },
 };
 
