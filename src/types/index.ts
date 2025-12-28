@@ -211,6 +211,7 @@ export interface BillingIssue {
   severity: 'error' | 'warning' | 'info';
   relatedCodes?: string[];
   relatedAmounts?: { billed?: number; eob?: number };
+  highlightRegionId?: string; // ID for linking to document regions on hover
 }
 
 // Financial assistance opportunity

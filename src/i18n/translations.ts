@@ -36,6 +36,13 @@ export type TranslationKey =
   | 'analysis.errorDesc'
   | 'analysis.tryAgain'
   | 'analysis.previewUnavailable'
+  | 'analysis.patientTotalsMatchPill'
+  | 'analysis.overallCleanTitle'
+  | 'analysis.overallCleanBody'
+  | 'analysis.totalsMatchButWarningsTitle'
+  | 'analysis.totalsMatchButWarningsBody'
+  | 'analysis.totalsMatchButWarningsSubtitle'
+  | 'analysis.looksGoodBadge'
   | 'section.immediateCallouts'
   | 'section.immediateCallouts.subtitle'
   | 'section.explainer'
@@ -150,6 +157,13 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'We encountered an issue analyzing your document. Please try again.',
     'analysis.tryAgain': 'Try Again',
     'analysis.previewUnavailable': 'Preview not available for this file type',
+    'analysis.patientTotalsMatchPill': 'Your total amount owed on the bill matches the "Total you owe" on your EOB.',
+    'analysis.overallCleanTitle': 'Bill and EOB amounts match',
+    'analysis.overallCleanBody': 'Your bill total matches what your insurance says you owe. The billing details appear consistent, but feel free to review the details below and contact your insurer or a billing advocate if anything seems off.',
+    'analysis.totalsMatchButWarningsTitle': 'Totals line up, but there\'s more to review',
+    'analysis.totalsMatchButWarningsBody': 'At a glance, your total amount owed matches your Explanation of Benefits (EOB). However, there are still details below that may be worth reviewing—like how individual services were billed, how discounts were applied, and whether your patient responsibility is consistent for each service.',
+    'analysis.totalsMatchButWarningsSubtitle': 'Totals match, but review these details',
+    'analysis.looksGoodBadge': 'Looks good',
     'section.immediateCallouts': 'Immediate Callouts',
     'section.immediateCallouts.subtitle': 'Potential errors or areas that may need further review',
     'section.explainer': 'Explainer',
@@ -256,6 +270,13 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'Hubo un problema al analizar tu documento. Por favor intenta de nuevo.',
     'analysis.tryAgain': 'Intentar de nuevo',
     'analysis.previewUnavailable': 'Vista previa no disponible para este tipo de archivo',
+    'analysis.patientTotalsMatchPill': 'El total que debes en la factura coincide con el "Total que debes" en tu EOB.',
+    'analysis.overallCleanTitle': 'Los montos de la factura y el EOB coinciden',
+    'analysis.overallCleanBody': 'El total de tu factura coincide con lo que tu seguro dice que debes. Los detalles de facturación parecen consistentes, pero revisa los detalles a continuación y contacta a tu asegurador o un defensor de facturación si algo parece incorrecto.',
+    'analysis.totalsMatchButWarningsTitle': 'Los totales coinciden, pero hay más que revisar',
+    'analysis.totalsMatchButWarningsBody': 'A primera vista, el total que debes coincide con tu Explicación de Beneficios (EOB). Sin embargo, hay detalles a continuación que vale la pena revisar—como cómo se facturaron los servicios individuales, cómo se aplicaron los descuentos, y si tu responsabilidad como paciente es consistente para cada servicio.',
+    'analysis.totalsMatchButWarningsSubtitle': 'Los totales coinciden, pero revisa estos detalles',
+    'analysis.looksGoodBadge': 'Se ve bien',
     'section.immediateCallouts': 'Avisos inmediatos',
     'section.immediateCallouts.subtitle': 'Posibles errores o áreas que pueden necesitar revisión adicional',
     'section.explainer': 'Explicador',
@@ -362,6 +383,13 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': '分析文档时遇到问题。请重试。',
     'analysis.tryAgain': '重试',
     'analysis.previewUnavailable': '此文件类型无法预览',
+    'analysis.patientTotalsMatchPill': '账单上您应付的总金额与EOB上的"您应付总额"相符。',
+    'analysis.overallCleanTitle': '账单和EOB金额相符',
+    'analysis.overallCleanBody': '您的账单总额与保险公司显示的应付金额相符。账单详情看起来一致，但请查看下方详情，如有任何疑问请联系保险公司或账单代理。',
+    'analysis.totalsMatchButWarningsTitle': '总额相符，但有更多内容需要查看',
+    'analysis.totalsMatchButWarningsBody': '乍一看，您应付的总金额与您的保险理赔说明(EOB)相符。但下方仍有一些值得查看的详情——例如各项服务如何计费、折扣如何应用，以及每项服务的患者责任是否一致。',
+    'analysis.totalsMatchButWarningsSubtitle': '总额相符，但请查看这些详情',
+    'analysis.looksGoodBadge': '看起来不错',
     'section.immediateCallouts': '即时提醒',
     'section.immediateCallouts.subtitle': '可能需要进一步审查的潜在错误或问题',
     'section.explainer': '解释器',
@@ -468,6 +496,13 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': '分析文件時遇到問題。請重試。',
     'analysis.tryAgain': '重試',
     'analysis.previewUnavailable': '此檔案類型無法預覽',
+    'analysis.patientTotalsMatchPill': '帳單上您應付的總金額與EOB上的「您應付總額」相符。',
+    'analysis.overallCleanTitle': '帳單和EOB金額相符',
+    'analysis.overallCleanBody': '您的帳單總額與保險公司顯示的應付金額相符。帳單詳情看起來一致，但請查看下方詳情，如有任何疑問請聯繫保險公司或帳單代理。',
+    'analysis.totalsMatchButWarningsTitle': '總額相符，但有更多內容需要查看',
+    'analysis.totalsMatchButWarningsBody': '乍一看，您應付的總金額與您的保險理賠說明(EOB)相符。但下方仍有一些值得查看的詳情——例如各項服務如何計費、折扣如何應用，以及每項服務的患者責任是否一致。',
+    'analysis.totalsMatchButWarningsSubtitle': '總額相符，但請查看這些詳情',
+    'analysis.looksGoodBadge': '看起來不錯',
     'section.immediateCallouts': '即時提醒',
     'section.immediateCallouts.subtitle': '可能需要進一步審查的潛在錯誤或問題',
     'section.explainer': '解釋器',
@@ -574,6 +609,13 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'واجهنا مشكلة في تحليل مستندك. يرجى المحاولة مرة أخرى.',
     'analysis.tryAgain': 'حاول مرة أخرى',
     'analysis.previewUnavailable': 'المعاينة غير متوفرة لهذا النوع من الملفات',
+    'analysis.patientTotalsMatchPill': 'المبلغ الإجمالي المستحق في الفاتورة يطابق "المبلغ الإجمالي المستحق" في شرح المزايا (EOB).',
+    'analysis.overallCleanTitle': 'مبالغ الفاتورة وشرح المزايا متطابقة',
+    'analysis.overallCleanBody': 'إجمالي فاتورتك يطابق ما يقوله تأمينك أنك مدين به. تفاصيل الفواتير تبدو متسقة، لكن لا تتردد في مراجعة التفاصيل أدناه والاتصال بشركة التأمين أو محامي الفواتير إذا بدا أي شيء غير صحيح.',
+    'analysis.totalsMatchButWarningsTitle': 'المجاميع متطابقة، لكن هناك المزيد للمراجعة',
+    'analysis.totalsMatchButWarningsBody': 'للوهلة الأولى، المبلغ الإجمالي المستحق يطابق شرح المزايا (EOB). ومع ذلك، هناك تفاصيل أدناه قد تستحق المراجعة - مثل كيفية فوترة الخدمات الفردية، وكيفية تطبيق الخصومات، وما إذا كانت مسؤوليتك كمريض متسقة لكل خدمة.',
+    'analysis.totalsMatchButWarningsSubtitle': 'المجاميع متطابقة، لكن راجع هذه التفاصيل',
+    'analysis.looksGoodBadge': 'يبدو جيداً',
     'section.immediateCallouts': 'تنبيهات فورية',
     'section.immediateCallouts.subtitle': 'أخطاء محتملة أو مجالات قد تحتاج إلى مراجعة إضافية',
     'section.explainer': 'الشارح',
