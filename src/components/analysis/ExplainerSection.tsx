@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge';
-import { Code, Footprints, HelpCircle, Info, ChevronRight, DollarSign } from 'lucide-react';
+import { Code, Footprints, HelpCircle, Info, ChevronRight, DollarSign, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AnalysisResult, CPTCode } from '@/types';
+import { AnalysisResult, CPTCode, SuggestedCptEntry } from '@/types';
 import { useState } from 'react';
 import { SubcategoryCard } from './SubcategoryCard';
 import { useTranslation } from '@/i18n/LanguageContext';
@@ -27,6 +27,12 @@ const categoryColors: Record<string, string> = {
   surgery: 'bg-destructive/10 text-destructive',
   medicine: 'bg-success/10 text-success',
   other: 'bg-muted text-muted-foreground',
+};
+
+const relevanceColors: Record<string, string> = {
+  High: 'bg-success/10 text-success border-success/20',
+  Medium: 'bg-warning/10 text-warning-foreground border-warning/20',
+  Low: 'bg-muted text-muted-foreground border-muted',
 };
 
 function CPTCodeCard({ code }: { code: CPTCode }) {
@@ -75,9 +81,53 @@ function CPTCodeCard({ code }: { code: CPTCode }) {
   );
 }
 
+function SuggestedCptCard({ suggestion }: { suggestion: SuggestedCptEntry }) {
+  const { t } = useTranslation();
+  
+  const getRelevanceLabel = (relevance: string) => {
+    switch (relevance) {
+      case 'High': return t('explainer.relevanceHigh');
+      case 'Medium': return t('explainer.relevanceMedium');
+      case 'Low': return t('explainer.relevanceLow');
+      default: return relevance;
+    }
+  };
+  
+  return (
+    <div className="p-4 rounded-lg border border-border/30 bg-muted/10 space-y-3">
+      <div className="flex items-start gap-2">
+        <Lightbulb className="h-4 w-4 text-warning-foreground shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-foreground mb-1">
+            {t('explainer.possibleCodesFor')} "{suggestion.sourceDescription}"
+          </p>
+        </div>
+      </div>
+      
+      <div className="space-y-2 pl-6">
+        {suggestion.candidates.slice(0, 3).map((candidate, idx) => (
+          <div key={`${candidate.cpt}-${idx}`} className="p-3 rounded-md bg-background border border-border/30">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-1">
+              <div className="flex items-center gap-2">
+                <code className="text-sm font-mono font-semibold text-primary">{candidate.cpt}</code>
+                <span className="text-sm text-foreground">{candidate.shortLabel}</span>
+              </div>
+              <Badge className={cn('shrink-0 text-xs', relevanceColors[candidate.relevance])}>
+                {getRelevanceLabel(candidate.relevance)}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">{candidate.explanation}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ExplainerSection({ analysis }: ExplainerSectionProps) {
   const { t } = useTranslation();
   const hasCptCodes = analysis.cptCodes && analysis.cptCodes.length > 0;
+  const hasSuggestedCpts = analysis.suggestedCpts && analysis.suggestedCpts.length > 0;
   const hasMedicareEvaluation = analysis.cptMedicareEvaluation && 
     analysis.cptMedicareEvaluation.lines.length > 0;
   
@@ -92,6 +142,8 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
   
   const cptTeaser = hasCptCodes 
     ? `${analysis.cptCodes[0].shortLabel}${analysis.cptCodes.length > 1 ? ` and ${analysis.cptCodes.length - 1} more` : ''}`
+    : hasSuggestedCpts
+    ? t('explainer.suggestedCptsDesc')
     : 'Explanations based on service descriptions';
     
   const visitTeaser = analysis.visitWalkthrough.length > 0
@@ -116,24 +168,43 @@ export function ExplainerSection({ analysis }: ExplainerSectionProps) {
 
       <SubcategoryCard
         icon={<Code className="h-5 w-5 text-primary" />}
-        title="Service explanations"
-        teaser="Based on CPT codes or descriptions"
-        badge={hasCptCodes ? `${analysis.cptCodes.length} codes` : 'No codes detected'}
-        defaultOpen={false}
+        title={hasCptCodes ? "Service explanations" : hasSuggestedCpts ? t('explainer.suggestedCpts') : "Service explanations"}
+        teaser={cptTeaser}
+        badge={hasCptCodes ? `${analysis.cptCodes.length} codes` : hasSuggestedCpts ? `${analysis.suggestedCpts.length} suggestions` : t('explainer.noCodesDetected')}
+        defaultOpen={!hasCptCodes && hasSuggestedCpts}
       >
-        {!hasCptCodes ? (
+        {!hasCptCodes && !hasSuggestedCpts ? (
           <div className="space-y-4">
             {/* No CPT codes detected message */}
             <div className="p-4 rounded-xl bg-info/5 border border-info/20">
               <div className="flex items-start gap-3">
                 <Info className="h-5 w-5 text-info shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm text-foreground font-medium mb-1">No billing codes detected on this document</p>
+                  <p className="text-sm text-foreground font-medium mb-1">{t('explainer.noCodesDetected')}</p>
                   <p className="text-sm text-muted-foreground">
                     These explanations are based on the service names and descriptions instead. The visit walkthrough below shows what services appear on your bill.
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        ) : !hasCptCodes && hasSuggestedCpts ? (
+          <div className="space-y-4">
+            {/* Suggested CPTs info note */}
+            <div className="p-3 rounded-lg bg-warning/5 border border-warning/20">
+              <div className="flex items-start gap-2">
+                <Lightbulb className="h-4 w-4 text-warning-foreground shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  {t('explainer.suggestedNote')}
+                </p>
+              </div>
+            </div>
+            
+            {/* Suggested CPT cards */}
+            <div className="space-y-3">
+              {analysis.suggestedCpts!.map((suggestion, idx) => (
+                <SuggestedCptCard key={`${suggestion.sourceDescription}-${idx}`} suggestion={suggestion} />
+              ))}
             </div>
           </div>
         ) : (
