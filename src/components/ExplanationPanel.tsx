@@ -24,6 +24,7 @@ interface ExplanationPanelProps {
   analysis: AnalysisResult;
   onHoverCharge: (chargeId: string | null) => void;
   hasEOB?: boolean;
+  selectedState?: string;
 }
 
 // Small positive pill that always shows when patient totals match
@@ -93,7 +94,7 @@ function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = 
   );
 }
 
-export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: ExplanationPanelProps) {
+export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false, selectedState }: ExplanationPanelProps) {
   const { t } = useTranslation();
   
   // Use the centralized comparison utility - single source of truth
@@ -208,7 +209,7 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
             }
             defaultOpen={false}
           >
-            <BillingSection analysis={analysis} hasEOB={hasEOB} />
+            <BillingSection analysis={analysis} hasEOB={hasEOB} selectedState={selectedState} />
           </AccordionSection>
 
           <AccordionSection

@@ -15,9 +15,10 @@ interface AnalysisPageProps {
   isAnalyzing: boolean;
   onBack: () => void;
   hasEOB?: boolean;
+  selectedState?: string;
 }
 
-export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = false }: AnalysisPageProps) {
+export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = false, selectedState }: AnalysisPageProps) {
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'document' | 'analysis'>('analysis');
   const { t } = useTranslation();
@@ -139,6 +140,7 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
                 analysis={analysis} 
                 onHoverCharge={setActiveHighlight}
                 hasEOB={hasEOB}
+                selectedState={selectedState}
               />
             </div>
           )}
@@ -179,6 +181,7 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
               analysis={analysis} 
               onHoverCharge={setActiveHighlight}
               hasEOB={hasEOB}
+              selectedState={selectedState}
             />
           </div>
         </div>
