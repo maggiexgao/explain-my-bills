@@ -80,6 +80,8 @@ interface LooksGoodItem {
 }
 
 function LooksGoodCard({ item }: { item: LooksGoodItem }) {
+  const { t } = useTranslation();
+  
   return (
     <div className="p-4 rounded-xl bg-success/10 border border-success/30">
       <div className="flex items-start gap-3">
@@ -89,7 +91,7 @@ function LooksGoodCard({ item }: { item: LooksGoodItem }) {
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <h4 className="text-sm font-medium text-foreground">{item.title}</h4>
-            <Badge className="shrink-0 text-xs bg-success/10 text-success">Looks good</Badge>
+            <Badge className="shrink-0 text-xs bg-success/10 text-success">{t('analysis.looksGood')}</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
         </div>
@@ -151,13 +153,15 @@ function AllClearBox() {
 
 // Intro text based on comparison state
 function SectionIntro({ comparison }: { comparison: EobBillComparison }) {
+  const { t } = useTranslation();
+  
   if (comparison.totalsMatchButWarnings) {
     return (
       <div className="p-3 rounded-lg bg-info/5 border border-info/20 mb-4">
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-info mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Even though your total patient responsibility matches your EOB, the details below highlight areas where individual services or bill formatting may still need a closer look.
+            {t('section.immediateCallouts.totalsMatchIntro')}
           </p>
         </div>
       </div>
