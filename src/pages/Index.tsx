@@ -459,6 +459,7 @@ const Index = () => {
                     isAnalyzing={state.isAnalyzing}
                     onBack={handleBack}
                     hasEOB={!!state.eobFile}
+                    selectedState={state.selectedState}
                   />
                 ))
               )}

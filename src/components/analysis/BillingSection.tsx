@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Sparkles,
   HelpCircle,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, BillingIssue } from '@/types';
@@ -19,10 +20,12 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { SubcategoryCard } from './SubcategoryCard';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { MedicareBenchmarkSection } from './MedicareBenchmarkSection';
 
 interface BillingSectionProps {
   analysis: AnalysisResult;
   hasEOB: boolean;
+  selectedState?: string;
 }
 
 const severityColors: Record<string, string> = {
@@ -158,18 +161,34 @@ function BillingEducationPreview({ analysis, hasEOB }: { analysis: AnalysisResul
   );
 }
 
-export function BillingSection({ analysis, hasEOB }: BillingSectionProps) {
+export function BillingSection({ analysis, hasEOB, selectedState }: BillingSectionProps) {
   const { t } = useTranslation();
+  const hasCptCodes = (analysis.cptCodes || []).length > 0;
+  const stateCode = selectedState || analysis.stateHelp?.state || 'CA';
 
   return (
     <div className="space-y-3">
+      {/* Medicare Benchmark Section - show when we have CPT codes */}
+      {hasCptCodes && (
+        <SubcategoryCard
+          icon={<Activity className="h-5 w-5 text-primary" />}
+          title="Medicare Benchmark"
+          teaser="How your charges compare to Medicare rates"
+          badge="New"
+          badgeVariant="default"
+          defaultOpen={true}
+        >
+          <MedicareBenchmarkSection analysis={analysis} state={stateCode} />
+        </SubcategoryCard>
+      )}
+
       <SubcategoryCard
         icon={<HelpCircle className="h-5 w-5 text-purple" />}
         title={t('billing.education')}
         teaser="Understanding how medical billing works"
         badge={hasEOB ? 'EOB Enhanced' : undefined}
         badgeVariant="success"
-        defaultOpen={true}
+        defaultOpen={!hasCptCodes}
       >
         <BillingEducationPreview analysis={analysis} hasEOB={hasEOB} />
       </SubcategoryCard>
