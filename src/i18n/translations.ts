@@ -129,7 +129,15 @@ export type TranslationKey =
   | 'medicare.lineByLineDesc'
   | 'medicare.educationalNote'
   | 'medicare.sectionTitle'
-  | 'medicare.sectionSubtitle';
+  | 'medicare.sectionSubtitle'
+  | 'explainer.suggestedCpts'
+  | 'explainer.suggestedCptsDesc'
+  | 'explainer.possibleCodesFor'
+  | 'explainer.relevanceHigh'
+  | 'explainer.relevanceMedium'
+  | 'explainer.relevanceLow'
+  | 'explainer.noCodesDetected'
+  | 'explainer.suggestedNote';
 type TranslationDictionary = {
   [key in 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'ar']: {
     [k in TranslationKey]: string;
@@ -267,6 +275,14 @@ export const translations: TranslationDictionary = {
     'medicare.educationalNote': 'Medicare rates are a benchmark, not what you should pay. Private insurers negotiate their own rates. This comparison helps you understand if charges are reasonable relative to standard Medicare allowances.',
     'medicare.sectionTitle': 'Medicare Comparison',
     'medicare.sectionSubtitle': 'How your charges compare to Medicare rates',
+    'explainer.suggestedCpts': 'Suggested CPT Codes',
+    'explainer.suggestedCptsDesc': 'Based on procedure descriptions on your bill',
+    'explainer.possibleCodesFor': 'Possible codes for',
+    'explainer.relevanceHigh': 'High match',
+    'explainer.relevanceMedium': 'Possible match',
+    'explainer.relevanceLow': 'Low match',
+    'explainer.noCodesDetected': 'No billing codes detected on this document',
+    'explainer.suggestedNote': 'These are suggested codes based on procedure names. The actual codes used may differ. Use these to understand what services may be on your bill.',
   },
   es: {
     'app.title': 'pond',
@@ -398,6 +414,14 @@ export const translations: TranslationDictionary = {
     'medicare.educationalNote': 'Las tarifas de Medicare son un punto de referencia, no lo que debe pagar. Las aseguradoras privadas negocian sus propias tarifas. Esta comparación le ayuda a entender si los cargos son razonables.',
     'medicare.sectionTitle': 'Comparación con Medicare',
     'medicare.sectionSubtitle': 'Cómo se comparan sus cargos con las tarifas de Medicare',
+    'explainer.suggestedCpts': 'Códigos CPT Sugeridos',
+    'explainer.suggestedCptsDesc': 'Basado en las descripciones de procedimientos en su factura',
+    'explainer.possibleCodesFor': 'Posibles códigos para',
+    'explainer.relevanceHigh': 'Alta coincidencia',
+    'explainer.relevanceMedium': 'Posible coincidencia',
+    'explainer.relevanceLow': 'Baja coincidencia',
+    'explainer.noCodesDetected': 'No se detectaron códigos de facturación en este documento',
+    'explainer.suggestedNote': 'Estos son códigos sugeridos basados en nombres de procedimientos. Los códigos reales pueden diferir. Use estos para entender qué servicios pueden estar en su factura.',
   },
   'zh-Hans': {
     'app.title': 'pond',
@@ -529,6 +553,14 @@ export const translations: TranslationDictionary = {
     'medicare.educationalNote': 'Medicare费率是基准，不是您应该支付的金额。私人保险公司会协商自己的费率。此比较帮助您了解费用是否合理。',
     'medicare.sectionTitle': 'Medicare比较',
     'medicare.sectionSubtitle': '您的费用与Medicare费率的比较',
+    'explainer.suggestedCpts': '建议的CPT代码',
+    'explainer.suggestedCptsDesc': '根据您账单上的程序描述',
+    'explainer.possibleCodesFor': '可能的代码',
+    'explainer.relevanceHigh': '高度匹配',
+    'explainer.relevanceMedium': '可能匹配',
+    'explainer.relevanceLow': '低匹配',
+    'explainer.noCodesDetected': '在此文档上未检测到账单代码',
+    'explainer.suggestedNote': '这些是根据程序名称建议的代码。实际使用的代码可能不同。使用这些来了解您账单上可能有哪些服务。',
   },
   'zh-Hant': {
     'app.title': 'Rosetta',
@@ -660,6 +692,14 @@ export const translations: TranslationDictionary = {
     'medicare.educationalNote': 'Medicare費率是基準，不是您應該支付的金額。私人保險公司會協商自己的費率。此比較幫助您了解費用是否合理。',
     'medicare.sectionTitle': 'Medicare比較',
     'medicare.sectionSubtitle': '您的費用與Medicare費率的比較',
+    'explainer.suggestedCpts': '建議的CPT代碼',
+    'explainer.suggestedCptsDesc': '根據您帳單上的程序描述',
+    'explainer.possibleCodesFor': '可能的代碼',
+    'explainer.relevanceHigh': '高度匹配',
+    'explainer.relevanceMedium': '可能匹配',
+    'explainer.relevanceLow': '低匹配',
+    'explainer.noCodesDetected': '在此文檔上未檢測到帳單代碼',
+    'explainer.suggestedNote': '這些是根據程序名稱建議的代碼。實際使用的代碼可能不同。使用這些來了解您帳單上可能有哪些服務。',
   },
   ar: {
     'app.title': 'روزيتا',
@@ -791,6 +831,14 @@ export const translations: TranslationDictionary = {
     'medicare.educationalNote': 'أسعار Medicare هي مرجع وليس ما يجب أن تدفعه. تتفاوض شركات التأمين الخاصة على أسعارها. تساعدك هذه المقارنة على فهم ما إذا كانت الرسوم معقولة.',
     'medicare.sectionTitle': 'مقارنة Medicare',
     'medicare.sectionSubtitle': 'كيف تقارن رسومك بأسعار Medicare',
+    'explainer.suggestedCpts': 'رموز CPT المقترحة',
+    'explainer.suggestedCptsDesc': 'بناءً على أوصاف الإجراءات في فاتورتك',
+    'explainer.possibleCodesFor': 'الرموز المحتملة لـ',
+    'explainer.relevanceHigh': 'تطابق عالي',
+    'explainer.relevanceMedium': 'تطابق محتمل',
+    'explainer.relevanceLow': 'تطابق منخفض',
+    'explainer.noCodesDetected': 'لم يتم اكتشاف رموز الفوترة في هذا المستند',
+    'explainer.suggestedNote': 'هذه رموز مقترحة بناءً على أسماء الإجراءات. قد تختلف الرموز الفعلية المستخدمة. استخدم هذه لفهم الخدمات التي قد تكون في فاتورتك.',
   },
 };
 
