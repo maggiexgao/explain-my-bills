@@ -211,7 +211,6 @@ export interface BillingIssue {
   severity: 'error' | 'warning' | 'info';
   relatedCodes?: string[];
   relatedAmounts?: { billed?: number; eob?: number };
-  highlightRegionId?: string; // ID for linking to document regions on hover
 }
 
 // Financial assistance opportunity
@@ -256,61 +255,6 @@ export interface ContactTemplate {
     eobPatientResponsibility?: number;
     discrepancyAmount?: number;
   };
-}
-
-// Medicare CPT Evaluation Types
-export type ServiceType = 'E&M' | 'Anesthesia' | 'Surgery' | 'Imaging' | 'LabPath' | 'MedicineOther' | 'Other';
-
-export interface CptLineEvaluation {
-  cpt: string;
-  modifier?: string | null;
-  description: string;
-  serviceType: ServiceType;
-  serviceTypeLabel: string;
-  mpfsAllowed: number | null;
-  mpfsSiteOfService: 'facility' | 'nonfacility' | null;
-  billedAmount?: number | null;
-  allowedAmount?: number | null;
-  patientResponsibility?: number | null;
-  billedVsMedicareRatio?: number | null;
-  allowedVsMedicareRatio?: number | null;
-  patientVsMedicareRatio?: number | null;
-  notes: string[];
-  ratioBadge?: 'good' | 'elevated' | 'high' | 'very-high' | null;
-}
-
-export interface ServiceTypeSummary {
-  serviceType: ServiceType;
-  serviceTypeLabel: string;
-  totalBilled: number;
-  totalMedicareAllowed: number;
-  totalAllowed: number | null;
-  avgAllowedVsMedicareRatio: number | null;
-}
-
-export interface CptMedicareEvaluation {
-  lines: CptLineEvaluation[];
-  byServiceType: ServiceTypeSummary[];
-  overallSummary: {
-    totalBilled: number;
-    totalMedicareAllowed: number;
-    totalAllowed: number | null;
-    avgBilledVsMedicareRatio: number | null;
-  };
-  state?: string;
-  year?: number;
-}
-
-export interface SuggestedCptEntry {
-  sourceDescription: string;
-  candidates: {
-    cpt: string;
-    shortLabel: string;
-    explanation: string;
-    category: string;
-    score: number;
-    relevance: 'High' | 'Medium' | 'Low';
-  }[];
 }
 
 // Action step for Next Steps section
@@ -427,10 +371,6 @@ export interface AnalysisResult {
   
   // Bill total for comparison with EOB
   billTotal?: number;
-
-  // === MEDICARE COMPARISON DATA ===
-  cptMedicareEvaluation?: CptMedicareEvaluation;
-  suggestedCpts?: SuggestedCptEntry[];
 
   // === MONETIZATION FEATURES ===
   disputePackageEligibility?: DisputePackageEligibility;

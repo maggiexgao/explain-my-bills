@@ -8,8 +8,7 @@ import { EobBillComparison, buildEobBillComparison } from '@/lib/eobBillComparis
 interface ImmediateCalloutsSectionProps {
   analysis: AnalysisResult;
   hasEOB?: boolean;
-  comparison?: EobBillComparison;
-  onHoverCharge?: (chargeId: string | null) => void;
+  comparison?: EobBillComparison; // Optional: will be computed if not provided
 }
 
 const severityConfig = {
@@ -33,26 +32,12 @@ const severityConfig = {
   },
 };
 
-interface CalloutCardProps {
-  issue: BillingIssue;
-  category?: string;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
-}
-
-function CalloutCard({ issue, category, onMouseEnter, onMouseLeave }: CalloutCardProps) {
+function CalloutCard({ issue, category }: { issue: BillingIssue; category?: string }) {
   const { t } = useTranslation();
   const config = severityConfig[issue.severity] || severityConfig.info;
 
   return (
-    <div 
-      className={cn('p-4 rounded-xl border transition-all cursor-default', config.bg, config.border, 'hover:ring-2 hover:ring-primary/20')}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onFocus={onMouseEnter}
-      onBlur={onMouseLeave}
-      tabIndex={0}
-    >
+    <div className={cn('p-4 rounded-xl border', config.bg, config.border)}>
       <div className="flex items-start gap-3">
         {issue.severity === 'error' ? (
           <AlertCircle className={cn('h-5 w-5 mt-0.5 shrink-0', config.icon)} />
@@ -95,8 +80,6 @@ interface LooksGoodItem {
 }
 
 function LooksGoodCard({ item }: { item: LooksGoodItem }) {
-  const { t } = useTranslation();
-  
   return (
     <div className="p-4 rounded-xl bg-success/10 border border-success/30">
       <div className="flex items-start gap-3">
@@ -106,7 +89,7 @@ function LooksGoodCard({ item }: { item: LooksGoodItem }) {
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <h4 className="text-sm font-medium text-foreground">{item.title}</h4>
-            <Badge className="shrink-0 text-xs bg-success/10 text-success">{t('analysis.looksGoodBadge')}</Badge>
+            <Badge className="shrink-0 text-xs bg-success/10 text-success">Looks good</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
         </div>
@@ -210,7 +193,7 @@ function SectionIntro({ comparison }: { comparison: EobBillComparison }) {
   return null;
 }
 
-export function ImmediateCalloutsSection({ analysis, hasEOB, comparison: providedComparison, onHoverCharge }: ImmediateCalloutsSectionProps) {
+export function ImmediateCalloutsSection({ analysis, hasEOB, comparison: providedComparison }: ImmediateCalloutsSectionProps) {
   const { t } = useTranslation();
   
   // Use provided comparison or compute it
@@ -287,13 +270,7 @@ export function ImmediateCalloutsSection({ analysis, hasEOB, comparison: provide
           </div>
           <div className="space-y-3">
             {potentialErrors.map((issue, idx) => (
-              <CalloutCard 
-                key={`error-${idx}`} 
-                issue={issue} 
-                category={categorizeIssue(issue)}
-                onMouseEnter={() => onHoverCharge?.(issue.highlightRegionId || `error-${idx}`)}
-                onMouseLeave={() => onHoverCharge?.(null)}
-              />
+              <CalloutCard key={idx} issue={issue} category={categorizeIssue(issue)} />
             ))}
           </div>
         </div>
@@ -310,13 +287,7 @@ export function ImmediateCalloutsSection({ analysis, hasEOB, comparison: provide
           </div>
           <div className="space-y-3">
             {needsAttention.map((issue, idx) => (
-              <CalloutCard 
-                key={`attention-${idx}`} 
-                issue={issue} 
-                category={categorizeIssue(issue)}
-                onMouseEnter={() => onHoverCharge?.(issue.highlightRegionId || `attention-${idx}`)}
-                onMouseLeave={() => onHoverCharge?.(null)}
-              />
+              <CalloutCard key={idx} issue={issue} category={categorizeIssue(issue)} />
             ))}
           </div>
         </div>

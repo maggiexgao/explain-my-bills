@@ -36,13 +36,6 @@ export type TranslationKey =
   | 'analysis.errorDesc'
   | 'analysis.tryAgain'
   | 'analysis.previewUnavailable'
-  | 'analysis.patientTotalsMatchPill'
-  | 'analysis.overallCleanTitle'
-  | 'analysis.overallCleanBody'
-  | 'analysis.totalsMatchButWarningsTitle'
-  | 'analysis.totalsMatchButWarningsBody'
-  | 'analysis.totalsMatchButWarningsSubtitle'
-  | 'analysis.looksGoodBadge'
   | 'section.immediateCallouts'
   | 'section.immediateCallouts.subtitle'
   | 'section.explainer'
@@ -111,33 +104,9 @@ export type TranslationKey =
   | 'common.converting'
   | 'common.remove'
   | 'heic.converting'
-  | 'heic.conversionFailed'
-  | 'medicare.overallBilled'
-  | 'medicare.vsMedicare'
-  | 'medicare.compareWithMedicare'
-  | 'medicare.overallComparison'
-  | 'medicare.totalBilled'
-  | 'medicare.medicareRate'
-  | 'medicare.insurerAllowed'
-  | 'medicare.billedVsMedicare'
-  | 'medicare.basedOn'
-  | 'medicare.byServiceType'
-  | 'medicare.byServiceTypeDesc'
-  | 'medicare.categories'
-  | 'medicare.lineByLine'
-  | 'medicare.items'
-  | 'medicare.lineByLineDesc'
-  | 'medicare.educationalNote'
-  | 'medicare.sectionTitle'
-  | 'medicare.sectionSubtitle'
-  | 'explainer.suggestedCpts'
-  | 'explainer.suggestedCptsDesc'
-  | 'explainer.possibleCodesFor'
-  | 'explainer.relevanceHigh'
-  | 'explainer.relevanceMedium'
-  | 'explainer.relevanceLow'
-  | 'explainer.noCodesDetected'
-  | 'explainer.suggestedNote';
+  | 'heic.conversionFailed';
+
+// Only require full translations for implemented languages, others fallback to English
 type TranslationDictionary = {
   [key in 'en' | 'es' | 'zh-Hans' | 'zh-Hant' | 'ar']: {
     [k in TranslationKey]: string;
@@ -181,13 +150,6 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'We encountered an issue analyzing your document. Please try again.',
     'analysis.tryAgain': 'Try Again',
     'analysis.previewUnavailable': 'Preview not available for this file type',
-    'analysis.patientTotalsMatchPill': 'Your total amount owed on the bill matches the "Total you owe" on your EOB.',
-    'analysis.overallCleanTitle': 'Bill and EOB amounts match',
-    'analysis.overallCleanBody': 'Your bill total matches what your insurance says you owe. The billing details appear consistent, but feel free to review the details below and contact your insurer or a billing advocate if anything seems off.',
-    'analysis.totalsMatchButWarningsTitle': 'Totals line up, but there\'s more to review',
-    'analysis.totalsMatchButWarningsBody': 'At a glance, your total amount owed matches your Explanation of Benefits (EOB). However, there are still details below that may be worth reviewing—like how individual services were billed, how discounts were applied, and whether your patient responsibility is consistent for each service.',
-    'analysis.totalsMatchButWarningsSubtitle': 'Totals match, but review these details',
-    'analysis.looksGoodBadge': 'Looks good',
     'section.immediateCallouts': 'Immediate Callouts',
     'section.immediateCallouts.subtitle': 'Potential errors or areas that may need further review',
     'section.explainer': 'Explainer',
@@ -257,32 +219,6 @@ export const translations: TranslationDictionary = {
     'common.remove': 'Remove',
     'heic.converting': 'Converting HEIC image...',
     'heic.conversionFailed': 'HEIC conversion failed',
-    'medicare.overallBilled': 'Overall billed at',
-    'medicare.vsMedicare': 'Medicare rate',
-    'medicare.compareWithMedicare': 'Compare your charges with Medicare rates',
-    'medicare.overallComparison': 'Overall Medicare Comparison',
-    'medicare.totalBilled': 'Total Billed',
-    'medicare.medicareRate': 'Medicare Rate',
-    'medicare.insurerAllowed': 'Insurer Allowed',
-    'medicare.billedVsMedicare': 'Billed vs Medicare',
-    'medicare.basedOn': 'Based on',
-    'medicare.byServiceType': 'By Service Type',
-    'medicare.byServiceTypeDesc': 'How charges compare by category',
-    'medicare.categories': 'categories',
-    'medicare.lineByLine': 'Line-by-Line Comparison',
-    'medicare.items': 'items',
-    'medicare.lineByLineDesc': 'Each service compared to Medicare\'s 2025 Physician Fee Schedule rate for your state.',
-    'medicare.educationalNote': 'Medicare rates are a benchmark, not what you should pay. Private insurers negotiate their own rates. This comparison helps you understand if charges are reasonable relative to standard Medicare allowances.',
-    'medicare.sectionTitle': 'Medicare Comparison',
-    'medicare.sectionSubtitle': 'How your charges compare to Medicare rates',
-    'explainer.suggestedCpts': 'Suggested CPT Codes',
-    'explainer.suggestedCptsDesc': 'Based on procedure descriptions on your bill',
-    'explainer.possibleCodesFor': 'Possible codes for',
-    'explainer.relevanceHigh': 'High match',
-    'explainer.relevanceMedium': 'Possible match',
-    'explainer.relevanceLow': 'Low match',
-    'explainer.noCodesDetected': 'No billing codes detected on this document',
-    'explainer.suggestedNote': 'These are suggested codes based on procedure names. The actual codes used may differ. Use these to understand what services may be on your bill.',
   },
   es: {
     'app.title': 'pond',
@@ -320,13 +256,6 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'Hubo un problema al analizar tu documento. Por favor intenta de nuevo.',
     'analysis.tryAgain': 'Intentar de nuevo',
     'analysis.previewUnavailable': 'Vista previa no disponible para este tipo de archivo',
-    'analysis.patientTotalsMatchPill': 'El total que debes en la factura coincide con el "Total que debes" en tu EOB.',
-    'analysis.overallCleanTitle': 'Los montos de la factura y el EOB coinciden',
-    'analysis.overallCleanBody': 'El total de tu factura coincide con lo que tu seguro dice que debes. Los detalles de facturación parecen consistentes, pero revisa los detalles a continuación y contacta a tu asegurador o un defensor de facturación si algo parece incorrecto.',
-    'analysis.totalsMatchButWarningsTitle': 'Los totales coinciden, pero hay más que revisar',
-    'analysis.totalsMatchButWarningsBody': 'A primera vista, el total que debes coincide con tu Explicación de Beneficios (EOB). Sin embargo, hay detalles a continuación que vale la pena revisar—como cómo se facturaron los servicios individuales, cómo se aplicaron los descuentos, y si tu responsabilidad como paciente es consistente para cada servicio.',
-    'analysis.totalsMatchButWarningsSubtitle': 'Los totales coinciden, pero revisa estos detalles',
-    'analysis.looksGoodBadge': 'Se ve bien',
     'section.immediateCallouts': 'Avisos inmediatos',
     'section.immediateCallouts.subtitle': 'Posibles errores o áreas que pueden necesitar revisión adicional',
     'section.explainer': 'Explicador',
@@ -396,32 +325,6 @@ export const translations: TranslationDictionary = {
     'common.remove': 'Eliminar',
     'heic.converting': 'Convirtiendo imagen HEIC...',
     'heic.conversionFailed': 'Falló la conversión HEIC',
-    'medicare.overallBilled': 'Facturado en total',
-    'medicare.vsMedicare': 'tarifa Medicare',
-    'medicare.compareWithMedicare': 'Compare sus cargos con las tarifas de Medicare',
-    'medicare.overallComparison': 'Comparación General con Medicare',
-    'medicare.totalBilled': 'Total Facturado',
-    'medicare.medicareRate': 'Tarifa Medicare',
-    'medicare.insurerAllowed': 'Permitido por Asegurador',
-    'medicare.billedVsMedicare': 'Facturado vs Medicare',
-    'medicare.basedOn': 'Basado en',
-    'medicare.byServiceType': 'Por Tipo de Servicio',
-    'medicare.byServiceTypeDesc': 'Cómo se comparan los cargos por categoría',
-    'medicare.categories': 'categorías',
-    'medicare.lineByLine': 'Comparación Línea por Línea',
-    'medicare.items': 'artículos',
-    'medicare.lineByLineDesc': 'Cada servicio comparado con la tarifa del Programa de Honorarios Médicos de Medicare 2025 para su estado.',
-    'medicare.educationalNote': 'Las tarifas de Medicare son un punto de referencia, no lo que debe pagar. Las aseguradoras privadas negocian sus propias tarifas. Esta comparación le ayuda a entender si los cargos son razonables.',
-    'medicare.sectionTitle': 'Comparación con Medicare',
-    'medicare.sectionSubtitle': 'Cómo se comparan sus cargos con las tarifas de Medicare',
-    'explainer.suggestedCpts': 'Códigos CPT Sugeridos',
-    'explainer.suggestedCptsDesc': 'Basado en las descripciones de procedimientos en su factura',
-    'explainer.possibleCodesFor': 'Posibles códigos para',
-    'explainer.relevanceHigh': 'Alta coincidencia',
-    'explainer.relevanceMedium': 'Posible coincidencia',
-    'explainer.relevanceLow': 'Baja coincidencia',
-    'explainer.noCodesDetected': 'No se detectaron códigos de facturación en este documento',
-    'explainer.suggestedNote': 'Estos son códigos sugeridos basados en nombres de procedimientos. Los códigos reales pueden diferir. Use estos para entender qué servicios pueden estar en su factura.',
   },
   'zh-Hans': {
     'app.title': 'pond',
@@ -459,13 +362,6 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': '分析文档时遇到问题。请重试。',
     'analysis.tryAgain': '重试',
     'analysis.previewUnavailable': '此文件类型无法预览',
-    'analysis.patientTotalsMatchPill': '账单上您应付的总金额与EOB上的"您应付总额"相符。',
-    'analysis.overallCleanTitle': '账单和EOB金额相符',
-    'analysis.overallCleanBody': '您的账单总额与保险公司显示的应付金额相符。账单详情看起来一致，但请查看下方详情，如有任何疑问请联系保险公司或账单代理。',
-    'analysis.totalsMatchButWarningsTitle': '总额相符，但有更多内容需要查看',
-    'analysis.totalsMatchButWarningsBody': '乍一看，您应付的总金额与您的保险理赔说明(EOB)相符。但下方仍有一些值得查看的详情——例如各项服务如何计费、折扣如何应用，以及每项服务的患者责任是否一致。',
-    'analysis.totalsMatchButWarningsSubtitle': '总额相符，但请查看这些详情',
-    'analysis.looksGoodBadge': '看起来不错',
     'section.immediateCallouts': '即时提醒',
     'section.immediateCallouts.subtitle': '可能需要进一步审查的潜在错误或问题',
     'section.explainer': '解释器',
@@ -535,32 +431,6 @@ export const translations: TranslationDictionary = {
     'common.remove': '移除',
     'heic.converting': '正在转换HEIC图片...',
     'heic.conversionFailed': 'HEIC转换失败',
-    'medicare.overallBilled': '总账单金额',
-    'medicare.vsMedicare': 'Medicare费率',
-    'medicare.compareWithMedicare': '将您的费用与Medicare费率进行比较',
-    'medicare.overallComparison': 'Medicare整体比较',
-    'medicare.totalBilled': '总账单',
-    'medicare.medicareRate': 'Medicare费率',
-    'medicare.insurerAllowed': '保险公司批准',
-    'medicare.billedVsMedicare': '账单vs Medicare',
-    'medicare.basedOn': '基于',
-    'medicare.byServiceType': '按服务类型',
-    'medicare.byServiceTypeDesc': '各类别费用比较',
-    'medicare.categories': '类别',
-    'medicare.lineByLine': '逐项比较',
-    'medicare.items': '项目',
-    'medicare.lineByLineDesc': '每项服务与您所在州2025年Medicare医师收费表费率的比较。',
-    'medicare.educationalNote': 'Medicare费率是基准，不是您应该支付的金额。私人保险公司会协商自己的费率。此比较帮助您了解费用是否合理。',
-    'medicare.sectionTitle': 'Medicare比较',
-    'medicare.sectionSubtitle': '您的费用与Medicare费率的比较',
-    'explainer.suggestedCpts': '建议的CPT代码',
-    'explainer.suggestedCptsDesc': '根据您账单上的程序描述',
-    'explainer.possibleCodesFor': '可能的代码',
-    'explainer.relevanceHigh': '高度匹配',
-    'explainer.relevanceMedium': '可能匹配',
-    'explainer.relevanceLow': '低匹配',
-    'explainer.noCodesDetected': '在此文档上未检测到账单代码',
-    'explainer.suggestedNote': '这些是根据程序名称建议的代码。实际使用的代码可能不同。使用这些来了解您账单上可能有哪些服务。',
   },
   'zh-Hant': {
     'app.title': 'Rosetta',
@@ -598,13 +468,6 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': '分析文件時遇到問題。請重試。',
     'analysis.tryAgain': '重試',
     'analysis.previewUnavailable': '此檔案類型無法預覽',
-    'analysis.patientTotalsMatchPill': '帳單上您應付的總金額與EOB上的「您應付總額」相符。',
-    'analysis.overallCleanTitle': '帳單和EOB金額相符',
-    'analysis.overallCleanBody': '您的帳單總額與保險公司顯示的應付金額相符。帳單詳情看起來一致，但請查看下方詳情，如有任何疑問請聯繫保險公司或帳單代理。',
-    'analysis.totalsMatchButWarningsTitle': '總額相符，但有更多內容需要查看',
-    'analysis.totalsMatchButWarningsBody': '乍一看，您應付的總金額與您的保險理賠說明(EOB)相符。但下方仍有一些值得查看的詳情——例如各項服務如何計費、折扣如何應用，以及每項服務的患者責任是否一致。',
-    'analysis.totalsMatchButWarningsSubtitle': '總額相符，但請查看這些詳情',
-    'analysis.looksGoodBadge': '看起來不錯',
     'section.immediateCallouts': '即時提醒',
     'section.immediateCallouts.subtitle': '可能需要進一步審查的潛在錯誤或問題',
     'section.explainer': '解釋器',
@@ -674,32 +537,6 @@ export const translations: TranslationDictionary = {
     'common.remove': '移除',
     'heic.converting': '正在轉換HEIC圖片...',
     'heic.conversionFailed': 'HEIC轉換失敗',
-    'medicare.overallBilled': '總帳單金額',
-    'medicare.vsMedicare': 'Medicare費率',
-    'medicare.compareWithMedicare': '將您的費用與Medicare費率進行比較',
-    'medicare.overallComparison': 'Medicare整體比較',
-    'medicare.totalBilled': '總帳單',
-    'medicare.medicareRate': 'Medicare費率',
-    'medicare.insurerAllowed': '保險公司批准',
-    'medicare.billedVsMedicare': '帳單vs Medicare',
-    'medicare.basedOn': '基於',
-    'medicare.byServiceType': '按服務類型',
-    'medicare.byServiceTypeDesc': '各類別費用比較',
-    'medicare.categories': '類別',
-    'medicare.lineByLine': '逐項比較',
-    'medicare.items': '項目',
-    'medicare.lineByLineDesc': '每項服務與您所在州2025年Medicare醫師收費表費率的比較。',
-    'medicare.educationalNote': 'Medicare費率是基準，不是您應該支付的金額。私人保險公司會協商自己的費率。此比較幫助您了解費用是否合理。',
-    'medicare.sectionTitle': 'Medicare比較',
-    'medicare.sectionSubtitle': '您的費用與Medicare費率的比較',
-    'explainer.suggestedCpts': '建議的CPT代碼',
-    'explainer.suggestedCptsDesc': '根據您帳單上的程序描述',
-    'explainer.possibleCodesFor': '可能的代碼',
-    'explainer.relevanceHigh': '高度匹配',
-    'explainer.relevanceMedium': '可能匹配',
-    'explainer.relevanceLow': '低匹配',
-    'explainer.noCodesDetected': '在此文檔上未檢測到帳單代碼',
-    'explainer.suggestedNote': '這些是根據程序名稱建議的代碼。實際使用的代碼可能不同。使用這些來了解您帳單上可能有哪些服務。',
   },
   ar: {
     'app.title': 'روزيتا',
@@ -737,13 +574,6 @@ export const translations: TranslationDictionary = {
     'analysis.errorDesc': 'واجهنا مشكلة في تحليل مستندك. يرجى المحاولة مرة أخرى.',
     'analysis.tryAgain': 'حاول مرة أخرى',
     'analysis.previewUnavailable': 'المعاينة غير متوفرة لهذا النوع من الملفات',
-    'analysis.patientTotalsMatchPill': 'المبلغ الإجمالي المستحق في الفاتورة يطابق "المبلغ الإجمالي المستحق" في شرح المزايا (EOB).',
-    'analysis.overallCleanTitle': 'مبالغ الفاتورة وشرح المزايا متطابقة',
-    'analysis.overallCleanBody': 'إجمالي فاتورتك يطابق ما يقوله تأمينك أنك مدين به. تفاصيل الفواتير تبدو متسقة، لكن لا تتردد في مراجعة التفاصيل أدناه والاتصال بشركة التأمين أو محامي الفواتير إذا بدا أي شيء غير صحيح.',
-    'analysis.totalsMatchButWarningsTitle': 'المجاميع متطابقة، لكن هناك المزيد للمراجعة',
-    'analysis.totalsMatchButWarningsBody': 'للوهلة الأولى، المبلغ الإجمالي المستحق يطابق شرح المزايا (EOB). ومع ذلك، هناك تفاصيل أدناه قد تستحق المراجعة - مثل كيفية فوترة الخدمات الفردية، وكيفية تطبيق الخصومات، وما إذا كانت مسؤوليتك كمريض متسقة لكل خدمة.',
-    'analysis.totalsMatchButWarningsSubtitle': 'المجاميع متطابقة، لكن راجع هذه التفاصيل',
-    'analysis.looksGoodBadge': 'يبدو جيداً',
     'section.immediateCallouts': 'تنبيهات فورية',
     'section.immediateCallouts.subtitle': 'أخطاء محتملة أو مجالات قد تحتاج إلى مراجعة إضافية',
     'section.explainer': 'الشارح',
@@ -813,32 +643,6 @@ export const translations: TranslationDictionary = {
     'common.remove': 'إزالة',
     'heic.converting': 'جارٍ تحويل صورة HEIC...',
     'heic.conversionFailed': 'فشل تحويل HEIC',
-    'medicare.overallBilled': 'المبلغ الإجمالي',
-    'medicare.vsMedicare': 'سعر Medicare',
-    'medicare.compareWithMedicare': 'قارن رسومك بأسعار Medicare',
-    'medicare.overallComparison': 'مقارنة Medicare الشاملة',
-    'medicare.totalBilled': 'المبلغ الإجمالي',
-    'medicare.medicareRate': 'سعر Medicare',
-    'medicare.insurerAllowed': 'المبلغ المسموح من التأمين',
-    'medicare.billedVsMedicare': 'الفاتورة مقابل Medicare',
-    'medicare.basedOn': 'بناءً على',
-    'medicare.byServiceType': 'حسب نوع الخدمة',
-    'medicare.byServiceTypeDesc': 'كيفية مقارنة الرسوم حسب الفئة',
-    'medicare.categories': 'فئات',
-    'medicare.lineByLine': 'مقارنة سطر بسطر',
-    'medicare.items': 'عناصر',
-    'medicare.lineByLineDesc': 'كل خدمة مقارنة بسعر جدول رسوم أطباء Medicare 2025 لولايتك.',
-    'medicare.educationalNote': 'أسعار Medicare هي مرجع وليس ما يجب أن تدفعه. تتفاوض شركات التأمين الخاصة على أسعارها. تساعدك هذه المقارنة على فهم ما إذا كانت الرسوم معقولة.',
-    'medicare.sectionTitle': 'مقارنة Medicare',
-    'medicare.sectionSubtitle': 'كيف تقارن رسومك بأسعار Medicare',
-    'explainer.suggestedCpts': 'رموز CPT المقترحة',
-    'explainer.suggestedCptsDesc': 'بناءً على أوصاف الإجراءات في فاتورتك',
-    'explainer.possibleCodesFor': 'الرموز المحتملة لـ',
-    'explainer.relevanceHigh': 'تطابق عالي',
-    'explainer.relevanceMedium': 'تطابق محتمل',
-    'explainer.relevanceLow': 'تطابق منخفض',
-    'explainer.noCodesDetected': 'لم يتم اكتشاف رموز الفوترة في هذا المستند',
-    'explainer.suggestedNote': 'هذه رموز مقترحة بناءً على أسماء الإجراءات. قد تختلف الرموز الفعلية المستخدمة. استخدم هذه لفهم الخدمات التي قد تكون في فاتورتك.',
   },
 };
 

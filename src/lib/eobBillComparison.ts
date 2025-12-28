@@ -16,6 +16,7 @@ export interface EobBillComparison {
   eobPatientResponsibility: number | undefined;
   
   // Patient totals comparison - ALWAYS computed independently
+  // This is TRUE when bill total equals EOB patient responsibility within tolerance
   patientTotalsMatch: boolean;
   
   // Legacy alias for patientTotalsMatch (backward compatibility)
@@ -27,17 +28,17 @@ export interface EobBillComparison {
   lineItemsMatch: boolean;
   lineDiscrepancies: LineDiscrepancy[];
   
-  // Context flags
+  // Context flags (these are line-level issues, NOT totals-level)
   hasStructuralIssues: boolean;
   hasCoverageIssues: boolean;
-  hasBillHigherThanEOBLineItem: boolean;
+  hasBillHigherThanEOBLineItem: boolean; // Line-item level, doesn't affect patientTotalsMatch
   
   // Tiered summary flags
-  overallClean: boolean;
-  totalsMatchButWarnings: boolean;
-  totalsMismatch: boolean;
+  overallClean: boolean;        // patientTotalsMatch AND no callouts
+  totalsMatchButWarnings: boolean; // patientTotalsMatch but HAS callouts
+  totalsMismatch: boolean;      // patientTotalsMatch is FALSE
   
-  // Filtered and deduplicated callouts
+  // Filtered callouts
   potentialErrors: BillingIssue[];
   needsAttention: BillingIssue[];
   visibleCalloutCount: number;
@@ -60,36 +61,6 @@ export function parseAmount(value: unknown): number | undefined {
     return isNaN(num) ? undefined : num;
   }
   return undefined;
-}
-
-// ============================================
-// Issue Classification Helpers
-// ============================================
-
-// Categorize issue for grouping
-export type IssueCategory = 'totals' | 'line_item' | 'structure' | 'coverage' | 'other';
-
-function categorizeIssue(issue: BillingIssue): IssueCategory {
-  const text = `${issue.title || ''} ${issue.description || ''}`.toLowerCase();
-  
-  if (text.includes('total') || text.includes('eob') || text.includes('patient responsibility')) {
-    return 'totals';
-  }
-  if (text.includes('code') || text.includes('cpt') || text.includes('hcpcs') || text.includes('itemized') || text.includes('vague')) {
-    return 'structure';
-  }
-  if (text.includes('coverage') || text.includes('network') || text.includes('deductible') || text.includes('coinsurance') || text.includes('copay')) {
-    return 'coverage';
-  }
-  return 'line_item';
-}
-
-// Generate stable deduplication key
-function getIssueKey(issue: BillingIssue): string {
-  const typeKey = issue.type || 'unknown';
-  const titleKey = (issue.title || '').toLowerCase().trim().slice(0, 50);
-  const codeKey = issue.relatedCodes?.[0] || '';
-  return `${typeKey}|${titleKey}|${codeKey}`;
 }
 
 // Check if an issue is about EOB/bill total mismatch
@@ -126,7 +97,7 @@ function descriptionIndicatesMatch(issue: BillingIssue): boolean {
   );
 }
 
-// Check if issue indicates bill is higher than EOB
+// Check if issue indicates bill is higher than EOB (critical overbilling pattern)
 function isBillHigherThanEOBIssue(issue: BillingIssue): boolean {
   const text = `${issue.title || ''} ${issue.description || ''}`.toLowerCase();
   return (
@@ -139,7 +110,7 @@ function isBillHigherThanEOBIssue(issue: BillingIssue): boolean {
   );
 }
 
-// Check if issue is structural
+// Check if issue is structural (missing codes, non-itemized)
 function isStructuralIssue(issue: BillingIssue): boolean {
   const text = `${issue.title || ''} ${issue.description || ''}`.toLowerCase();
   return (
@@ -185,35 +156,22 @@ function shouldFilterIssue(issue: BillingIssue, totalsMatch: boolean): boolean {
   return false;
 }
 
-// Get financial impact for sorting (higher = more important)
-function getFinancialImpact(issue: BillingIssue): number {
-  if (issue.relatedAmounts?.billed) return issue.relatedAmounts.billed;
-  if (issue.relatedAmounts?.eob) return issue.relatedAmounts.eob;
-  return 0;
-}
-
-// Get severity rank for sorting (higher = more severe)
-function getSeverityRank(issue: BillingIssue): number {
-  if (issue.severity === 'error') return 3;
-  if (issue.severity === 'warning') return 2;
-  return 1;
-}
-
-// ============================================
-// Main Comparison Function
-// ============================================
-
+// Main comparison function - single source of truth
 export function buildEobBillComparison(
   analysis: AnalysisResult, 
   hasEOB: boolean = false
 ): EobBillComparison {
   // Data readiness
-  const hasBill = true;
+  const hasBill = true; // If we have analysis, we have a bill
   const billTotal = parseAmount(analysis.billTotal);
   const eobPatientResponsibility = parseAmount(analysis.eobData?.patientResponsibility);
   const canCompareEOB = hasEOB && billTotal !== undefined && eobPatientResponsibility !== undefined;
   
-  // Patient totals match computation
+  // =====================================================
+  // PATIENT TOTALS MATCH - computed INDEPENDENTLY
+  // This is the primary "good news" signal: bill total equals EOB patient responsibility
+  // This should be TRUE even if there are line-item or structural warnings
+  // =====================================================
   let patientTotalsMatch = false;
   let totalsDiscrepancyAmount = 0;
   
@@ -223,62 +181,29 @@ export function buildEobBillComparison(
     patientTotalsMatch = diff <= PATIENT_TOTAL_TOLERANCE;
   }
   
+  // Legacy alias
   const totalsMatch = patientTotalsMatch;
   
   // Get raw callouts
   const rawPotentialErrors = analysis.potentialErrors || [];
   const rawNeedsAttention = analysis.needsAttention || [];
   
-  // ============================================
-  // DEDUPLICATION: Combine and deduplicate issues
-  // ============================================
-  const allRawIssues: BillingIssue[] = [
-    ...rawPotentialErrors.map(issue => ({ ...issue, severity: issue.severity || 'error' as const })),
-    ...rawNeedsAttention.map(issue => ({ ...issue, severity: issue.severity || 'warning' as const })),
-  ];
+  // Filter callouts based on match state
+  const potentialErrors = rawPotentialErrors.filter(issue => !shouldFilterIssue(issue, patientTotalsMatch));
+  const needsAttention = rawNeedsAttention.filter(issue => !shouldFilterIssue(issue, patientTotalsMatch));
+  const allFilteredIssues = [...potentialErrors, ...needsAttention];
   
-  // Deduplicate using a Map with stable keys
-  const issueMap = new Map<string, BillingIssue>();
-  for (const issue of allRawIssues) {
-    const key = getIssueKey(issue);
-    // Keep the first occurrence (typically the most severe if errors are listed first)
-    if (!issueMap.has(key)) {
-      issueMap.set(key, issue);
-    }
-  }
-  
-  // Filter out issues that should not be shown
-  const deduplicatedIssues = Array.from(issueMap.values())
-    .filter(issue => !shouldFilterIssue(issue, patientTotalsMatch));
-  
-  // ============================================
-  // SPLIT INTO SEVERITY BUCKETS
-  // ============================================
-  const potentialErrors = deduplicatedIssues
-    .filter(i => i.severity === 'error')
-    .sort((a, b) => {
-      // Sort by financial impact first, then severity rank
-      const impactDiff = getFinancialImpact(b) - getFinancialImpact(a);
-      if (impactDiff !== 0) return impactDiff;
-      return getSeverityRank(b) - getSeverityRank(a);
-    });
-  
-  const needsAttention = deduplicatedIssues
-    .filter(i => i.severity !== 'error')
-    .sort((a, b) => {
-      // Sort warnings before info
-      const severityDiff = getSeverityRank(b) - getSeverityRank(a);
-      if (severityDiff !== 0) return severityDiff;
-      return getFinancialImpact(b) - getFinancialImpact(a);
-    });
-  
-  // Analyze for context flags
-  const hasBillHigherThanEOBLineItem = deduplicatedIssues.some(isBillHigherThanEOBIssue);
-  const hasStructuralIssues = deduplicatedIssues.some(isStructuralIssue);
-  const hasCoverageIssues = deduplicatedIssues.some(isCoverageIssue);
+  // Analyze issues for context flags
+  // NOTE: "Bill higher than EOB" is a LINE-ITEM issue, not a totals issue
+  // It does NOT affect patientTotalsMatch - totals can still match even with line-level discrepancies
+  const hasBillHigherThanEOBLineItem = allFilteredIssues.some(isBillHigherThanEOBIssue);
+  const hasStructuralIssues = allFilteredIssues.some(isStructuralIssue);
+  const hasCoverageIssues = allFilteredIssues.some(isCoverageIssue);
   
   // Line-level comparison
   const lineDiscrepancies: LineDiscrepancy[] = [];
+  
+  // Check EOB discrepancies for line-level issues
   if (analysis.eobData?.discrepancies) {
     for (const disc of analysis.eobData.discrepancies) {
       lineDiscrepancies.push({
@@ -293,14 +218,28 @@ export function buildEobBillComparison(
   }
   
   const lineItemsMatch = lineDiscrepancies.length === 0;
+  
+  // Calculate visible callout count
   const visibleCalloutCount = potentialErrors.length + needsAttention.length;
   
-  // Tiered summary flags
-  const overallClean = patientTotalsMatch && visibleCalloutCount === 0 && lineItemsMatch;
-  const totalsMatchButWarnings = patientTotalsMatch && !overallClean;
+  // =====================================================
+  // TIERED SUMMARY FLAGS
+  // These control which summary card to show
+  // =====================================================
+  
+  // overallClean: patientTotalsMatch AND no warnings/errors at all
+  const overallClean = patientTotalsMatch && 
+    visibleCalloutCount === 0 && 
+    lineItemsMatch;
+    
+  // totalsMatchButWarnings: patientTotalsMatch but there ARE warnings to review
+  const totalsMatchButWarnings = patientTotalsMatch && 
+    !overallClean;
+    
+  // totalsMismatch: patientTotalsMatch is FALSE (or we can't compare)
   const totalsMismatch = canCompareEOB ? !patientTotalsMatch : !hasEOB;
 
-  // Debug logging
+  // Debug logging for development
   console.log('🔍 EOB/Bill comparison:', {
     billTotal,
     eobPatientResponsibility,
@@ -309,7 +248,6 @@ export function buildEobBillComparison(
     totalsMatchButWarnings,
     totalsMismatch,
     visibleCalloutCount,
-    deduplicatedFrom: allRawIssues.length,
     hasBillHigherThanEOBLineItem,
     hasStructuralIssues,
     hasCoverageIssues,
@@ -321,7 +259,7 @@ export function buildEobBillComparison(
     billTotal,
     eobPatientResponsibility,
     patientTotalsMatch,
-    totalsMatch,
+    totalsMatch, // legacy alias
     totalsDiscrepancyAmount,
     canCompareEOB,
     lineItemsMatch,

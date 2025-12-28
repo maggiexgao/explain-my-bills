@@ -27,12 +27,12 @@ interface ExplanationPanelProps {
 }
 
 // Small positive pill that always shows when patient totals match
-function PatientTotalsMatchPill({ text }: { text: string }) {
+function PatientTotalsMatchPill() {
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30">
       <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
       <span className="text-sm text-success font-medium">
-        {text}
+        Your total amount owed on the bill matches the "Total you owe" on your EOB.
       </span>
     </div>
   );
@@ -135,7 +135,7 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
 
         {/* ALWAYS show positive pill when patient totals match - regardless of other warnings */}
         {patientTotalsMatch && (
-          <PatientTotalsMatchPill text={t('analysis.patientTotalsMatchPill')} />
+          <PatientTotalsMatchPill />
         )}
 
         {/* SUCCESS STATE: Green "all clear" card - only when everything matches and no issues */}
@@ -163,7 +163,7 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
             title={t('section.immediateCallouts')}
             subtitle={
               totalsMatchButWarnings 
-                ? t('analysis.totalsMatchButWarningsSubtitle')
+                ? "Totals match, but review these details"
                 : t('section.immediateCallouts.subtitle')
             }
             icon={<AlertCircle className="h-5 w-5 text-coral" />}
@@ -181,7 +181,6 @@ export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false }: Ex
               analysis={analysis} 
               hasEOB={hasEOB} 
               comparison={comparison}
-              onHoverCharge={onHoverCharge}
             />
           </AccordionSection>
 
