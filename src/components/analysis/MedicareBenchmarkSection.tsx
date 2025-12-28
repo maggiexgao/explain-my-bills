@@ -248,14 +248,35 @@ export function MedicareBenchmarkSection({ analysis, state }: MedicareBenchmarkS
   }
 
   const hasData = evaluation.lines.some(l => l.medicareAllowed !== null);
+  const codesWithData = evaluation.lines.filter(l => l.medicareAllowed !== null);
+  const codesWithoutData = evaluation.codesNotFound;
   
   if (!hasData) {
     return (
-      <div className="p-4 rounded-lg bg-muted/30 border border-border/40 text-center">
-        <Info className="h-5 w-5 text-muted-foreground mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">
-          Medicare rate data not available for these codes in {state}
-        </p>
+      <div className="p-4 rounded-lg bg-muted/30 border border-border/40">
+        <div className="flex items-start gap-3">
+          <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1">
+              Medicare rate data not available for these specific codes
+            </p>
+            <p className="text-sm text-muted-foreground mb-2">
+              The CPT codes on this bill ({codesWithoutData.join(', ')}) are not included in our current Medicare fee schedule dataset for {state}. 
+              This often happens with specialized treatment codes like radiation therapy.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              You can look up Medicare rates for these codes at{' '}
+              <a 
+                href="https://www.cms.gov/medicare/payment/fee-schedules/physician" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                CMS.gov Physician Fee Schedule
+              </a>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -336,13 +357,27 @@ export function MedicareBenchmarkSection({ analysis, state }: MedicareBenchmarkS
       {/* Codes Not Found */}
       {evaluation.codesNotFound.length > 0 && (
         <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
-          <div className="flex items-center gap-2 mb-2">
-            <Info className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">
-              Codes without Medicare data
-            </span>
+          <div className="flex items-start gap-2 mb-2">
+            <Info className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <div>
+              <span className="text-sm font-medium text-muted-foreground">
+                Codes not in Medicare dataset
+              </span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                These specialized codes are not included in our fee schedule data. 
+                Look them up at{' '}
+                <a 
+                  href="https://www.cms.gov/medicare/payment/fee-schedules/physician" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  CMS.gov
+                </a>
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 ml-6">
             {evaluation.codesNotFound.map((code) => (
               <Badge key={code} variant="outline" className="text-xs">
                 {code}
