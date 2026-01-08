@@ -1,22 +1,24 @@
 import { Badge } from '@/components/ui/badge';
 import {
-  AlertCircle,
-  BookOpen,
-  Receipt,
+  Eye,
+  TrendingDown,
+  MessageSquare,
+  FileText,
+  Scale,
+  DollarSign,
   ArrowRight,
-  FileCheck,
   ChevronDown,
-  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult } from '@/types';
-import { ImmediateCalloutsSection } from '@/components/analysis/ImmediateCalloutsSection';
-import { ExplainerSection } from '@/components/analysis/ExplainerSection';
-import { BillingSection } from '@/components/analysis/BillingSection';
-import { NextStepsSection } from '@/components/analysis/NextStepsSection';
-import { SuccessResultsCard } from '@/components/analysis/SuccessResultsCard';
-import { TotalsLineUpCard } from '@/components/analysis/TotalsLineUpCard';
-import { buildEobBillComparison } from '@/lib/eobBillComparison';
+import { AtAGlanceSection } from '@/components/analysis/AtAGlanceSection';
+import { ThingsWorthReviewingSection } from '@/components/analysis/ThingsWorthReviewingSection';
+import { SavingsSection } from '@/components/analysis/SavingsSection';
+import { WhatToSaySection } from '@/components/analysis/WhatToSaySection';
+import { ChargeMeaningsSection } from '@/components/analysis/ChargeMeaningsSection';
+import { NegotiabilitySection } from '@/components/analysis/NegotiabilitySection';
+import { PriceContextSection } from '@/components/analysis/PriceContextSection';
+import { PondNextStepsSection } from '@/components/analysis/PondNextStepsSection';
 import { useState } from 'react';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -25,18 +27,6 @@ interface ExplanationPanelProps {
   onHoverCharge: (chargeId: string | null) => void;
   hasEOB?: boolean;
   selectedState?: string;
-}
-
-// Small positive pill that always shows when patient totals match
-function PatientTotalsMatchPill({ text }: { text: string }) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30">
-      <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
-      <span className="text-sm text-success font-medium">
-        {text}
-      </span>
-    </div>
-  );
 }
 
 interface AccordionSectionProps {
@@ -97,129 +87,140 @@ function AccordionSection({ title, subtitle, icon, iconBg, badge, defaultOpen = 
 export function ExplanationPanel({ analysis, onHoverCharge, hasEOB = false, selectedState }: ExplanationPanelProps) {
   const { t } = useTranslation();
   
-  // Use the centralized comparison utility - single source of truth
-  const comparison = buildEobBillComparison(analysis, hasEOB);
+  // Check if we have the new Pond structure
+  const hasPondStructure = !!analysis.atAGlance;
   
-  const {
-    billTotal,
-    eobPatientResponsibility,
-    patientTotalsMatch,
-    overallClean,
-    totalsMatchButWarnings,
-    totalsMismatch,
-    visibleCalloutCount,
-    canCompareEOB,
-  } = comparison;
-
-  const hasCallouts = visibleCalloutCount > 0;
+  // Determine if there are items worth reviewing
+  const hasReviewItems = (analysis.thingsWorthReviewing?.length || 0) > 0;
+  const hasSavingsOpportunities = (analysis.savingsOpportunities?.length || 0) > 0;
 
   return (
     <div className="h-full overflow-auto">
       <div className="p-6 space-y-5">
-        {/* Document Summary Header */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15 border border-border/40">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-foreground">pond's analysis</h2>
-            {hasEOB && (
-              <Badge className="bg-mint-light text-mint border-mint/20">
-                <FileCheck className="h-3 w-3 mr-1" />
-                EOB Enhanced
-              </Badge>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{analysis.issuer}</span>
-            <span className="text-border">•</span>
-            <span>{analysis.dateOfService}</span>
-          </div>
-        </div>
-
-        {/* ALWAYS show positive pill when patient totals match - regardless of other warnings */}
-        {patientTotalsMatch && (
-          <PatientTotalsMatchPill text={t('analysis.patientTotalsMatchPill')} />
+        {/* Section 1: At a Glance (always visible at top) */}
+        {hasPondStructure && analysis.atAGlance && (
+          <AtAGlanceSection atAGlance={analysis.atAGlance} />
         )}
 
-        {/* SUCCESS STATE: Green "all clear" card - only when everything matches and no issues */}
-        {overallClean && billTotal !== undefined && eobPatientResponsibility !== undefined && (
-          <SuccessResultsCard 
-            billTotal={billTotal} 
-            eobPatientResponsibility={eobPatientResponsibility} 
-          />
-        )}
-
-        {/* SOFT STATE: Totals match but there are warnings/issues to review */}
-        {totalsMatchButWarnings && billTotal !== undefined && eobPatientResponsibility !== undefined && (
-          <TotalsLineUpCard 
-            billTotal={billTotal} 
-            eobPatientResponsibility={eobPatientResponsibility}
-            hasWarnings={hasCallouts}
-          />
-        )}
-
-        {/* NO CARD: When totals mismatch or no EOB, let Immediate Callouts lead */}
-
-        {/* Four Main Sections */}
+        {/* Pond Sections */}
         <div className="space-y-4">
+          {/* Section 2: Things Worth Reviewing */}
           <AccordionSection
-            title={t('section.immediateCallouts')}
-            subtitle={
-              totalsMatchButWarnings 
-                ? "Totals match, but review these details"
-                : t('section.immediateCallouts.subtitle')
-            }
-            icon={<AlertCircle className="h-5 w-5 text-coral" />}
-            iconBg="bg-coral-light"
+            title="Things Worth Reviewing"
+            subtitle={hasReviewItems ? "Actionable items to check" : "Nothing major found"}
+            icon={<Eye className="h-5 w-5 text-warning" />}
+            iconBg="bg-warning/10"
             badge={
-              hasCallouts ? (
-                <Badge className="bg-coral-light text-coral border-0 text-xs">
-                  {visibleCalloutCount} {visibleCalloutCount === 1 ? 'item' : 'items'}
+              hasReviewItems ? (
+                <Badge className="bg-warning/10 text-warning-foreground text-xs">
+                  {analysis.thingsWorthReviewing?.length} items
                 </Badge>
               ) : undefined
             }
-            defaultOpen={hasCallouts && !overallClean}
+            defaultOpen={hasReviewItems}
           >
-            <ImmediateCalloutsSection 
-              analysis={analysis} 
-              hasEOB={hasEOB} 
-              comparison={comparison}
+            <ThingsWorthReviewingSection 
+              items={analysis.thingsWorthReviewing || []} 
+              reviewSectionNote={analysis.reviewSectionNote}
             />
           </AccordionSection>
 
+          {/* Section 3: How This Bill Could Be Lowered */}
           <AccordionSection
-            title={t('section.explainer')}
-            subtitle={t('section.explainer.subtitle')}
-            icon={<BookOpen className="h-5 w-5 text-purple" />}
-            iconBg="bg-purple-light"
-            defaultOpen={false}
+            title="How This Bill Could Be Lowered"
+            subtitle="Savings opportunities to explore"
+            icon={<TrendingDown className="h-5 w-5 text-success" />}
+            iconBg="bg-success/10"
+            badge={
+              hasSavingsOpportunities ? (
+                <Badge className="bg-success/10 text-success text-xs">
+                  {analysis.savingsOpportunities?.length} opportunities
+                </Badge>
+              ) : undefined
+            }
+            defaultOpen={hasSavingsOpportunities}
           >
-            <ExplainerSection analysis={analysis} />
+            <SavingsSection opportunities={analysis.savingsOpportunities || []} />
           </AccordionSection>
 
+          {/* Section 4: What to Say Next */}
           <AccordionSection
-            title={t('section.billing')}
-            subtitle={t('section.billing.subtitle')}
-            icon={<Receipt className="h-5 w-5 text-primary" />}
-            iconBg="bg-primary-light"
+            title="What to Say Next"
+            subtitle="Ready-to-use conversation scripts"
+            icon={<MessageSquare className="h-5 w-5 text-primary" />}
+            iconBg="bg-primary/10"
+            defaultOpen={false}
+          >
+            <WhatToSaySection scripts={analysis.conversationScripts || {
+              firstCallScript: "Hi, I'm calling about my bill. I'd like to understand the charges before making payment.",
+              ifTheyPushBack: "I understand. Can you transfer me to someone who can explain the itemization?",
+              whoToAskFor: "Ask for the billing department.",
+            }} />
+          </AccordionSection>
+
+          {/* Section 5: What These Charges Mean (collapsed by default) */}
+          <AccordionSection
+            title="What These Charges Mean"
+            subtitle="Plain-language explanations"
+            icon={<FileText className="h-5 w-5 text-purple" />}
+            iconBg="bg-purple/10"
             badge={
-              hasEOB ? (
-                <Badge className="bg-mint-light text-mint border-0 text-xs">
-                  EOB data
+              (analysis.chargeMeanings?.length || 0) > 0 ? (
+                <Badge className="bg-purple/10 text-purple text-xs">
+                  {analysis.chargeMeanings?.length} charges
                 </Badge>
               ) : undefined
             }
             defaultOpen={false}
           >
-            <BillingSection analysis={analysis} hasEOB={hasEOB} selectedState={selectedState} />
+            <ChargeMeaningsSection meanings={analysis.chargeMeanings || []} />
           </AccordionSection>
 
+          {/* Section 6: Is This Negotiable? */}
           <AccordionSection
-            title={t('section.nextSteps')}
-            subtitle={t('section.nextSteps.subtitle')}
-            icon={<ArrowRight className="h-5 w-5 text-mint" />}
-            iconBg="bg-mint-light"
+            title="Is This Negotiable?"
+            subtitle="What's typically flexible"
+            icon={<Scale className="h-5 w-5 text-info" />}
+            iconBg="bg-info/10"
             defaultOpen={false}
           >
-            <NextStepsSection analysis={analysis} />
+            <NegotiabilitySection items={analysis.negotiability || []} />
+          </AccordionSection>
+
+          {/* Section 7: Price Context */}
+          <AccordionSection
+            title="Price Context"
+            subtitle="How your charges compare"
+            icon={<DollarSign className="h-5 w-5 text-mint" />}
+            iconBg="bg-mint/10"
+            defaultOpen={false}
+          >
+            <PriceContextSection priceContext={analysis.priceContext || {
+              hasBenchmarks: false,
+              comparisons: [],
+              fallbackMessage: "Price comparison data isn't available yet, but this category is commonly reviewed or negotiated.",
+            }} />
+          </AccordionSection>
+
+          {/* Section 8 & 9: Next Steps + Closing Reassurance */}
+          <AccordionSection
+            title="Next Steps"
+            subtitle="What to do now"
+            icon={<ArrowRight className="h-5 w-5 text-coral" />}
+            iconBg="bg-coral/10"
+            badge={
+              (analysis.pondNextSteps?.length || 0) > 0 ? (
+                <Badge className="bg-coral/10 text-coral text-xs">
+                  {analysis.pondNextSteps?.length} steps
+                </Badge>
+              ) : undefined
+            }
+            defaultOpen={true}
+          >
+            <PondNextStepsSection 
+              steps={analysis.pondNextSteps || []} 
+              closingReassurance={analysis.closingReassurance || "Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful."}
+            />
           </AccordionSection>
         </div>
       </div>

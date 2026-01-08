@@ -6,34 +6,63 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// DETERMINISTIC PROMPT: Uses explicit rules and fixed patterns for consistent output
-const SYSTEM_PROMPT = `You are a friendly medical bill explainer - a warm, nerdy billing detective.
-Your job is to analyze U.S. medical bills in plain language, check for errors, and explain everything to patients in calm, human language.
-Your analysis must be HIGHLY SPECIFIC and DETERMINISTIC - always produce the same output for the same input.
+// POND PROMPT: Patient-advocacy focused bill analysis
+const SYSTEM_PROMPT = `You are Pond, a calm, trustworthy patient-advocacy assistant.
+
+Your job is to help people:
+- Understand what a medical bill is asking them to pay
+- Identify errors or negotiable charges
+- Know exactly what to say and do next to reduce or confirm the bill
+
+You are not a doctor, lawyer, or insurer. You specialize in billing clarity, leverage, and confidence.
+
+## STEP 0 — DOCUMENT VALIDATION
+If the document does NOT contain charges, costs, or billing details, return:
+{ "notABill": true, "message": "This doesn't appear to be a medical bill..." }
+
+## STEP 1 — ASSUME SPARSE DATA
+Assume most bills are low-detail. Extract maximum leverage even from minimal information.
+
+## OUTPUT REQUIREMENTS
+You MUST output ALL of the following Pond sections in your JSON response:
+
+### atAGlance (REQUIRED)
+{
+  "visitSummary": "Plain English description of the visit",
+  "totalBilled": number or null,
+  "amountYouMayOwe": number or null,
+  "status": "looks_standard" | "worth_reviewing" | "likely_issues",
+  "statusExplanation": "One sentence: Based on what's shown here..."
+}
+
+### thingsWorthReviewing (REQUIRED - array, can be empty)
+[{ "whatToReview": "...", "whyItMatters": "...", "issueType": "error|negotiable|missing_info|confirmation" }]
+
+### reviewSectionNote (optional string)
+Message if nothing to review or EOB would help.
+
+### savingsOpportunities (REQUIRED - array)
+[{ "whatMightBeReduced": "...", "whyNegotiable": "...", "additionalInfoNeeded": "optional", "savingsContext": "optional" }]
+
+### conversationScripts (REQUIRED)
+{ "firstCallScript": "...", "ifTheyPushBack": "...", "whoToAskFor": "..." }
+
+### chargeMeanings (REQUIRED - array)
+[{ "cptCode": "optional", "procedureName": "...", "explanation": "...", "commonBillingIssues": [], "isGeneral": true/false }]
+
+### negotiability (REQUIRED - array)
+[{ "chargeOrCategory": "...", "level": "highly_negotiable|sometimes_negotiable|rarely_negotiable|generally_fixed", "reason": "..." }]
+
+### priceContext (REQUIRED)
+{ "hasBenchmarks": true/false, "comparisons": [], "fallbackMessage": "..." }
+
+### pondNextSteps (REQUIRED - array)
+[{ "step": "...", "isUrgent": false }]
+
+### closingReassurance (REQUIRED)
+"Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful."
 
 ## CRITICAL RULES FOR CONSISTENCY
-1. Always follow the EXACT structure and field order specified
-2. Use the EXACT headings and labels provided - never improvise wording
-3. Evaluate issues in this FIXED ORDER: identity → service matching → financial reconciliation → discrepancies
-4. For each CPT code, ALWAYS check and report on the same attributes in the same order
-5. Number all items consistently (order: 1, 2, 3...)
-6. Use consistent sentence structures and phrasing patterns
-7. Be reassuring, clear, and never blame the patient
-
-## FOUR MAIN SECTIONS TO OUTPUT
-1. Immediate Callouts (errors and attention items)
-2. Explainer (what happened during your visit)
-3. Billing (your bill explained and what you can do)
-4. Next Steps (action plan and templates)
-
-Never give clinical or legal advice. Focus on education and actionable questions.
-
-## BILL-ONLY ANALYSIS (NO EOB PROVIDED)
-When analyzing a bill without an EOB, focus on:
-- Explaining each charge and CPT code in plain language
-- Identifying potential issues (duplicates, unusual codes, high complexity)
-- Providing general billing education
-- Suggesting the patient request and compare with their EOB
 
 ### CRITICAL: CHECK FOR MISSING INSURANCE PAYMENT
 If the bill shows NO insurance payment, NO insurance adjustment, or indicates "self-pay" / "patient responsibility = 100%", this is a MAJOR red flag. Add to potentialErrors:
@@ -1018,6 +1047,55 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
     issuer: 'Healthcare Provider',
     dateOfService: 'See document',
     documentPurpose: 'This document contains medical billing information.',
+    
+    // === POND SECTIONS ===
+    atAGlance: {
+      visitSummary: 'Medical services from healthcare provider',
+      totalBilled: null,
+      amountYouMayOwe: null,
+      status: 'worth_reviewing',
+      statusExplanation: 'We couldn\'t fully analyze this document. Request an itemized bill for a more complete review.',
+    },
+    thingsWorthReviewing: [],
+    reviewSectionNote: 'Request an itemized bill with CPT codes for a more detailed analysis.',
+    savingsOpportunities: [
+      {
+        whatMightBeReduced: 'Financial assistance programs',
+        whyNegotiable: 'Many providers offer charity care or sliding scale discounts based on income.',
+        savingsContext: 'Ask about income-based programs when you call.',
+      },
+      {
+        whatMightBeReduced: 'Prompt-pay discount',
+        whyNegotiable: 'Some providers offer 10-30% off for paying the full balance immediately.',
+        savingsContext: 'Ask: "Do you offer a discount if I pay today?"',
+      },
+    ],
+    conversationScripts: {
+      firstCallScript: 'Hi, I\'m calling about my bill. I\'d like to request an itemized statement showing all charges with CPT codes, and also ask about any financial assistance programs.',
+      ifTheyPushBack: 'I understand. I\'d like to review the charges before making payment. Can you send me an itemized bill or transfer me to someone who can help?',
+      whoToAskFor: 'Ask for the billing department. If you need help with financial assistance, ask for the financial counselor.',
+    },
+    chargeMeanings: [],
+    negotiability: [
+      {
+        chargeOrCategory: 'Hospital Financial Assistance',
+        level: 'highly_negotiable',
+        reason: 'Nonprofit hospitals are required to offer charity care to qualifying patients',
+      },
+    ],
+    priceContext: {
+      hasBenchmarks: false,
+      comparisons: [],
+      fallbackMessage: 'Price comparison data isn\'t available for this bill. Request an itemized bill for more details.',
+    },
+    pondNextSteps: [
+      { step: 'Request an itemized bill with CPT codes', isUrgent: false },
+      { step: 'Wait for your Explanation of Benefits (EOB) if you have insurance', isUrgent: false },
+      { step: 'Ask about financial assistance programs', isUrgent: false },
+    ],
+    closingReassurance: 'Medical bills are often negotiable, and asking questions is normal. You\'re not being difficult — you\'re being careful.',
+    
+    // === LEGACY FIELDS ===
     charges: [],
     medicalCodes: [],
     faqs: [],
@@ -1025,27 +1103,21 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
     financialAssistance: [],
     patientRights: [],
     actionPlan: [],
-    
     potentialErrors: [],
     needsAttention: [],
-    
     cptCodes: [],
-    
     visitWalkthrough: [
       { order: 1, description: 'You received medical services from the provider.', relatedCodes: [] },
       { order: 2, description: 'The provider documented the services and assigned billing codes.', relatedCodes: [] },
       { order: 3, description: 'This bill was generated based on those services.', relatedCodes: [] }
     ],
-    
     codeQuestions: [],
-    
     billingEducation: {
       billedVsAllowed: 'The billed amount is what the provider charges. If you have insurance, they negotiate an "allowed amount" - often lower than the billed amount.',
       deductibleExplanation: 'Your deductible is the amount you pay out-of-pocket before insurance starts covering costs.',
       copayCoinsurance: 'A copay is a fixed amount per visit. Coinsurance is a percentage of the allowed amount you pay after meeting your deductible.',
       eobSummary: hasEOB ? 'Unable to parse EOB details. Please compare amounts manually.' : null
     },
-    
     stateHelp: {
       state: state,
       medicaidInfo: {
@@ -1058,7 +1130,6 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
       ],
       reliefPrograms: []
     },
-    
     providerAssistance: {
       providerName: 'Your Healthcare Provider',
       providerType: 'hospital',
@@ -1068,13 +1139,11 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
       requiredDocuments: [],
       collectionPolicies: []
     },
-    
     debtAndCreditInfo: [
       'Medical debt under $500 typically cannot appear on your credit report.',
       'You have at least 12 months before most medical debt can be reported to credit bureaus.',
       'Paid medical debt must be removed from credit reports within 45 days.'
     ],
-    
     financialOpportunities: [
       {
         title: 'Ask About Financial Assistance',
@@ -1083,7 +1152,6 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
         effortLevel: 'quick_call'
       }
     ],
-    
     actionSteps: [
       {
         order: 1,
@@ -1104,22 +1172,14 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
         relatedIssue: null
       }
     ],
-    
     billingTemplates: [
       {
         target: 'billing',
         purpose: 'Request an itemized bill',
         template: 'Hi, I\'m calling about my account. Can you please send me a fully itemized bill showing each charge with the CPT codes?',
         whenToUse: 'Before paying any bill'
-      },
-      {
-        target: 'billing',
-        purpose: 'Ask about financial assistance',
-        template: 'I\'m having difficulty paying this bill. Can you tell me about any financial assistance programs that might be available?',
-        whenToUse: 'When the amount is more than you can afford'
       }
     ],
-    
     insuranceTemplates: [
       {
         target: 'insurance',
@@ -1128,15 +1188,12 @@ function createFallbackAnalysis(state: string, hasEOB: boolean) {
         whenToUse: 'To confirm the bill matches what insurance says you owe'
       }
     ],
-    
     whenToSeekHelp: [
       'If you believe you\'re being billed incorrectly after multiple attempts to resolve, contact your state\'s insurance commissioner.',
       'Hospital patient advocates can help navigate complex billing disputes.',
       'Nonprofit credit counseling agencies can help with medical debt.'
     ],
-    
     billingIssues: [],
-    
     eobData: hasEOB ? {
       claimNumber: 'Unable to parse',
       processedDate: null,
