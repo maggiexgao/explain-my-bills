@@ -105,21 +105,48 @@ export function MedicalDocExplanationPanel({ analysis }: MedicalDocExplanationPa
           </p>
         </div>
 
-        {/* Document Header */}
+        {/* Document Header - Pond's Analysis */}
         <div className="glass-card p-4 rounded-xl">
           <div className="flex items-start justify-between mb-3">
             <Badge className={cn('text-xs', getDocTypeColor(analysis.documentType))}>
               {analysis.documentTypeLabel}
             </Badge>
           </div>
-          <h2 className="text-lg font-display font-bold text-foreground mb-2">
+          <h2 className="text-lg font-display font-bold text-foreground mb-3">
             pond's analysis
           </h2>
-          <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
-            {analysis.overview.summary.split('. ').filter(s => s.trim()).slice(0, 6).map((point, idx) => (
-              <li key={idx}>{point.trim().replace(/\.$/, '')}.</li>
-            ))}
-          </ul>
+          
+          {/* Key Takeaways - with bold/italic rendering */}
+          {analysis.pondsAnalysis?.keyTakeaways && analysis.pondsAnalysis.keyTakeaways.length > 0 ? (
+            <ul className="text-sm text-muted-foreground space-y-2 mb-4">
+              {analysis.pondsAnalysis.keyTakeaways.map((point, idx) => (
+                <li 
+                  key={idx} 
+                  className="flex items-start gap-2"
+                  dangerouslySetInnerHTML={{
+                    __html: `<span class="text-mint font-bold">•</span> ${
+                      point
+                        .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>')
+                        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                    }`
+                  }}
+                />
+              ))}
+            </ul>
+          ) : (
+            <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside mb-4">
+              {analysis.overview.summary.split('. ').filter(s => s.trim()).slice(0, 4).map((point, idx) => (
+                <li key={idx}>{point.trim().replace(/\.$/, '')}.</li>
+              ))}
+            </ul>
+          )}
+          
+          {/* Context Paragraph */}
+          {analysis.pondsAnalysis?.contextParagraph && (
+            <p className="text-sm text-muted-foreground/90 border-t border-border/30 pt-3 italic">
+              {analysis.pondsAnalysis.contextParagraph}
+            </p>
+          )}
         </div>
 
         {/* Sections */}
