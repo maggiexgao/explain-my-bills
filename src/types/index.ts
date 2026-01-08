@@ -22,6 +22,12 @@ export interface MedicalDocumentResult {
   documentType: MedicalDocumentType;
   documentTypeLabel: string;
   
+  // Pond's Analysis - top-level summary
+  pondsAnalysis?: {
+    keyTakeaways: string[];
+    contextParagraph: string;
+  };
+  
   // Document Overview
   overview: {
     summary: string;

@@ -662,6 +662,14 @@ Return valid JSON with this EXACT structure:
 {
   "documentType": "after_visit_summary" | "test_results" | "clinical_note" | "prescription" | "imaging_report" | "mixed_other",
   "documentTypeLabel": "Human-readable label for the document type",
+  "pondsAnalysis": {
+    "keyTakeaways": [
+      "**Main diagnosis:** [Finding in plain language with key terms **bolded**]",
+      "**Extent/severity:** [How advanced or serious, if applicable]",
+      "**Next steps:** [Treatment or follow-up implications]"
+    ],
+    "contextParagraph": "2-3 sentence paragraph explaining what kind of document this is and how the results will be used (staging, treatment planning, monitoring, etc.)"
+  },
   "overview": {
     "summary": "3-6 sentence summary of what this document is about",
     "mainPurpose": "The main purpose of this document",
@@ -669,8 +677,8 @@ Return valid JSON with this EXACT structure:
   },
   "lineByLine": [
     {
-      "originalText": "Key medical term or finding from the document",
-      "plainLanguage": "Plain English explanation of what this means"
+      "originalText": "Exact phrase or sentence from the document (clinical finding, diagnosis, test result, etc.)",
+      "plainLanguage": "1-3 sentence explanation of what this means in clear language and why it matters"
     }
   ],
   "definitions": [
@@ -707,8 +715,67 @@ Return valid JSON with this EXACT structure:
   ]
 }
 
+## POND'S ANALYSIS SECTION (TOP PRIORITY)
+At the very top, create a "pondsAnalysis" section with:
+
+### keyTakeaways (2-4 bullet points)
+Each bullet should highlight ONE important concept:
+- **Main diagnosis:** The primary finding or condition identified
+- **Extent of disease/severity:** How advanced, widespread, or serious it is (staging, spread, margins, abnormal ranges)
+- **Next steps:** Treatment implications, follow-up needs, or monitoring requirements
+
+FORMAT RULES:
+- Use **bold** for the most important findings (e.g., the main diagnosis, evidence of spread)
+- Use *italics* sparingly for clarifying medical terms
+- Keep each bullet to 1-2 sentences maximum
+- Do NOT bold entire paragraphs
+
+### contextParagraph (1 short paragraph)
+2-3 sentences that:
+- Explain what kind of document this is (e.g., "This is a pathology report from your recent surgery")
+- Describe how the results will be used (staging, treatment planning, monitoring)
+- Provide context without giving medical advice
+
+## LINE-BY-LINE EXPLANATIONS (SELECTIVE & MEANINGFUL)
+
+### WHAT TO INCLUDE (prioritize these)
+Select ONLY items that are clinically meaningful or potentially confusing:
+- Diagnoses or conditions (e.g., "Papillary thyroid carcinoma")
+- Test names with abnormal results (e.g., "Hgb 10.2 (L)")
+- Pathology or imaging impressions (e.g., "No evidence of acute fracture")
+- Procedure descriptions and findings
+- Staging information, margins, spread, or risk features
+- Important instructions or warnings
+- Lab values outside normal range
+
+### WHAT TO EXCLUDE
+Do NOT create explanations for simple or obvious items:
+- Patient name, date of birth, medical record numbers
+- Plain labels like "Physician:", "Department:", "Date of Service:"
+- Generic headings ("Page 1 of 6", "Report ID", etc.)
+- Repeated section titles without new clinical meaning
+- Administrative information (account numbers, page headers)
+
+### SELECTION RULES
+1. If many possible lines exist, choose the 10-20 MOST IMPORTANT or potentially confusing items
+2. Focus on findings that affect diagnosis, staging, treatment, or follow-up
+3. Combine closely related sentences into one explanation when it improves clarity
+4. Do NOT create separate explanations for every sub-phrase of the same idea
+
+### EXPLANATION FORMAT
+For each selected item:
+- "originalText": The exact phrase or sentence from the document (can be shortened if very long)
+- "plainLanguage": 1-3 sentences explaining what it means AND why it matters
+
+EXAMPLES:
+- "Impression: no evidence of acute fracture" → "The imaging did not show any broken bones. This is reassuring and suggests the pain may be from soft tissue or another cause."
+- "Hgb 10.2 (L)" → "Your hemoglobin (the oxygen-carrying part of your blood) is 10.2, which is lower than the typical range. This may indicate mild anemia."
+- "Margins negative for carcinoma" → "The edges of the tissue removed during surgery do not contain cancer cells. This suggests the surgeon was able to remove all visible cancer."
+- "3 of 12 lymph nodes positive" → "Cancer was found in 3 out of the 12 lymph nodes examined. This information helps your care team determine the stage of disease and plan treatment."
+
 ## CONTENT REQUIREMENTS
-- lineByLine: Extract 5-15 key findings, terms, or instructions from the document
+- pondsAnalysis: REQUIRED - 2-4 key takeaways + context paragraph (see POND'S ANALYSIS SECTION above)
+- lineByLine: Extract 10-20 key findings, prioritized by clinical importance (see LINE-BY-LINE EXPLANATIONS above)
 - definitions: Include 5-10 medical terms found in the document
 - commonlyAskedQuestions: Generate 3-5 Q&As based on what real patients ask about these types of findings
 - providerQuestions: Generate 5-8 personalized questions for the patient to ask their doctor
