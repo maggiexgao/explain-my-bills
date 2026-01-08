@@ -344,7 +344,77 @@ export interface SuggestedCpt {
   candidates: SuggestedCptCandidate[];
 }
 
-// Main analysis result - restructured for 4 sections
+// Pond At a Glance status
+export type PondStatus = 'looks_standard' | 'worth_reviewing' | 'likely_issues';
+
+// Pond "At a Glance" section
+export interface AtAGlance {
+  visitSummary: string;
+  totalBilled?: number;
+  amountYouMayOwe?: number;
+  status: PondStatus;
+  statusExplanation: string;
+}
+
+// Pond "Things Worth Reviewing" item
+export interface ReviewItem {
+  whatToReview: string;
+  whyItMatters: string;
+  issueType: 'error' | 'negotiable' | 'missing_info' | 'confirmation';
+}
+
+// Pond "How This Bill Could Be Lowered" opportunity
+export interface SavingsOpportunity {
+  whatMightBeReduced: string;
+  whyNegotiable: string;
+  additionalInfoNeeded?: string;
+  savingsContext?: string;
+}
+
+// Pond "What to Say Next" scripts
+export interface ConversationScripts {
+  firstCallScript: string;
+  ifTheyPushBack: string;
+  whoToAskFor: string;
+}
+
+// Pond "What These Charges Mean" item
+export interface ChargeMeaning {
+  cptCode?: string;
+  procedureName: string;
+  explanation: string;
+  commonBillingIssues?: string[];
+  isGeneral: boolean;
+}
+
+// Pond "Is This Negotiable?" rating
+export type NegotiabilityLevel = 'highly_negotiable' | 'sometimes_negotiable' | 'rarely_negotiable' | 'generally_fixed';
+
+export interface NegotiabilityItem {
+  chargeOrCategory: string;
+  level: NegotiabilityLevel;
+  reason: string;
+}
+
+// Pond "Price Context" section
+export interface PriceContext {
+  hasBenchmarks: boolean;
+  comparisons: {
+    service: string;
+    billedAmount?: number;
+    typicalRange?: string;
+    notes?: string;
+  }[];
+  fallbackMessage?: string;
+}
+
+// Pond "Next Steps" item
+export interface PondNextStep {
+  step: string;
+  isUrgent?: boolean;
+}
+
+// Main analysis result - restructured for Pond 9-section format
 export interface AnalysisResult {
   // Document basics
   documentType: DocumentType;
@@ -352,7 +422,37 @@ export interface AnalysisResult {
   dateOfService: string;
   documentPurpose: string;
   
-  // Legacy fields for backward compatibility
+  // === POND SECTIONS ===
+  
+  // Section 1: At a Glance
+  atAGlance: AtAGlance;
+  
+  // Section 2: Things Worth Reviewing
+  thingsWorthReviewing: ReviewItem[];
+  reviewSectionNote?: string; // "Nothing stands out" message or EOB suggestion
+  
+  // Section 3: How This Bill Could Be Lowered
+  savingsOpportunities: SavingsOpportunity[];
+  
+  // Section 4: What to Say Next
+  conversationScripts: ConversationScripts;
+  
+  // Section 5: What These Charges Mean
+  chargeMeanings: ChargeMeaning[];
+  
+  // Section 6: Is This Negotiable?
+  negotiability: NegotiabilityItem[];
+  
+  // Section 7: Price Context
+  priceContext: PriceContext;
+  
+  // Section 8: Next Steps
+  pondNextSteps: PondNextStep[];
+  
+  // Section 9: Closing Reassurance
+  closingReassurance: string;
+  
+  // === LEGACY FIELDS (kept for backward compatibility) ===
   charges: ChargeItem[];
   medicalCodes: MedicalCode[];
   faqs: { question: string; answer: string }[];
@@ -360,41 +460,25 @@ export interface AnalysisResult {
   financialAssistance: string[];
   patientRights: string[];
   actionPlan: { step: number; action: string; description: string }[];
-
-  // === SECTION 1: IMMEDIATE CALLOUTS ===
   potentialErrors: BillingIssue[];
   needsAttention: BillingIssue[];
-
-  // === SECTION 2: EXPLAINER ===
   cptCodes: CPTCode[];
-  suggestedCpts?: SuggestedCpt[]; // Suggested CPT codes from reverse search
+  suggestedCpts?: SuggestedCpt[];
   visitWalkthrough: VisitStep[];
   codeQuestions: CodeQuestion[];
-
-  // === SECTION 3: BILLING ===
   billingEducation: BillingEducation;
   stateHelp: StateFinancialHelp;
   providerAssistance: ProviderAssistance;
   debtAndCreditInfo: string[];
   financialOpportunities: FinancialOpportunity[];
-
-  // === SECTION 4: NEXT STEPS ===
   providerContactInfo: ProviderContactInfo;
   actionSteps: ActionStep[];
   billingTemplates: ContactTemplate[];
   insuranceTemplates: ContactTemplate[];
   whenToSeekHelp: string[];
-
-  // Legacy field - keep for backwards compatibility
   billingIssues: BillingIssue[];
-
-  // EOB data (optional - present when EOB uploaded)
   eobData?: EOBData;
-  
-  // Bill total for comparison with EOB
   billTotal?: number;
-
-  // === MONETIZATION FEATURES ===
   disputePackageEligibility?: DisputePackageEligibility;
   referralContext?: ReferralContext;
 }

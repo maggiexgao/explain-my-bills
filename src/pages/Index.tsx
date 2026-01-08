@@ -343,6 +343,54 @@ const Index = () => {
           relatedCodes: ensureArray(i.relatedCodes),
         })),
 
+        // === POND SECTIONS ===
+        atAGlance: ai.atAGlance || {
+          visitSummary: ai.documentPurpose || "Medical bill",
+          totalBilled: undefined,
+          amountYouMayOwe: undefined,
+          status: "worth_reviewing" as const,
+          statusExplanation: "Review this bill for accuracy before paying.",
+        },
+        thingsWorthReviewing: ensureArray(ai.thingsWorthReviewing).map((r: any) => ({
+          whatToReview: r.whatToReview || "",
+          whyItMatters: r.whyItMatters || "",
+          issueType: r.issueType || "confirmation",
+        })),
+        reviewSectionNote: ai.reviewSectionNote,
+        savingsOpportunities: ensureArray(ai.savingsOpportunities).map((s: any) => ({
+          whatMightBeReduced: s.whatMightBeReduced || "",
+          whyNegotiable: s.whyNegotiable || "",
+          additionalInfoNeeded: s.additionalInfoNeeded,
+          savingsContext: s.savingsContext,
+        })),
+        conversationScripts: ai.conversationScripts || {
+          firstCallScript: "Hi, I'm calling about my bill. I'd like to understand the charges before making payment.",
+          ifTheyPushBack: "I understand. Can you transfer me to someone who can explain the itemization?",
+          whoToAskFor: "Ask for the billing department.",
+        },
+        chargeMeanings: ensureArray(ai.chargeMeanings).map((c: any) => ({
+          cptCode: c.cptCode,
+          procedureName: c.procedureName || "",
+          explanation: c.explanation || "",
+          commonBillingIssues: ensureArray(c.commonBillingIssues),
+          isGeneral: c.isGeneral ?? true,
+        })),
+        negotiability: ensureArray(ai.negotiability).map((n: any) => ({
+          chargeOrCategory: n.chargeOrCategory || "",
+          level: n.level || "sometimes_negotiable",
+          reason: n.reason || "",
+        })),
+        priceContext: ai.priceContext || {
+          hasBenchmarks: false,
+          comparisons: [],
+          fallbackMessage: "Price comparison data isn't available yet, but this category is commonly reviewed or negotiated.",
+        },
+        pondNextSteps: ensureArray(ai.pondNextSteps || ai.nextSteps).map((s: any) => ({
+          step: typeof s === "string" ? s : (s.step || ""),
+          isUrgent: s.isUrgent,
+        })),
+        closingReassurance: ai.closingReassurance || "Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful.",
+
         // Calculate billTotal from charges if not provided by API
         billTotal:
           ai.billTotal !== undefined
