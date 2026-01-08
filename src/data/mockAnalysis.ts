@@ -6,6 +6,135 @@ export const mockAnalysisResult: AnalysisResult = {
   dateOfService: 'October 15, 2024',
   documentPurpose: 'This is a hospital bill summarizing charges for medical services you received. It shows what was billed, what your insurance may have paid, and what you may owe.',
   
+  // === POND SECTIONS ===
+  atAGlance: {
+    visitSummary: 'Emergency room visit for evaluation and testing',
+    totalBilled: 3285.00,
+    amountYouMayOwe: 850.00,
+    status: 'worth_reviewing',
+    statusExplanation: 'Based on what\'s shown here, the ER visit coding and some charges are worth verifying before paying.',
+  },
+  
+  thingsWorthReviewing: [
+    {
+      whatToReview: 'ER visit coded at Level 4',
+      whyItMatters: 'Level 4 visits are for moderately complex cases. If your visit felt routine or quick, the coding may be higher than necessary.',
+      issueType: 'negotiable',
+    },
+    {
+      whatToReview: 'IV administration charge ($285)',
+      whyItMatters: 'This charge sometimes overlaps with other nursing or supply charges. An itemized bill can confirm what this covers.',
+      issueType: 'confirmation',
+    },
+  ],
+  reviewSectionNote: undefined,
+  
+  savingsOpportunities: [
+    {
+      whatMightBeReduced: 'Hospital financial assistance',
+      whyNegotiable: 'Nonprofit hospitals are required to offer charity care. Many patients qualify for 50-100% reduction based on income.',
+      additionalInfoNeeded: 'Income documentation such as pay stubs or tax returns',
+      savingsContext: 'Patients earning up to 400% of the federal poverty level often qualify',
+    },
+    {
+      whatMightBeReduced: 'Prompt-pay discount',
+      whyNegotiable: 'Many hospitals offer 10-30% off for paying the full balance immediately.',
+      savingsContext: 'Just ask: "Do you offer a discount if I pay today?"',
+    },
+    {
+      whatMightBeReduced: 'ER visit level review',
+      whyNegotiable: 'ER coding levels are frequently challenged. If your visit was straightforward, a lower level may apply.',
+      additionalInfoNeeded: 'Medical records documenting the complexity of your visit',
+    },
+  ],
+  
+  conversationScripts: {
+    firstCallScript: 'Hi, I\'m calling about my bill from my October 15th ER visit. I\'d like to request an itemized bill showing all charges with CPT codes, and also ask about any financial assistance programs I might qualify for.',
+    ifTheyPushBack: 'I understand. I\'d like to understand the charges before making payment. Can you transfer me to someone who can explain the itemization, or should I submit this request in writing?',
+    whoToAskFor: 'Ask for the billing department first. If you need help with financial assistance, ask for the financial counselor or patient financial services.',
+  },
+  
+  chargeMeanings: [
+    {
+      cptCode: '99284',
+      procedureName: 'Emergency Room Visit - Level 4',
+      explanation: 'A moderately complex ER visit where the doctor evaluated your condition in detail. The "level" reflects how much time and decision-making was involved.',
+      commonBillingIssues: ['Upcoding to a higher level than documented', 'Separate physician bill may also arrive'],
+      isGeneral: false,
+    },
+    {
+      cptCode: '85025',
+      procedureName: 'Complete Blood Count',
+      explanation: 'A common blood test that checks your red cells, white cells, and platelets. Used to screen for infections and other conditions.',
+      isGeneral: false,
+    },
+    {
+      cptCode: '71046',
+      procedureName: 'Chest X-ray (2 views)',
+      explanation: 'X-ray images of your chest from front and side, used to examine lungs and heart.',
+      commonBillingIssues: ['May have separate radiologist reading fee'],
+      isGeneral: false,
+    },
+    {
+      procedureName: 'IV Fluid Administration',
+      explanation: 'The cost of fluids given through an IV line, including supplies and nursing time.',
+      commonBillingIssues: ['Sometimes duplicated with other nursing charges'],
+      isGeneral: true,
+    },
+  ],
+  
+  negotiability: [
+    {
+      chargeOrCategory: 'Emergency Room Visit',
+      level: 'sometimes_negotiable',
+      reason: 'ER coding levels can be reviewed if documentation doesn\'t support the complexity charged',
+    },
+    {
+      chargeOrCategory: 'Lab Tests (CBC)',
+      level: 'rarely_negotiable',
+      reason: 'Lab charges are typically standardized, but financial assistance may apply',
+    },
+    {
+      chargeOrCategory: 'Imaging (X-ray)',
+      level: 'rarely_negotiable',
+      reason: 'Imaging rates are usually fixed, but prompt-pay discounts may reduce the total',
+    },
+    {
+      chargeOrCategory: 'Hospital Financial Assistance',
+      level: 'highly_negotiable',
+      reason: 'Nonprofit hospitals must offer charity care to qualifying patients',
+    },
+  ],
+  
+  priceContext: {
+    hasBenchmarks: true,
+    comparisons: [
+      {
+        service: 'ER Visit Level 4 (99284)',
+        billedAmount: 1850,
+        typicalRange: '$800 - $2,500',
+        notes: 'Your charge is within the typical range for this area',
+      },
+      {
+        service: 'Complete Blood Count',
+        billedAmount: 125,
+        typicalRange: '$30 - $200',
+        notes: 'Hospital labs are typically higher than standalone labs',
+      },
+    ],
+  },
+  
+  pondNextSteps: [
+    { step: 'Wait for your Explanation of Benefits (EOB) before paying' },
+    { step: 'Request an itemized bill with CPT codes' },
+    { step: 'Call to ask about financial assistance programs' },
+    { step: 'Compare the EOB to your bill when it arrives' },
+  ],
+  
+  closingReassurance: 'Medical bills are often negotiable, and asking questions is normal. You\'re not being difficult — you\'re being careful.',
+  
+  // === LEGACY FIELDS ===
+  
   charges: [
     {
       id: 'charge-1',
