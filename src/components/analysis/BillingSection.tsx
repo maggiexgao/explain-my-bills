@@ -165,6 +165,31 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
   const { t } = useTranslation();
   const hasCptCodes = (analysis.cptCodes || []).length > 0;
   const stateCode = selectedState || analysis.stateHelp?.state || 'CA';
+  
+  // Defensive defaults for potentially missing data
+  const stateHelp = analysis.stateHelp || {
+    state: stateCode,
+    medicaidInfo: { description: 'Medicaid provides health coverage for eligible low-income individuals.', eligibilityLink: 'https://www.medicaid.gov/' },
+    debtProtections: [],
+    reliefPrograms: []
+  };
+  
+  const providerAssistance = analysis.providerAssistance || {
+    providerName: 'Your Healthcare Provider',
+    charityCareSummary: 'Many providers offer financial assistance programs.',
+    eligibilityNotes: 'Contact the billing department for more information.',
+    incomeThresholds: [],
+    requiredDocuments: [],
+    financialAssistanceLink: undefined
+  };
+  
+  const debtAndCreditInfo = analysis.debtAndCreditInfo || [];
+  const billingEducation = analysis.billingEducation || {
+    billedVsAllowed: 'The billed amount is what the provider charges. Insurance negotiates a lower "allowed amount."',
+    deductibleExplanation: 'Your deductible is the amount you pay before insurance starts covering costs.',
+    copayCoinsurance: 'A copay is a flat fee. Coinsurance is a percentage you pay after your deductible.',
+    eobSummary: null
+  };
 
   return (
     <div className="space-y-3">
@@ -195,16 +220,16 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
 
       <SubcategoryCard
         icon={<Heart className="h-5 w-5 text-coral" />}
-        title={`${t('billing.stateHelp')} - ${analysis.stateHelp.state}`}
+        title={`${t('billing.stateHelp')} - ${stateHelp.state}`}
         teaser="State programs and protections"
         defaultOpen={false}
       >
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-success/5 border border-success/20">
             <p className="text-xs font-medium text-success mb-2">{t('billing.stateHelp.medicaid')}</p>
-            <p className="text-sm text-muted-foreground mb-3">{analysis.stateHelp.medicaidInfo.description}</p>
+            <p className="text-sm text-muted-foreground mb-3">{stateHelp.medicaidInfo?.description || 'Medicaid provides health coverage for eligible low-income individuals.'}</p>
             <a
-              href={analysis.stateHelp.medicaidInfo.eligibilityLink}
+              href={stateHelp.medicaidInfo?.eligibilityLink || 'https://www.medicaid.gov/'}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-primary hover:underline inline-flex items-center gap-1"
@@ -213,7 +238,7 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
             </a>
           </div>
           
-          {analysis.stateHelp.reliefPrograms.map((program, idx) => (
+          {(stateHelp.reliefPrograms || []).map((program, idx) => (
             <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/30">
               <p className="text-xs font-medium text-foreground mb-2">{program.name}</p>
               <p className="text-sm text-muted-foreground mb-2">{program.description}</p>
@@ -235,20 +260,20 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
       <SubcategoryCard
         icon={<Building className="h-5 w-5 text-mint" />}
         title={t('billing.providerAssistance')}
-        teaser={`Assistance from ${analysis.providerAssistance.providerName}`}
+        teaser={`Assistance from ${providerAssistance.providerName}`}
         defaultOpen={false}
       >
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-            <p className="text-xs font-medium text-foreground mb-2">{analysis.providerAssistance.providerName}</p>
-            <p className="text-sm text-muted-foreground mb-3">{analysis.providerAssistance.charityCareSummary}</p>
-            <p className="text-xs text-muted-foreground italic mb-3">{analysis.providerAssistance.eligibilityNotes}</p>
+            <p className="text-xs font-medium text-foreground mb-2">{providerAssistance.providerName}</p>
+            <p className="text-sm text-muted-foreground mb-3">{providerAssistance.charityCareSummary}</p>
+            <p className="text-xs text-muted-foreground italic mb-3">{providerAssistance.eligibilityNotes}</p>
             
-            {Array.isArray(analysis.providerAssistance.incomeThresholds) && analysis.providerAssistance.incomeThresholds.length > 0 && (
+            {Array.isArray(providerAssistance.incomeThresholds) && providerAssistance.incomeThresholds.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs font-medium text-foreground mb-1">Income Thresholds:</p>
                 <ul className="space-y-1">
-                  {analysis.providerAssistance.incomeThresholds.map((threshold, idx) => (
+                  {providerAssistance.incomeThresholds.map((threshold, idx) => (
                     <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
                       <span className="text-primary">•</span>
                       {threshold}
@@ -258,11 +283,11 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
               </div>
             )}
             
-            {Array.isArray(analysis.providerAssistance.requiredDocuments) && analysis.providerAssistance.requiredDocuments.length > 0 && (
+            {Array.isArray(providerAssistance.requiredDocuments) && providerAssistance.requiredDocuments.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs font-medium text-foreground mb-1">Documents You May Need:</p>
                 <ul className="space-y-1">
-                  {analysis.providerAssistance.requiredDocuments.map((doc, idx) => (
+                  {providerAssistance.requiredDocuments.map((doc, idx) => (
                     <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
                       <span className="text-primary">•</span>
                       {doc}
@@ -272,9 +297,9 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
               </div>
             )}
             
-            {analysis.providerAssistance.financialAssistanceLink && (
+            {providerAssistance.financialAssistanceLink && (
               <a
-                href={analysis.providerAssistance.financialAssistanceLink}
+                href={providerAssistance.financialAssistanceLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline inline-flex items-center gap-1"
@@ -288,19 +313,19 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
 
       <SubcategoryCard
         icon={<Scale className="h-5 w-5 text-primary" />}
-        title={`Medical Debt in ${analysis.stateHelp.state}`}
-        teaser={`What you should know about medical debt in ${analysis.stateHelp.state}`}
+        title={`Medical Debt in ${stateHelp.state}`}
+        teaser={`What you should know about medical debt in ${stateHelp.state}`}
         defaultOpen={false}
       >
         <div className="space-y-4">
           {/* State Debt Protections */}
-          {analysis.stateHelp.debtProtections.length > 0 && (
+          {(stateHelp.debtProtections || []).length > 0 && (
             <div className="space-y-2">
               <h5 className="text-xs font-medium text-foreground flex items-center gap-2">
                 <Shield className="h-3 w-3 text-success" />
                 State Debt Protections
               </h5>
-              {analysis.stateHelp.debtProtections.map((protection, idx) => (
+              {(stateHelp.debtProtections || []).map((protection, idx) => (
                 <div key={idx} className="p-3 rounded-lg bg-success/5 border border-success/20">
                   <p className="text-sm text-muted-foreground">{protection}</p>
                 </div>
@@ -310,9 +335,9 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
           
           {/* General Debt & Credit Info */}
           <div className="space-y-2">
-            {analysis.debtAndCreditInfo.length > 0 ? (
+            {debtAndCreditInfo.length > 0 ? (
               <ul className="space-y-2">
-                {analysis.debtAndCreditInfo.map((info, idx) => (
+                {debtAndCreditInfo.map((info, idx) => (
                   <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2 p-3 rounded-lg bg-muted/20 border border-border/30">
                     <span className="text-primary shrink-0">•</span>
                     {info}
