@@ -60,17 +60,17 @@ export type Database = {
           global_days: string | null
           hcpcs: string
           id: string
-          modifier: string | null
+          modifier: string
           mp_rvu: number | null
           mult_surgery_indicator: string | null
           nonfac_fee: number | null
           nonfac_pe_rvu: number | null
           pctc: string | null
-          qp_status: string | null
-          source: string | null
+          qp_status: string
+          source: string
           status: string | null
           work_rvu: number | null
-          year: number | null
+          year: number
         }
         Insert: {
           conversion_factor?: number | null
@@ -81,17 +81,17 @@ export type Database = {
           global_days?: string | null
           hcpcs: string
           id?: string
-          modifier?: string | null
+          modifier?: string
           mp_rvu?: number | null
           mult_surgery_indicator?: string | null
           nonfac_fee?: number | null
           nonfac_pe_rvu?: number | null
           pctc?: string | null
-          qp_status?: string | null
-          source?: string | null
+          qp_status?: string
+          source?: string
           status?: string | null
           work_rvu?: number | null
-          year?: number | null
+          year?: number
         }
         Update: {
           conversion_factor?: number | null
@@ -102,17 +102,17 @@ export type Database = {
           global_days?: string | null
           hcpcs?: string
           id?: string
-          modifier?: string | null
+          modifier?: string
           mp_rvu?: number | null
           mult_surgery_indicator?: string | null
           nonfac_fee?: number | null
           nonfac_pe_rvu?: number | null
           pctc?: string | null
-          qp_status?: string | null
-          source?: string | null
+          qp_status?: string
+          source?: string
           status?: string | null
           work_rvu?: number | null
-          year?: number | null
+          year?: number
         }
         Relationships: []
       }
