@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { UploadPage } from "@/components/UploadPage";
@@ -11,6 +11,7 @@ import { ZoomProvider } from "@/contexts/ZoomContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult, CareSetting } from "@/types";
 import { toast } from "sonner";
+import { extractAddressWithFallback, AddressDetectionResult } from "@/lib/billAddressExtractor";
 
 // Helper to ensure value is always an array
 const ensureArray = (value: any): any[] => {
@@ -42,9 +43,14 @@ const Index = () => {
     isAnalyzing: false,
     activeHighlight: null,
   });
+  
+  // Track detected address from bill scan
+  const [detectedAddress, setDetectedAddress] = useState<AddressDetectionResult | null>(null);
 
   const handleFileSelect = useCallback((file: UploadedFile) => {
     setState((prev) => ({ ...prev, uploadedFile: file }));
+    // Reset detected address when new file is selected
+    setDetectedAddress(null);
   }, []);
 
   const handleRemoveFile = useCallback(() => {
@@ -52,6 +58,7 @@ const Index = () => {
       URL.revokeObjectURL(state.uploadedFile.preview);
     }
     setState((prev) => ({ ...prev, uploadedFile: null }));
+    setDetectedAddress(null);
   }, [state.uploadedFile]);
 
   const handleEOBSelect = useCallback((file: UploadedFile) => {
@@ -494,6 +501,7 @@ const Index = () => {
                   zipCode={state.zipCode}
                   careSetting={state.careSetting}
                   analysisMode={state.analysisMode}
+                  detectedAddress={detectedAddress}
                   onFileSelect={handleFileSelect}
                   onRemoveFile={handleRemoveFile}
                   onEOBSelect={handleEOBSelect}

@@ -3,6 +3,7 @@ import { EOBUploader } from '@/components/EOBUploader';
 import { ModeToggle } from '@/components/ModeToggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -10,10 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle, Building2, Stethoscope } from 'lucide-react';
+import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle, Building2, Stethoscope, Sparkles } from 'lucide-react';
 import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode, CareSetting } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AddressDetectionResult } from '@/lib/billAddressExtractor';
 
 interface UploadPageProps {
   uploadedFile: UploadedFile | null;
@@ -23,6 +25,7 @@ interface UploadPageProps {
   zipCode: string;
   careSetting: CareSetting;
   analysisMode: AnalysisMode;
+  detectedAddress?: AddressDetectionResult | null;
   onFileSelect: (file: UploadedFile) => void;
   onRemoveFile: () => void;
   onEOBSelect: (file: UploadedFile) => void;
@@ -43,6 +46,7 @@ export function UploadPage({
   zipCode,
   careSetting,
   analysisMode,
+  detectedAddress,
   onFileSelect,
   onRemoveFile,
   onEOBSelect,
@@ -57,6 +61,12 @@ export function UploadPage({
   const { t } = useTranslation();
   const canAnalyze = uploadedFile && selectedState;
   const isMedicalDoc = analysisMode === 'medical_document';
+  
+  // Check if current values match detected values
+  const stateWasAutoFilled = detectedAddress?.detected_state && 
+    selectedState === detectedAddress.detected_state;
+  const zipWasAutoFilled = detectedAddress?.detected_zip && 
+    zipCode === detectedAddress.detected_zip;
 
   // Mode-specific content
   const content = {
@@ -124,10 +134,18 @@ export function UploadPage({
           {/* State, ZIP, and Care Setting selectors */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.15s' }}>
-              <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
-                <MapPin className="h-2.5 w-2.5 text-purple" />
-                {t('upload.state.label')}
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
+                  <MapPin className="h-2.5 w-2.5 text-purple" />
+                  {t('upload.state.label')}
+                </label>
+                {stateWasAutoFilled && (
+                  <Badge variant="outline" className="h-4 px-1 text-[8px] bg-success/10 text-success border-success/30 gap-0.5">
+                    <Sparkles className="h-2 w-2" />
+                    detected
+                  </Badge>
+                )}
+              </div>
               <Select value={selectedState} onValueChange={onStateChange}>
                 <SelectTrigger className="w-full h-10 md:h-8 text-sm md:text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
                   <SelectValue placeholder={t('upload.state.placeholder')} />
@@ -145,20 +163,28 @@ export function UploadPage({
             {/* ZIP Code - only for bill mode */}
             {!isMedicalDoc && (
               <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.17s' }}>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase cursor-help">
-                        <MapPin className="h-2.5 w-2.5 text-sky" />
-                        ZIP code
-                        <HelpCircle className="h-2.5 w-2.5 opacity-50" />
-                      </label>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[200px]">
-                      <p className="text-xs">For accurate Medicare rate comparison based on your location</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <div className="flex items-center justify-between">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase cursor-help">
+                          <MapPin className="h-2.5 w-2.5 text-sky" />
+                          ZIP code
+                          <HelpCircle className="h-2.5 w-2.5 opacity-50" />
+                        </label>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[200px]">
+                        <p className="text-xs">For accurate Medicare rate comparison based on your location</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {zipWasAutoFilled && (
+                    <Badge variant="outline" className="h-4 px-1 text-[8px] bg-success/10 text-success border-success/30 gap-0.5">
+                      <Sparkles className="h-2 w-2" />
+                      detected
+                    </Badge>
+                  )}
+                </div>
                 <Input
                   type="text"
                   value={zipCode}
