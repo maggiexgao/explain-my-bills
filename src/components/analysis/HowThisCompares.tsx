@@ -365,8 +365,8 @@ function DebugPanel({
             <strong>Queries Attempted:</strong>
             <div className="mt-1 max-h-32 overflow-y-auto">
               {output.debug.queriesAttempted.map((q, i) => (
-                <div key={i} className={q.found ? 'text-success' : 'text-destructive'}>
-                  {q.hcpcs} (year: {q.year}) → {q.found ? '✓ Found' : '✗ Not found'}
+                <div key={i} className={q.row_exists ? 'text-success' : 'text-destructive'}>
+                  {q.hcpcs} (year: {q.year}) → {q.row_exists ? `✓ Found (fee: ${q.has_fee}, rvu: ${q.has_rvu})` : '✗ Not found'}
                 </div>
               ))}
             </div>
