@@ -297,13 +297,22 @@ function extractServiceDate(analysis: AnalysisResult): string | null {
 function DebugPanel({ 
   output, 
   rawCodes, 
-  serviceDate 
+  serviceDate,
+  state,
+  zipCode 
 }: { 
   output: MedicareBenchmarkOutput; 
   rawCodes: string[];
   serviceDate: string | null;
+  state?: string;
+  zipCode?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  
+  // Count codes by match status
+  const matchedCount = output.lineItems.filter(i => i.matchStatus === 'matched').length;
+  const missingCount = output.lineItems.filter(i => i.matchStatus === 'missing').length;
+  const existsNotPricedCount = output.lineItems.filter(i => i.matchStatus === 'exists_not_priced').length;
   
   return (
     <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/50 text-xs font-mono">
@@ -313,32 +322,62 @@ function DebugPanel({
       >
         <Bug className="h-3 w-3" />
         <span>Benchmark Debug Info</span>
-        {expanded ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+        <div className="ml-auto flex items-center gap-2">
+          {matchedCount > 0 && <Badge variant="outline" className="text-success border-success/30 text-[10px]">{matchedCount} matched</Badge>}
+          {missingCount > 0 && <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">{missingCount} missing</Badge>}
+          {existsNotPricedCount > 0 && <Badge variant="outline" className="text-warning border-warning/30 text-[10px]">{existsNotPricedCount} exists/not priced</Badge>}
+          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </div>
       </button>
       
       {expanded && (
         <div className="mt-3 space-y-2 text-muted-foreground">
-          <div><strong>Status:</strong> {output.status}</div>
-          <div><strong>Service Date Found:</strong> {serviceDate || 'None'}</div>
-          <div><strong>Requested Years:</strong> {output.metadata.requestedYears.join(', ') || 'None'}</div>
-          <div><strong>Benchmark Year Used:</strong> {output.metadata.benchmarkYearUsed}</div>
-          <div><strong>Latest MPFS Year:</strong> {output.debug.latestMpfsYear}</div>
-          <div><strong>Used Year Fallback:</strong> {output.metadata.usedYearFallback ? 'Yes' : 'No'}</div>
-          {output.metadata.fallbackReason && (
-            <div><strong>Fallback Reason:</strong> {output.metadata.fallbackReason}</div>
-          )}
-          <div><strong>Locality:</strong> {output.metadata.localityName || 'National'} ({output.metadata.localityUsed})</div>
+          {/* Status summary */}
+          <div className="grid grid-cols-2 gap-2 p-2 rounded bg-background/50">
+            <div><strong>Status:</strong> <span className={output.status === 'ok' ? 'text-success' : output.status === 'no_codes' ? 'text-destructive' : 'text-warning'}>{output.status}</span></div>
+            <div><strong>Service Date:</strong> {serviceDate || 'Not detected'}</div>
+            <div><strong>State:</strong> {state || 'Not selected'}</div>
+            <div><strong>ZIP:</strong> {zipCode || 'Not provided'}</div>
+          </div>
           
+          {/* Year info */}
+          <div className="p-2 rounded bg-background/50">
+            <div className="grid grid-cols-2 gap-2">
+              <div><strong>Requested Years:</strong> {output.metadata.requestedYears.join(', ') || 'None'}</div>
+              <div><strong>Benchmark Year Used:</strong> <span className="text-primary">{output.metadata.benchmarkYearUsed}</span></div>
+              <div><strong>Latest MPFS Year:</strong> {output.debug.latestMpfsYear}</div>
+              <div><strong>Year Fallback:</strong> {output.metadata.usedYearFallback ? <span className="text-warning">Yes</span> : 'No'}</div>
+            </div>
+            {output.metadata.fallbackReason && (
+              <div className="mt-1 text-warning"><strong>Fallback Reason:</strong> {output.metadata.fallbackReason}</div>
+            )}
+          </div>
+          
+          {/* Locality info */}
+          <div className="p-2 rounded bg-background/50">
+            <div><strong>Locality Mode:</strong> {output.metadata.localityUsed}</div>
+            <div><strong>Locality Name:</strong> {output.metadata.localityName || 'National (no locality)'}</div>
+            {output.debug.gpciLookup?.localityFound && (
+              <div className="mt-1">
+                <strong>GPCI Indices:</strong> Work: {output.debug.gpciLookup.workGpci?.toFixed(3) || 'N/A'}, 
+                PE: {output.debug.gpciLookup.peGpci?.toFixed(3) || 'N/A'}, 
+                MP: {output.debug.gpciLookup.mpGpci?.toFixed(3) || 'N/A'}
+              </div>
+            )}
+          </div>
+          
+          {/* Code extraction */}
           <div className="pt-2 border-t border-border/30">
             <strong>Raw Codes Extracted ({rawCodes.length}):</strong>
             <div className="mt-1 flex flex-wrap gap-1">
               {rawCodes.length > 0 ? rawCodes.slice(0, 20).map((c, i) => (
                 <Badge key={i} variant="outline" className="text-xs">{c}</Badge>
-              )) : <span className="text-destructive">None</span>}
-              {rawCodes.length > 20 && <span>+{rawCodes.length - 20} more</span>}
+              )) : <span className="text-destructive">None found in bill</span>}
+              {rawCodes.length > 20 && <span className="text-muted-foreground">+{rawCodes.length - 20} more</span>}
             </div>
           </div>
           
+          {/* Normalized codes */}
           <div>
             <strong>Normalized Codes ({output.debug.normalizedCodes.length}):</strong>
             <div className="mt-1 flex flex-wrap gap-1">
@@ -346,31 +385,73 @@ function DebugPanel({
                 <Badge key={i} variant="outline" className={cn("text-xs", isValidBillableCode(c) ? "" : "border-destructive text-destructive")}>
                   {c.hcpcs || '(empty)'}{c.modifier && `-${c.modifier}`}
                 </Badge>
-              )) : <span className="text-destructive">None</span>}
+              )) : <span className="text-destructive">None valid</span>}
             </div>
           </div>
           
-          <div>
-            <strong>Matched ({output.debug.codesMatched.length}):</strong>{' '}
-            {output.debug.codesMatched.join(', ') || 'None'}
+          {/* Match results */}
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <strong className="text-success">Matched ({matchedCount}):</strong>
+              <div className="text-xs">{output.debug.codesMatched.slice(0, 5).join(', ') || 'None'}</div>
+            </div>
+            <div>
+              <strong className="text-destructive">Missing ({missingCount}):</strong>
+              <div className="text-xs">{output.debug.codesMissing.slice(0, 5).join(', ') || 'None'}</div>
+            </div>
+            <div>
+              <strong className="text-warning">Exists/Not Priced ({existsNotPricedCount}):</strong>
+              <div className="text-xs">{output.lineItems.filter(i => i.matchStatus === 'exists_not_priced').map(i => i.hcpcs).slice(0, 5).join(', ') || 'None'}</div>
+            </div>
           </div>
           
-          <div>
-            <strong>Missing ({output.debug.codesMissing.length}):</strong>{' '}
-            {output.debug.codesMissing.slice(0, 10).join(', ') || 'None'}
-            {output.debug.codesMissing.length > 10 && ` +${output.debug.codesMissing.length - 10} more`}
+          {/* Totals */}
+          <div className="p-2 rounded bg-background/50">
+            <div className="grid grid-cols-3 gap-2">
+              <div><strong>Billed Total:</strong> ${output.totals.billedTotal?.toFixed(2) || '0.00'}</div>
+              <div><strong>Medicare Ref:</strong> ${output.totals.medicareReferenceTotal?.toFixed(2) || 'N/A'}</div>
+              <div><strong>Multiple:</strong> {output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A'}</div>
+            </div>
           </div>
           
+          {/* Query details */}
           <div className="pt-2 border-t border-border/30">
-            <strong>Queries Attempted:</strong>
-            <div className="mt-1 max-h-32 overflow-y-auto">
+            <strong>MPFS Queries Attempted ({output.debug.queriesAttempted.length}):</strong>
+            <div className="mt-1 max-h-40 overflow-y-auto space-y-1">
               {output.debug.queriesAttempted.map((q, i) => (
-                <div key={i} className={q.row_exists ? 'text-success' : 'text-destructive'}>
-                  {q.hcpcs} (year: {q.year}) → {q.row_exists ? `✓ Found (fee: ${q.has_fee}, rvu: ${q.has_rvu})` : '✗ Not found'}
+                <div key={i} className={cn(
+                  "text-xs p-1 rounded",
+                  q.row_exists ? (q.has_fee || q.has_rvu ? 'bg-success/10' : 'bg-warning/10') : 'bg-destructive/10'
+                )}>
+                  <span className="font-semibold">{q.hcpcs}</span>
+                  {q.modifier && <span className="text-muted-foreground">-{q.modifier}</span>}
+                  {' '}(year: {q.year}, qp: {q.qp_status}) → 
+                  {q.row_exists ? (
+                    <span className={q.has_fee || q.has_rvu ? 'text-success' : 'text-warning'}>
+                      {' '}✓ Row found {q.has_fee ? '(has fee)' : q.has_rvu ? '(has RVU)' : '(no fee/RVU)'}
+                    </span>
+                  ) : (
+                    <span className="text-destructive"> ✗ Not in MPFS</span>
+                  )}
                 </div>
               ))}
             </div>
           </div>
+          
+          {/* Example query for manual verification */}
+          {output.debug.queriesAttempted.length > 0 && (
+            <div className="pt-2 border-t border-border/30">
+              <strong>Example SQL Query:</strong>
+              <pre className="mt-1 p-2 rounded bg-background/80 text-[10px] overflow-x-auto">
+{`SELECT hcpcs, modifier, nonfac_fee, fac_fee, work_rvu, nonfac_pe_rvu, fac_pe_rvu, mp_rvu, conversion_factor
+FROM mpfs_benchmarks 
+WHERE hcpcs = '${output.debug.queriesAttempted[0]?.hcpcs || '99213'}' 
+  AND year = ${output.metadata.benchmarkYearUsed}
+  AND qp_status = 'nonQP'
+  AND source = 'CMS MPFS';`}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -888,7 +969,7 @@ export function HowThisCompares({
         </div>
         
         {showDebug && (
-          <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} />
+          <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} state={state} zipCode={zipCode} />
         )}
       </div>
     );
@@ -914,7 +995,7 @@ export function HowThisCompares({
         </div>
         
         {showDebug && (
-          <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} />
+          <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} state={state} zipCode={zipCode} />
         )}
       </div>
     );
@@ -986,7 +1067,7 @@ export function HowThisCompares({
       </div>
       
       {showDebug && (
-        <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} />
+        <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} state={state} zipCode={zipCode} />
       )}
     </div>
   );
