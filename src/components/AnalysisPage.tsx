@@ -6,7 +6,7 @@ import { ExplanationPanel } from '@/components/ExplanationPanel';
 import { ZoomControl } from '@/components/ZoomControl';
 import { useZoom } from '@/contexts/ZoomContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { UploadedFile, AnalysisResult } from '@/types';
+import { UploadedFile, AnalysisResult, CareSetting } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 
 interface AnalysisPageProps {
@@ -16,9 +16,11 @@ interface AnalysisPageProps {
   onBack: () => void;
   hasEOB?: boolean;
   selectedState?: string;
+  zipCode?: string;
+  careSetting?: CareSetting;
 }
 
-export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = false, selectedState }: AnalysisPageProps) {
+export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = false, selectedState, zipCode, careSetting = 'office' }: AnalysisPageProps) {
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'document' | 'analysis'>('analysis');
   const { t } = useTranslation();
@@ -141,6 +143,8 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
                 onHoverCharge={setActiveHighlight}
                 hasEOB={hasEOB}
                 selectedState={selectedState}
+                zipCode={zipCode}
+                careSetting={careSetting}
               />
             </div>
           )}
@@ -182,6 +186,8 @@ export function AnalysisPage({ file, analysis, isAnalyzing, onBack, hasEOB = fal
               onHoverCharge={setActiveHighlight}
               hasEOB={hasEOB}
               selectedState={selectedState}
+              zipCode={zipCode}
+              careSetting={careSetting}
             />
           </div>
         </div>

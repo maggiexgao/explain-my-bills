@@ -9,7 +9,7 @@ import { PondIntroScreen } from "@/components/PondIntroScreen";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { ZoomProvider } from "@/contexts/ZoomContext";
 import { supabase } from "@/integrations/supabase/client";
-import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult } from "@/types";
+import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult, CareSetting } from "@/types";
 import { toast } from "sonner";
 
 // Helper to ensure value is always an array
@@ -35,6 +35,8 @@ const Index = () => {
     eobFile: null,
     selectedState: "",
     selectedLanguage: "en",
+    zipCode: "",
+    careSetting: "office",
     analysisResult: null,
     medicalDocResult: null,
     isAnalyzing: false,
@@ -73,6 +75,14 @@ const Index = () => {
 
   const handleModeChange = useCallback((analysisMode: AnalysisMode) => {
     setState((prev) => ({ ...prev, analysisMode }));
+  }, []);
+
+  const handleZipCodeChange = useCallback((zipCode: string) => {
+    setState((prev) => ({ ...prev, zipCode }));
+  }, []);
+
+  const handleCareSettingChange = useCallback((careSetting: CareSetting) => {
+    setState((prev) => ({ ...prev, careSetting }));
   }, []);
 
   const fileToBase64 = async (file: File): Promise<string> => {
@@ -481,6 +491,8 @@ const Index = () => {
                   eobFile={state.eobFile}
                   selectedState={state.selectedState}
                   selectedLanguage={state.selectedLanguage}
+                  zipCode={state.zipCode}
+                  careSetting={state.careSetting}
                   analysisMode={state.analysisMode}
                   onFileSelect={handleFileSelect}
                   onRemoveFile={handleRemoveFile}
@@ -488,6 +500,8 @@ const Index = () => {
                   onRemoveEOB={handleRemoveEOB}
                   onStateChange={handleStateChange}
                   onLanguageChange={handleLanguageChange}
+                  onZipCodeChange={handleZipCodeChange}
+                  onCareSettingChange={handleCareSettingChange}
                   onModeChange={handleModeChange}
                   onAnalyze={handleAnalyze}
                 />
@@ -508,6 +522,8 @@ const Index = () => {
                     onBack={handleBack}
                     hasEOB={!!state.eobFile}
                     selectedState={state.selectedState}
+                    zipCode={state.zipCode}
+                    careSetting={state.careSetting}
                   />
                 ))
               )}
