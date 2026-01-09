@@ -14,7 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      gpci_localities: {
+        Row: {
+          created_at: string
+          id: string
+          locality_name: string
+          locality_num: string
+          mp_gpci: number
+          pe_gpci: number
+          state_abbr: string
+          work_gpci: number
+          zip_code: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          locality_name: string
+          locality_num: string
+          mp_gpci: number
+          pe_gpci: number
+          state_abbr: string
+          work_gpci: number
+          zip_code?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          locality_name?: string
+          locality_num?: string
+          mp_gpci?: number
+          pe_gpci?: number
+          state_abbr?: string
+          work_gpci?: number
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
+      mpfs_benchmarks: {
+        Row: {
+          conversion_factor: number | null
+          created_at: string
+          description: string | null
+          fac_fee: number | null
+          fac_pe_rvu: number | null
+          global_days: string | null
+          hcpcs: string
+          id: string
+          modifier: string | null
+          mp_rvu: number | null
+          mult_surgery_indicator: string | null
+          nonfac_fee: number | null
+          nonfac_pe_rvu: number | null
+          pctc: string | null
+          qp_status: string | null
+          source: string | null
+          status: string | null
+          work_rvu: number | null
+          year: number | null
+        }
+        Insert: {
+          conversion_factor?: number | null
+          created_at?: string
+          description?: string | null
+          fac_fee?: number | null
+          fac_pe_rvu?: number | null
+          global_days?: string | null
+          hcpcs: string
+          id?: string
+          modifier?: string | null
+          mp_rvu?: number | null
+          mult_surgery_indicator?: string | null
+          nonfac_fee?: number | null
+          nonfac_pe_rvu?: number | null
+          pctc?: string | null
+          qp_status?: string | null
+          source?: string | null
+          status?: string | null
+          work_rvu?: number | null
+          year?: number | null
+        }
+        Update: {
+          conversion_factor?: number | null
+          created_at?: string
+          description?: string | null
+          fac_fee?: number | null
+          fac_pe_rvu?: number | null
+          global_days?: string | null
+          hcpcs?: string
+          id?: string
+          modifier?: string | null
+          mp_rvu?: number | null
+          mult_surgery_indicator?: string | null
+          nonfac_fee?: number | null
+          nonfac_pe_rvu?: number | null
+          pctc?: string | null
+          qp_status?: string | null
+          source?: string | null
+          status?: string | null
+          work_rvu?: number | null
+          year?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
