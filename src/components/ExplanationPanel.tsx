@@ -6,13 +6,12 @@ import { CostDriversGroup } from '@/components/analysis/CostDriversGroup';
 import { PriceComparisonGroup } from '@/components/analysis/PriceComparisonGroup';
 import { ActionGroup } from '@/components/analysis/ActionGroup';
 import { DeepDiveSection } from '@/components/analysis/DeepDiveSection';
-import { MedicarePricingSummary } from '@/components/analysis/MedicarePricingSummary';
-import { MedicareLineItemTable } from '@/components/analysis/MedicareLineItemTable';
+import { HowThisCompares } from '@/components/analysis/HowThisCompares';
 import { NegotiationLetterGenerator } from '@/components/analysis/NegotiationLetterGenerator';
 import { CollapsibleGroup } from '@/components/analysis/CollapsibleGroup';
 import { useTranslation } from '@/i18n/LanguageContext';
-import { analyzeBillAgainstMedicare, MedicareSummary, LineItemWithCpt } from '@/lib/medicareBenchmark';
-import { DollarSign, Loader2 } from 'lucide-react';
+import { calculateMedicareBenchmarks, MedicareBenchmarkOutput } from '@/lib/medicareBenchmarkService';
+import { DollarSign, Loader2, TrendingUp } from 'lucide-react';
 
 interface ExplanationPanelProps {
   analysis: AnalysisResult;
@@ -32,7 +31,7 @@ export function ExplanationPanel({
   careSetting = 'office'
 }: ExplanationPanelProps) {
   const { t } = useTranslation();
-  const [medicareSummary, setMedicareSummary] = useState<MedicareSummary | null>(null);
+  const [medicareBenchmark, setMedicareBenchmark] = useState<MedicareBenchmarkOutput | null>(null);
   const [isLoadingMedicare, setIsLoadingMedicare] = useState(false);
   
   // Check if we have the Pond structure
@@ -60,11 +59,11 @@ export function ExplanationPanel({
   const closingReassurance = analysis.closingReassurance || 
     "Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful.";
 
-  // Extract CPT codes from analysis for Medicare benchmarking
+  // Extract CPT codes from analysis for Medicare benchmarking (for letter generator)
   useEffect(() => {
     const fetchMedicareBenchmarks = async () => {
       // Build line items from analysis
-      const lineItems: LineItemWithCpt[] = [];
+      const lineItems: { hcpcs: string; description?: string; billedAmount: number; units: number }[] = [];
       
       // Try to extract from CPT codes
       if (analysis.cptCodes && analysis.cptCodes.length > 0) {
@@ -74,11 +73,14 @@ export function ExplanationPanel({
             c.description?.includes(cpt.code) || 
             cpt.shortLabel?.includes(c.description)
           );
-          lineItems.push({
-            cptCode: cpt.code,
-            description: cpt.shortLabel || cpt.explanation,
-            chargedAmount: matchingCharge?.amount || 0
-          });
+          if (matchingCharge && matchingCharge.amount > 0) {
+            lineItems.push({
+              hcpcs: cpt.code,
+              description: cpt.shortLabel || cpt.explanation,
+              billedAmount: matchingCharge.amount,
+              units: 1
+            });
+          }
         }
       }
       
@@ -89,11 +91,14 @@ export function ExplanationPanel({
             const matchingCharge = analysis.charges?.find(c => 
               c.description?.toLowerCase().includes(cm.procedureName?.toLowerCase() || '')
             );
-            lineItems.push({
-              cptCode: cm.cptCode,
-              description: cm.procedureName,
-              chargedAmount: matchingCharge?.amount || 0
-            });
+            if (matchingCharge && matchingCharge.amount > 0) {
+              lineItems.push({
+                hcpcs: cm.cptCode,
+                description: cm.procedureName,
+                billedAmount: matchingCharge.amount,
+                units: 1
+              });
+            }
           }
         }
       }
@@ -102,13 +107,12 @@ export function ExplanationPanel({
       if (lineItems.length > 0 && selectedState) {
         setIsLoadingMedicare(true);
         try {
-          const summary = await analyzeBillAgainstMedicare(
-            lineItems.filter(li => li.chargedAmount > 0),
+          const result = await calculateMedicareBenchmarks(
+            lineItems,
             selectedState,
-            zipCode,
-            careSetting
+            zipCode
           );
-          setMedicareSummary(summary);
+          setMedicareBenchmark(result);
         } catch (error) {
           console.error('Error fetching Medicare benchmarks:', error);
         } finally {
@@ -142,39 +146,25 @@ export function ExplanationPanel({
           savingsOpportunities={savingsOpportunities}
         />
 
-        {/* ========== MEDICARE PRICING ANALYSIS ========== */}
-        {isLoadingMedicare && (
-          <div className="p-4 rounded-xl bg-muted/20 border border-border/30 flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Loading Medicare price comparison...</span>
-          </div>
-        )}
-        
-        {medicareSummary && medicareSummary.comparisons.length > 0 && (
+        {/* ========== HOW THIS COMPARES (Medicare Pricing Analysis) ========== */}
+        {selectedState && (
           <CollapsibleGroup
-            title="Medicare Price Analysis"
-            subtitle={`${medicareSummary.percentOfMedicare ? `${medicareSummary.percentOfMedicare}% of Medicare` : 'Benchmark comparison'}`}
-            icon={<DollarSign className="h-4 w-4" />}
-            iconClassName="bg-success/20 text-success"
-            defaultOpen={medicareSummary.itemsFlagged > 0}
-            infoTooltip="Compare your charges to official CMS Medicare rates for your area"
+            title="How This Compares"
+            subtitle={medicareBenchmark?.multipleOfMedicare 
+              ? `${medicareBenchmark.multipleOfMedicare}× Medicare reference` 
+              : 'Medicare benchmark comparison'
+            }
+            icon={<TrendingUp className="h-4 w-4" />}
+            iconClassName="bg-primary/20 text-primary"
+            defaultOpen={true}
+            infoTooltip="Compare your charges to CMS Medicare reference prices, often used by insurers and employers as benchmarks"
           >
-            <div className="space-y-4">
-              <MedicarePricingSummary summary={medicareSummary} />
-              <MedicareLineItemTable comparisons={medicareSummary.comparisons} />
-              
-              {/* Negotiation Letter Generator */}
-              {medicareSummary.itemsFlagged > 0 && (
-                <NegotiationLetterGenerator
-                  summary={medicareSummary}
-                  providerName={analysis.issuer}
-                  dateOfService={analysis.dateOfService}
-                  localityName={medicareSummary.comparisons[0]?.localityName || undefined}
-                  state={selectedState}
-                  zipCode={zipCode}
-                />
-              )}
-            </div>
+            <HowThisCompares
+              analysis={analysis}
+              state={selectedState}
+              zipCode={zipCode}
+              careSetting={careSetting}
+            />
           </CollapsibleGroup>
         )}
 
