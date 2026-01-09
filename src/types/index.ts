@@ -483,6 +483,8 @@ export interface AnalysisResult {
   referralContext?: ReferralContext;
 }
 
+export type CareSetting = 'office' | 'facility';
+
 export interface AppState {
   currentStep: 'upload' | 'analysis';
   analysisMode: AnalysisMode;
@@ -490,6 +492,8 @@ export interface AppState {
   eobFile: UploadedFile | null;
   selectedState: string;
   selectedLanguage: Language;
+  zipCode: string;
+  careSetting: CareSetting;
   analysisResult: AnalysisResult | null;
   medicalDocResult: MedicalDocumentResult | null;
   isAnalyzing: boolean;

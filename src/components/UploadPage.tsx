@@ -2,6 +2,7 @@ import { FileUploader } from '@/components/FileUploader';
 import { EOBUploader } from '@/components/EOBUploader';
 import { ModeToggle } from '@/components/ModeToggle';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -9,15 +10,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle } from 'lucide-react';
-import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode } from '@/types';
+import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle, Building2, Stethoscope } from 'lucide-react';
+import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode, CareSetting } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface UploadPageProps {
   uploadedFile: UploadedFile | null;
   eobFile: UploadedFile | null;
   selectedState: string;
   selectedLanguage: Language;
+  zipCode: string;
+  careSetting: CareSetting;
   analysisMode: AnalysisMode;
   onFileSelect: (file: UploadedFile) => void;
   onRemoveFile: () => void;
@@ -25,6 +29,8 @@ interface UploadPageProps {
   onRemoveEOB: () => void;
   onStateChange: (state: string) => void;
   onLanguageChange: (language: Language) => void;
+  onZipCodeChange: (zipCode: string) => void;
+  onCareSettingChange: (setting: CareSetting) => void;
   onModeChange: (mode: AnalysisMode) => void;
   onAnalyze: () => void;
 }
@@ -34,6 +40,8 @@ export function UploadPage({
   eobFile,
   selectedState,
   selectedLanguage,
+  zipCode,
+  careSetting,
   analysisMode,
   onFileSelect,
   onRemoveFile,
@@ -41,6 +49,8 @@ export function UploadPage({
   onRemoveEOB,
   onStateChange,
   onLanguageChange,
+  onZipCodeChange,
+  onCareSettingChange,
   onModeChange,
   onAnalyze,
 }: UploadPageProps) {
@@ -111,8 +121,8 @@ export function UploadPage({
             )}
           </div>
 
-          {/* State and Language selectors - staggered entrance */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {/* State, ZIP, and Care Setting selectors */}
+          <div className="grid grid-cols-2 gap-2">
             <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.15s' }}>
               <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
                 <MapPin className="h-2.5 w-2.5 text-purple" />
@@ -132,30 +142,129 @@ export function UploadPage({
               </Select>
             </div>
 
-            <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
-                <Globe className="h-2.5 w-2.5 text-coral" />
-                {t('upload.language.label')}
-              </label>
-              <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
-                <SelectTrigger className="w-full h-10 md:h-8 text-sm md:text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
-                  <SelectValue placeholder={t('upload.language.label')} />
-                </SelectTrigger>
-                <SelectContent className="bg-popover/95 backdrop-blur-md z-50">
-                  {LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.value} value={lang.value} className="text-sm md:text-xs">
-                      <span className="flex items-center gap-1">
-                        <span>{lang.nativeLabel}</span>
-                        {lang.value !== 'en' && (
-                          <span className="text-muted-foreground text-[9px]">({lang.label})</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* ZIP Code - only for bill mode */}
+            {!isMedicalDoc && (
+              <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.17s' }}>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase cursor-help">
+                        <MapPin className="h-2.5 w-2.5 text-sky" />
+                        ZIP code
+                        <HelpCircle className="h-2.5 w-2.5 opacity-50" />
+                      </label>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      <p className="text-xs">For accurate Medicare rate comparison based on your location</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Input
+                  type="text"
+                  value={zipCode}
+                  onChange={(e) => onZipCodeChange(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                  placeholder="e.g., 90210"
+                  className="w-full h-10 md:h-8 text-sm md:text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors"
+                  maxLength={5}
+                />
+              </div>
+            )}
+
+            {/* Language selector - show for medical doc mode, or in second row for bill */}
+            {isMedicalDoc && (
+              <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+                <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
+                  <Globe className="h-2.5 w-2.5 text-coral" />
+                  {t('upload.language.label')}
+                </label>
+                <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
+                  <SelectTrigger className="w-full h-10 md:h-8 text-sm md:text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
+                    <SelectValue placeholder={t('upload.language.label')} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover/95 backdrop-blur-md z-50">
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value} className="text-sm md:text-xs">
+                        <span className="flex items-center gap-1">
+                          <span>{lang.nativeLabel}</span>
+                          {lang.value !== 'en' && (
+                            <span className="text-muted-foreground text-[9px]">({lang.label})</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+
+          {/* Care Setting & Language for bill mode */}
+          {!isMedicalDoc && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase cursor-help">
+                        <Building2 className="h-2.5 w-2.5 text-teal" />
+                        care setting
+                        <HelpCircle className="h-2.5 w-2.5 opacity-50" />
+                      </label>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px]">
+                      <p className="text-xs">Medicare rates differ based on setting. Choose "Facility" for hospital/ER visits.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant={careSetting === 'office' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => onCareSettingChange('office')}
+                    className="flex-1 h-10 md:h-8 text-xs gap-1"
+                  >
+                    <Stethoscope className="h-3 w-3" />
+                    Office
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={careSetting === 'facility' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => onCareSettingChange('facility')}
+                    className="flex-1 h-10 md:h-8 text-xs gap-1"
+                  >
+                    <Building2 className="h-3 w-3" />
+                    Facility
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-0.5 animate-slide-up" style={{ animationDelay: '0.22s' }}>
+                <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground lowercase">
+                  <Globe className="h-2.5 w-2.5 text-coral" />
+                  {t('upload.language.label')}
+                </label>
+                <Select value={selectedLanguage} onValueChange={(v) => onLanguageChange(v as Language)}>
+                  <SelectTrigger className="w-full h-10 md:h-8 text-sm md:text-xs bg-background/60 backdrop-blur-sm border-border/50 hover:border-primary/40 transition-colors">
+                    <SelectValue placeholder={t('upload.language.label')} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover/95 backdrop-blur-md z-50">
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value} className="text-sm md:text-xs">
+                        <span className="flex items-center gap-1">
+                          <span>{lang.nativeLabel}</span>
+                          {lang.value !== 'en' && (
+                            <span className="text-muted-foreground text-[9px]">({lang.label})</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           {/* Analyze button - larger touch target on mobile */}
           <Button
