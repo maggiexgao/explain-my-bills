@@ -15,6 +15,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeAndValidateCode, ValidatedCode, RejectedToken } from './cptCodeValidator';
 
 // ============= Types =============
 
@@ -105,9 +106,26 @@ export interface BenchmarkMetadata {
   notes: string[];
 }
 
+export interface GeoDebugInfo {
+  zipInput: string | null;
+  zipValid: boolean;
+  stateInput: string | null;
+  localityFound: boolean;
+  localityNum: string | null;
+  localityName: string | null;
+  fallbackUsed: 'none' | 'state_estimate' | 'national_estimate' | 'zip_unmapped';
+  lookupMethod: 'zip_crosswalk' | 'gpci_direct_zip' | 'gpci_state_fallback' | 'national' | null;
+  workGpci: number | null;
+  peGpci: number | null;
+  mpGpci: number | null;
+  messageToUser: string;
+}
+
 export interface DebugInfo {
   rawCodesExtracted: string[];
   normalizedCodes: NormalizedCode[];
+  validatedCodes: ValidatedCode[];
+  rejectedTokens: RejectedToken[];
   codesMatched: string[];
   codesMissing: string[];
   codesExistsNotPriced: string[];
@@ -125,6 +143,7 @@ export interface DebugInfo {
     mpGpci: number | null;
     lookupMethod: 'zip_crosswalk' | 'gpci_direct_zip' | 'gpci_state_fallback' | 'national' | null;
   };
+  geoDebug: GeoDebugInfo;
 }
 
 export interface MedicareBenchmarkOutput {
@@ -797,6 +816,8 @@ export async function calculateMedicareBenchmarks(
   const results: BenchmarkLineResult[] = [];
   const rawCodesExtracted: string[] = [];
   const normalizedCodes: NormalizedCode[] = [];
+  const validatedCodes: ValidatedCode[] = [];
+  const rejectedTokens: RejectedToken[] = [];
   const codesMatched: string[] = [];
   const codesMissing: string[] = [];
   const codesExistsNotPriced: string[] = [];
@@ -832,6 +853,54 @@ export async function calculateMedicareBenchmarks(
     lookupMethod
   };
 
+  // Validate ZIP format
+  const normalizedZip = zipCode ? zipCode.trim().substring(0, 5) : null;
+  const zipValid = normalizedZip ? /^\d{5}$/.test(normalizedZip) : false;
+  
+  // Build geo debug info with user-friendly messaging
+  let geoMessageToUser = '';
+  let fallbackUsed: 'none' | 'state_estimate' | 'national_estimate' | 'zip_unmapped' = 'none';
+  
+  if (gpci !== null) {
+    if (lookupMethod === 'zip_crosswalk' || lookupMethod === 'gpci_direct_zip') {
+      geoMessageToUser = `Adjusted for your ZIP area (${localityName || 'locality'})`;
+      fallbackUsed = 'none';
+    } else if (lookupMethod === 'gpci_state_fallback') {
+      geoMessageToUser = `ZIP provided; using ${state?.toUpperCase() || 'state'} estimate (exact locality not mapped yet)`;
+      fallbackUsed = 'state_estimate';
+    }
+  } else if (zipValid && !gpci) {
+    // ZIP was provided and valid, but no locality match found
+    if (state) {
+      geoMessageToUser = `ZIP ${normalizedZip} provided; using ${state.toUpperCase()} state average (exact locality not in our crosswalk yet)`;
+      fallbackUsed = 'zip_unmapped';
+    } else {
+      geoMessageToUser = `ZIP ${normalizedZip} provided; using national estimate (locality not in our crosswalk yet)`;
+      fallbackUsed = 'zip_unmapped';
+    }
+  } else if (state && !zipCode) {
+    geoMessageToUser = `Using ${state.toUpperCase()} state-level estimate (no ZIP provided)`;
+    fallbackUsed = 'state_estimate';
+  } else {
+    geoMessageToUser = 'Using national average rates (no location provided)';
+    fallbackUsed = 'national_estimate';
+  }
+
+  const geoDebug: GeoDebugInfo = {
+    zipInput: zipCode || null,
+    zipValid,
+    stateInput: state || null,
+    localityFound: gpci !== null,
+    localityNum: localityCode,
+    localityName,
+    fallbackUsed,
+    lookupMethod,
+    workGpci: gpci?.work_gpci ?? null,
+    peGpci: gpci?.pe_gpci ?? null,
+    mpGpci: gpci?.mp_gpci ?? null,
+    messageToUser: geoMessageToUser
+  };
+
   // Process each line item
   for (const item of lineItems) {
     // Track billed amount (allow null)
@@ -844,12 +913,22 @@ export async function calculateMedicareBenchmarks(
     const rawCode = item.rawCode || item.hcpcs;
     rawCodesExtracted.push(rawCode);
     
-    // Normalize the code
+    // Use strict validation with the new validator
+    const validated = normalizeAndValidateCode(rawCode);
+    validatedCodes.push(validated);
+    
+    // Normalize the code (legacy, for compatibility)
     const normalized = normalizeCode(rawCode);
     normalizedCodes.push(normalized);
     
-    // Skip if code is not valid after normalization
-    if (!isValidBillableCode(normalized)) {
+    // Skip if code is not valid after strict validation
+    if (validated.kind === 'invalid' || !validated.code) {
+      // Track rejected token
+      rejectedTokens.push({
+        token: rawCode,
+        reason: validated.reason || 'Unknown validation failure'
+      });
+      
       codesMissing.push(rawCode);
       results.push({
         hcpcs: normalized.hcpcs || rawCode,
@@ -864,12 +943,18 @@ export async function calculateMedicareBenchmarks(
         matchStatus: 'missing',
         benchmarkYearUsed: null,
         requestedYear: null,
-        notes: [`Invalid or unrecognized code format: "${rawCode}"`],
+        notes: [`Invalid or unrecognized code format: "${rawCode}" (${validated.reason || 'not a valid CPT/HCPCS code'})`],
         exclusionReason: 'no_valid_code',
         feeSource: null,
         notPricedReason: null
       });
       continue;
+    }
+    
+    // Use validated code and modifier
+    normalized.hcpcs = validated.code;
+    if (validated.modifier) {
+      normalized.modifier = validated.modifier;
     }
     
     // Determine the year to request
@@ -1096,12 +1181,15 @@ export async function calculateMedicareBenchmarks(
     debug: {
       rawCodesExtracted,
       normalizedCodes,
+      validatedCodes,
+      rejectedTokens,
       codesMatched,
       codesMissing,
       codesExistsNotPriced,
       latestMpfsYear,
       queriesAttempted,
-      gpciLookup
+      gpciLookup,
+      geoDebug
     },
     
     calculatedAt: new Date().toISOString(),

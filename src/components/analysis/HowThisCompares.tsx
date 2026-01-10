@@ -50,8 +50,15 @@ import {
   BenchmarkLineResult,
   normalizeCode,
   isValidBillableCode,
-  NormalizedCode
+  NormalizedCode,
+  GeoDebugInfo
 } from '@/lib/medicareBenchmarkService';
+import { 
+  normalizeAndValidateCode, 
+  validateCodeTokens,
+  ValidatedCode,
+  RejectedToken
+} from '@/lib/cptCodeValidator';
 import { AnalysisResult, CareSetting } from '@/types';
 
 // ============= Props =============
@@ -153,9 +160,14 @@ function formatCurrency(amount: number): string {
  * 2. Normalizes them using the same logic as the benchmark service
  * 3. Creates line items even if we can't match to a specific charge (uses $0 as placeholder)
  */
-function extractLineItems(analysis: AnalysisResult): { items: BenchmarkLineItem[]; rawCodes: string[] } {
+function extractLineItems(analysis: AnalysisResult): { 
+  items: BenchmarkLineItem[]; 
+  rawCodes: string[];
+  rejectedTokens: RejectedToken[];
+} {
   const items: BenchmarkLineItem[] = [];
   const rawCodes: string[] = [];
+  const rejectedTokens: RejectedToken[] = [];
   const seenCodes = new Set<string>();
   
   // 1. Extract from cptCodes array (most structured source)
@@ -164,16 +176,22 @@ function extractLineItems(analysis: AnalysisResult): { items: BenchmarkLineItem[
       if (!cpt.code) continue;
       
       rawCodes.push(cpt.code);
-      const normalized = normalizeCode(cpt.code);
       
-      if (!isValidBillableCode(normalized)) continue;
-      if (seenCodes.has(normalized.hcpcs)) continue;
-      seenCodes.add(normalized.hcpcs);
+      // Use strict validation
+      const validated = normalizeAndValidateCode(cpt.code);
+      
+      if (validated.kind === 'invalid' || !validated.code) {
+        rejectedTokens.push({ token: cpt.code, reason: validated.reason || 'Invalid format' });
+        continue;
+      }
+      
+      if (seenCodes.has(validated.code)) continue;
+      seenCodes.add(validated.code);
       
       // Try to find matching charge by code in description
       const matchingCharge = analysis.charges?.find(c => 
         c.description?.includes(cpt.code) || 
-        c.description?.includes(normalized.hcpcs)
+        c.description?.includes(validated.code!)
       );
       
       // Also try matching by procedure name
@@ -184,12 +202,12 @@ function extractLineItems(analysis: AnalysisResult): { items: BenchmarkLineItem[
       const charge = matchingCharge || matchByName;
       
       items.push({
-        hcpcs: normalized.hcpcs,
+        hcpcs: validated.code,
         rawCode: cpt.code,
         description: cpt.shortLabel || cpt.explanation,
         billedAmount: charge?.amount ?? 0,
         units: 1,
-        modifier: normalized.modifier,
+        modifier: validated.modifier || undefined,
         isFacility: cpt.category === 'surgery'
       });
     }
@@ -201,11 +219,17 @@ function extractLineItems(analysis: AnalysisResult): { items: BenchmarkLineItem[
       if (!cm.cptCode) continue;
       
       rawCodes.push(cm.cptCode);
-      const normalized = normalizeCode(cm.cptCode);
       
-      if (!isValidBillableCode(normalized)) continue;
-      if (seenCodes.has(normalized.hcpcs)) continue;
-      seenCodes.add(normalized.hcpcs);
+      // Use strict validation
+      const validated = normalizeAndValidateCode(cm.cptCode);
+      
+      if (validated.kind === 'invalid' || !validated.code) {
+        rejectedTokens.push({ token: cm.cptCode, reason: validated.reason || 'Invalid format' });
+        continue;
+      }
+      
+      if (seenCodes.has(validated.code)) continue;
+      seenCodes.add(validated.code);
       
       // Try to find matching charge
       const matchingCharge = analysis.charges?.find(c => 
@@ -214,12 +238,12 @@ function extractLineItems(analysis: AnalysisResult): { items: BenchmarkLineItem[
       );
       
       items.push({
-        hcpcs: normalized.hcpcs,
+        hcpcs: validated.code,
         rawCode: cm.cptCode,
         description: cm.procedureName || cm.explanation,
         billedAmount: matchingCharge?.amount ?? 0,
         units: 1,
-        modifier: normalized.modifier
+        modifier: validated.modifier || undefined
       });
     }
   }
@@ -234,19 +258,25 @@ function extractLineItems(analysis: AnalysisResult): { items: BenchmarkLineItem[
       
       for (const match of codeMatches) {
         rawCodes.push(match);
-        const normalized = normalizeCode(match);
         
-        if (!isValidBillableCode(normalized)) continue;
-        if (seenCodes.has(normalized.hcpcs)) continue;
-        seenCodes.add(normalized.hcpcs);
+        // Use strict validation
+        const validated = normalizeAndValidateCode(match);
+        
+        if (validated.kind === 'invalid' || !validated.code) {
+          rejectedTokens.push({ token: match, reason: validated.reason || 'Invalid format' });
+          continue;
+        }
+        
+        if (seenCodes.has(validated.code)) continue;
+        seenCodes.add(validated.code);
         
         items.push({
-          hcpcs: normalized.hcpcs,
+          hcpcs: validated.code,
           rawCode: match,
           description: charge.description,
           billedAmount: charge.amount ?? 0,
           units: 1,
-          modifier: normalized.modifier
+          modifier: validated.modifier || undefined
         });
       }
     }
@@ -261,25 +291,31 @@ function extractLineItems(analysis: AnalysisResult): { items: BenchmarkLineItem[
         if (!candidate.cpt) continue;
         
         rawCodes.push(candidate.cpt);
-        const normalized = normalizeCode(candidate.cpt);
         
-        if (!isValidBillableCode(normalized)) continue;
-        if (seenCodes.has(normalized.hcpcs)) continue;
-        seenCodes.add(normalized.hcpcs);
+        // Use strict validation
+        const validated = normalizeAndValidateCode(candidate.cpt);
+        
+        if (validated.kind === 'invalid' || !validated.code) {
+          rejectedTokens.push({ token: candidate.cpt, reason: validated.reason || 'Invalid format' });
+          continue;
+        }
+        
+        if (seenCodes.has(validated.code)) continue;
+        seenCodes.add(validated.code);
         
         items.push({
-          hcpcs: normalized.hcpcs,
+          hcpcs: validated.code,
           rawCode: candidate.cpt,
           description: candidate.shortLabel || candidate.explanation,
           billedAmount: 0, // Suggested codes don't have matched charges
           units: 1,
-          modifier: normalized.modifier
+          modifier: validated.modifier || undefined
         });
       }
     }
   }
   
-  return { items, rawCodes };
+  return { items, rawCodes, rejectedTokens };
 }
 
 /**
@@ -987,12 +1023,13 @@ export function HowThisCompares({
         const extractedDate = extractServiceDate(analysis);
         setServiceDate(extractedDate);
         
-        // Extract line items with improved logic
-        const { items: lineItems, rawCodes: extractedRawCodes } = extractLineItems(analysis);
+        // Extract line items with improved logic and strict validation
+        const { items: lineItems, rawCodes: extractedRawCodes, rejectedTokens } = extractLineItems(analysis);
         setRawCodes(extractedRawCodes);
         
         console.log('[HowThisCompares] Extracted line items:', lineItems.length);
         console.log('[HowThisCompares] Raw codes found:', extractedRawCodes);
+        console.log('[HowThisCompares] Rejected tokens:', rejectedTokens);
         console.log('[HowThisCompares] Service date:', extractedDate);
         
         // Apply service date to all items if not already set
