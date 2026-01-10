@@ -65,7 +65,9 @@ const REJECTED_WORDS = new Set([
   // Financial terms
   'USD', 'DOLLAR', 'DOLLARS', 'CENTS', 'FEE', 'FEES', 'COST', 'COSTS',
   'RATE', 'RATES', 'TAX', 'TAXES', 'DISCOUNT', 'ADJUSTMENT', 'WRITE',
-  'WRITEOFF', 'REFUND', 'REBATE', 'CREDIT', 'COLLECTION', 'DUE'
+  'WRITEOFF', 'REFUND', 'REBATE', 'CREDIT', 'COLLECTION', 'DUE',
+  // Additional stopwords for better false positive prevention
+  'CMPLX', 'EMERG', 'MGMT', 'MGMNT', 'HCPCS', 'ICD', 'REV', 'REVENUE', 'CPT', 'NDC'
 ]);
 
 // Stopwords for reverse search (too generic to match)
