@@ -10,12 +10,13 @@
  * - Edge cases degrade gracefully with clear documentation
  * 
  * STEP 2: Proper match states (priced, exists_not_priced, missing_from_dataset)
- * STEP 3: ZIP→Locality crosswalk via zip_to_locality table
+ * STEP 3: ZIP→Locality crosswalk via geoResolver (zip_to_locality + state fallback)
  * STEP 4: Locality-adjusted RVU + GPCI + CF computation
  */
 
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeAndValidateCode, ValidatedCode, RejectedToken } from './cptCodeValidator';
+import { resolveGeo, GeoResolution, GeoMethod, GpciIndices } from './geoResolver';
 
 // ============= Types =============
 
@@ -114,11 +115,13 @@ export interface GeoDebugInfo {
   localityNum: string | null;
   localityName: string | null;
   fallbackUsed: 'none' | 'state_estimate' | 'national_estimate' | 'zip_unmapped';
-  lookupMethod: 'zip_crosswalk' | 'gpci_direct_zip' | 'gpci_state_fallback' | 'national' | null;
+  method: GeoMethod;
   workGpci: number | null;
   peGpci: number | null;
   mpGpci: number | null;
   messageToUser: string;
+  confidence: 'high' | 'medium' | 'low';
+  notes: string[];
 }
 
 export interface DebugInfo {
@@ -141,9 +144,10 @@ export interface DebugInfo {
     workGpci: number | null;
     peGpci: number | null;
     mpGpci: number | null;
-    lookupMethod: 'zip_crosswalk' | 'gpci_direct_zip' | 'gpci_state_fallback' | 'national' | null;
+    method: GeoMethod;
   };
   geoDebug: GeoDebugInfo;
+  geoResolution: GeoResolution | null;
 }
 
 export interface MedicareBenchmarkOutput {
@@ -363,143 +367,39 @@ export function clearMpfsYearCache(): void {
   cachedLatestMpfsYear = null;
 }
 
-// ============= STEP 3: ZIP→Locality Resolution =============
+// ============= STEP 3: ZIP→Locality Resolution (now uses geoResolver) =============
 
 /**
- * Lookup locality from ZIP using the crosswalk table
+ * Map GeoMethod to ConfidenceLevel
  */
-async function lookupLocalityByZip(zip5: string): Promise<ZipToLocalityRow | null> {
-  const normalizedZip = zip5.trim().substring(0, 5);
-  
-  const { data, error } = await supabase
-    .from('zip_to_locality')
-    .select('*')
-    .eq('zip5', normalizedZip)
-    .limit(1)
-    .maybeSingle();
-  
-  if (error || !data) return null;
-  return data as ZipToLocalityRow;
+function geoMethodToConfidence(method: GeoMethod): ConfidenceLevel {
+  switch (method) {
+    case 'zip_exact':
+      return 'local_adjusted';
+    case 'zip_to_state_avg':
+    case 'state_avg':
+      return 'state_estimate';
+    case 'national_default':
+      return 'national_estimate';
+  }
 }
 
 /**
- * Fetch GPCI data by locality number
+ * Create a synthetic GpciLocalityRow from resolved GPCI indices
  */
-async function fetchGpciByLocality(localityNum: string): Promise<GpciLocalityRow | null> {
-  const { data, error } = await supabase
-    .from('gpci_localities')
-    .select('*')
-    .eq('locality_num', localityNum)
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data as GpciLocalityRow;
-}
-
-/**
- * Fetch GPCI locality data by ZIP code (direct match on gpci_localities)
- */
-async function fetchGpciByZip(zipCode: string): Promise<GpciLocalityRow | null> {
-  const zip5 = zipCode.trim().substring(0, 5);
-  
-  const { data, error } = await supabase
-    .from('gpci_localities')
-    .select('*')
-    .eq('zip_code', zip5)
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data as GpciLocalityRow;
-}
-
-/**
- * Fetch GPCI locality data by state (returns first locality for state)
- */
-async function fetchGpciByState(stateAbbr: string): Promise<GpciLocalityRow | null> {
-  const { data, error } = await supabase
-    .from('gpci_localities')
-    .select('*')
-    .eq('state_abbr', stateAbbr.toUpperCase())
-    .order('locality_num')
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data as GpciLocalityRow;
-}
-
-/**
- * STEP 3: Resolve locality from ZIP/State with proper fallbacks
- * 
- * Resolution order:
- * 1. Try zip_to_locality crosswalk (most accurate)
- * 2. Try direct ZIP match in gpci_localities
- * 3. Fall back to state-level estimate
- * 4. Fall back to national estimate
- */
-async function resolveLocality(
-  zipCode: string | undefined,
-  state: string | undefined
-): Promise<{
-  gpci: GpciLocalityRow | null;
-  confidence: ConfidenceLevel;
-  localityName: string | null;
-  localityCode: string | null;
-  lookupMethod: 'zip_crosswalk' | 'gpci_direct_zip' | 'gpci_state_fallback' | 'national';
-}> {
-  // 1. Try ZIP crosswalk first (most accurate)
-  if (zipCode) {
-    const crosswalkResult = await lookupLocalityByZip(zipCode);
-    if (crosswalkResult) {
-      // Found in crosswalk, now get GPCI for this locality
-      const gpci = await fetchGpciByLocality(crosswalkResult.locality_num);
-      if (gpci) {
-        return {
-          gpci,
-          confidence: 'local_adjusted',
-          localityName: crosswalkResult.county_name || gpci.locality_name,
-          localityCode: crosswalkResult.locality_num,
-          lookupMethod: 'zip_crosswalk'
-        };
-      }
-    }
-    
-    // 2. Try direct ZIP match in gpci_localities
-    const directZipGpci = await fetchGpciByZip(zipCode);
-    if (directZipGpci) {
-      return {
-        gpci: directZipGpci,
-        confidence: 'local_adjusted',
-        localityName: directZipGpci.locality_name,
-        localityCode: directZipGpci.locality_num,
-        lookupMethod: 'gpci_direct_zip'
-      };
-    }
+function createGpciFromResolution(resolution: GeoResolution): GpciLocalityRow | null {
+  if (resolution.method === 'national_default') {
+    return null;
   }
   
-  // 3. Fall back to state-level estimate
-  if (state) {
-    const stateGpci = await fetchGpciByState(state);
-    if (stateGpci) {
-      return {
-        gpci: stateGpci,
-        confidence: 'state_estimate',
-        localityName: `${state} (state estimate)`,
-        localityCode: stateGpci.locality_num,
-        lookupMethod: 'gpci_state_fallback'
-      };
-    }
-  }
-  
-  // 4. National estimate (no GPCI adjustment)
   return {
-    gpci: null,
-    confidence: 'national_estimate',
-    localityName: null,
-    localityCode: null,
-    lookupMethod: 'national'
+    locality_num: resolution.localityNum || 'STATE_AVG',
+    state_abbr: resolution.resolvedState || '',
+    locality_name: resolution.localityName || '',
+    zip_code: resolution.resolvedZip,
+    work_gpci: resolution.gpci.work,
+    pe_gpci: resolution.gpci.pe,
+    mp_gpci: resolution.gpci.mp
   };
 }
 
@@ -835,10 +735,29 @@ export async function calculateMedicareBenchmarks(
   // Get the latest MPFS year available
   const latestMpfsYear = await getLatestMpfsYear();
   
-  // STEP 3: Resolve locality with proper fallback chain
-  const localityResult = await resolveLocality(zipCode, state);
-  const { gpci, confidence, localityName, localityCode, lookupMethod } = localityResult;
+  // STEP 3: Resolve locality using new geoResolver
+  const geoResolution = await resolveGeo(zipCode, state);
+  const gpci = createGpciFromResolution(geoResolution);
+  const confidence = geoMethodToConfidence(geoResolution.method);
+  const localityName = geoResolution.localityName;
+  const localityCode = geoResolution.localityNum;
   
+  // Validate ZIP format
+  const normalizedZip = zipCode ? zipCode.trim().substring(0, 5) : null;
+  const zipValid = normalizedZip ? /^\d{5}$/.test(normalizedZip) : false;
+  
+  // Determine fallback used
+  let fallbackUsed: 'none' | 'state_estimate' | 'national_estimate' | 'zip_unmapped' = 'none';
+  if (geoResolution.method === 'zip_exact') {
+    fallbackUsed = 'none';
+  } else if (geoResolution.method === 'zip_to_state_avg') {
+    fallbackUsed = 'zip_unmapped';
+  } else if (geoResolution.method === 'state_avg') {
+    fallbackUsed = 'state_estimate';
+  } else {
+    fallbackUsed = 'national_estimate';
+  }
+
   // GPCI lookup debug info
   const gpciLookup = {
     attempted: !!(zipCode || state),
@@ -847,44 +766,11 @@ export async function calculateMedicareBenchmarks(
     localityFound: gpci !== null,
     localityName: localityName,
     localityCode: localityCode,
-    workGpci: gpci?.work_gpci ?? null,
-    peGpci: gpci?.pe_gpci ?? null,
-    mpGpci: gpci?.mp_gpci ?? null,
-    lookupMethod
+    workGpci: geoResolution.gpci.work,
+    peGpci: geoResolution.gpci.pe,
+    mpGpci: geoResolution.gpci.mp,
+    method: geoResolution.method
   };
-
-  // Validate ZIP format
-  const normalizedZip = zipCode ? zipCode.trim().substring(0, 5) : null;
-  const zipValid = normalizedZip ? /^\d{5}$/.test(normalizedZip) : false;
-  
-  // Build geo debug info with user-friendly messaging
-  let geoMessageToUser = '';
-  let fallbackUsed: 'none' | 'state_estimate' | 'national_estimate' | 'zip_unmapped' = 'none';
-  
-  if (gpci !== null) {
-    if (lookupMethod === 'zip_crosswalk' || lookupMethod === 'gpci_direct_zip') {
-      geoMessageToUser = `Adjusted for your ZIP area (${localityName || 'locality'})`;
-      fallbackUsed = 'none';
-    } else if (lookupMethod === 'gpci_state_fallback') {
-      geoMessageToUser = `ZIP provided; using ${state?.toUpperCase() || 'state'} estimate (exact locality not mapped yet)`;
-      fallbackUsed = 'state_estimate';
-    }
-  } else if (zipValid && !gpci) {
-    // ZIP was provided and valid, but no locality match found
-    if (state) {
-      geoMessageToUser = `ZIP ${normalizedZip} provided; using ${state.toUpperCase()} state average (exact locality not in our crosswalk yet)`;
-      fallbackUsed = 'zip_unmapped';
-    } else {
-      geoMessageToUser = `ZIP ${normalizedZip} provided; using national estimate (locality not in our crosswalk yet)`;
-      fallbackUsed = 'zip_unmapped';
-    }
-  } else if (state && !zipCode) {
-    geoMessageToUser = `Using ${state.toUpperCase()} state-level estimate (no ZIP provided)`;
-    fallbackUsed = 'state_estimate';
-  } else {
-    geoMessageToUser = 'Using national average rates (no location provided)';
-    fallbackUsed = 'national_estimate';
-  }
 
   const geoDebug: GeoDebugInfo = {
     zipInput: zipCode || null,
@@ -894,11 +780,13 @@ export async function calculateMedicareBenchmarks(
     localityNum: localityCode,
     localityName,
     fallbackUsed,
-    lookupMethod,
-    workGpci: gpci?.work_gpci ?? null,
-    peGpci: gpci?.pe_gpci ?? null,
-    mpGpci: gpci?.mp_gpci ?? null,
-    messageToUser: geoMessageToUser
+    method: geoResolution.method,
+    workGpci: geoResolution.gpci.work,
+    peGpci: geoResolution.gpci.pe,
+    mpGpci: geoResolution.gpci.mp,
+    messageToUser: geoResolution.userMessage,
+    confidence: geoResolution.confidence,
+    notes: geoResolution.notes
   };
 
   // Process each line item
@@ -1189,7 +1077,8 @@ export async function calculateMedicareBenchmarks(
       latestMpfsYear,
       queriesAttempted,
       gpciLookup,
-      geoDebug
+      geoDebug,
+      geoResolution
     },
     
     calculatedAt: new Date().toISOString(),

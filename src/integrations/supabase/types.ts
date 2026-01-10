@@ -50,6 +50,36 @@ export type Database = {
         }
         Relationships: []
       }
+      gpci_state_avg_2026: {
+        Row: {
+          avg_mp_gpci: number
+          avg_pe_gpci: number
+          avg_work_gpci: number
+          created_at: string
+          n_rows: number
+          state_abbr: string
+          updated_at: string
+        }
+        Insert: {
+          avg_mp_gpci: number
+          avg_pe_gpci: number
+          avg_work_gpci: number
+          created_at?: string
+          n_rows?: number
+          state_abbr: string
+          updated_at?: string
+        }
+        Update: {
+          avg_mp_gpci?: number
+          avg_pe_gpci?: number
+          avg_work_gpci?: number
+          created_at?: string
+          n_rows?: number
+          state_abbr?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mpfs_benchmarks: {
         Row: {
           conversion_factor: number | null
@@ -119,6 +149,7 @@ export type Database = {
       zip_to_locality: {
         Row: {
           carrier_num: string | null
+          city_name: string | null
           county_name: string | null
           created_at: string
           effective_year: number | null
@@ -131,6 +162,7 @@ export type Database = {
         }
         Insert: {
           carrier_num?: string | null
+          city_name?: string | null
           county_name?: string | null
           created_at?: string
           effective_year?: number | null
@@ -143,6 +175,7 @@ export type Database = {
         }
         Update: {
           carrier_num?: string | null
+          city_name?: string | null
           county_name?: string | null
           created_at?: string
           effective_year?: number | null
@@ -160,7 +193,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      compute_gpci_state_averages: {
+        Args: never
+        Returns: {
+          avg_mp_gpci: number
+          avg_pe_gpci: number
+          avg_work_gpci: number
+          n_rows: number
+          state_abbr: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

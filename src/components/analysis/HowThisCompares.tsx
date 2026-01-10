@@ -401,7 +401,7 @@ function DebugPanel({
                 output.metadata.localityUsed === 'local_adjusted' ? 'text-success' :
                 output.metadata.localityUsed === 'state_estimate' ? 'text-warning' : 'text-muted-foreground'
               }>{output.metadata.localityUsed}</span></div>
-              <div><strong>Lookup Method:</strong> {output.debug.gpciLookup?.lookupMethod || 'N/A'}</div>
+              <div><strong>Lookup Method:</strong> {output.debug.gpciLookup?.method || 'N/A'}</div>
               <div><strong>Locality Name:</strong> {output.metadata.localityName || 'National (no locality)'}</div>
               <div><strong>Locality Code:</strong> {output.debug.gpciLookup?.localityCode || 'N/A'}</div>
             </div>
