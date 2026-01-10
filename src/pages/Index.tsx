@@ -11,8 +11,7 @@ import { ZoomProvider } from "@/contexts/ZoomContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult, CareSetting } from "@/types";
 import { toast } from "sonner";
-import { usePreScanLocation } from "@/hooks/usePreScanLocation";
-import { LocationSource } from "@/lib/preScanLocation";
+import { usePreScanLocation, LocationSource } from "@/hooks/usePreScanLocation";
 
 // Helper to ensure value is always an array
 const ensureArray = (value: any): any[] => {

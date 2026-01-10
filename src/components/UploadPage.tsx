@@ -15,7 +15,7 @@ import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCirc
 import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode, CareSetting } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { LocationSource, PreScanLocationResult } from '@/lib/preScanLocation';
+import { LocationSource, PreScanLocationResult } from '@/hooks/usePreScanLocation';
 
 interface UploadPageProps {
   uploadedFile: UploadedFile | null;
