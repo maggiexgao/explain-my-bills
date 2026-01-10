@@ -14,6 +14,114 @@ export type Database = {
   }
   public: {
     Tables: {
+      dmepen_fee_schedule: {
+        Row: {
+          category: string | null
+          ceiling: number | null
+          created_at: string
+          fee: number | null
+          fee_rental: number | null
+          floor: number | null
+          hcpcs: string
+          id: string
+          jurisdiction: string | null
+          modifier: string | null
+          modifier2: string | null
+          short_desc: string | null
+          source_file: string
+          state_abbr: string | null
+          year: number
+        }
+        Insert: {
+          category?: string | null
+          ceiling?: number | null
+          created_at?: string
+          fee?: number | null
+          fee_rental?: number | null
+          floor?: number | null
+          hcpcs: string
+          id?: string
+          jurisdiction?: string | null
+          modifier?: string | null
+          modifier2?: string | null
+          short_desc?: string | null
+          source_file?: string
+          state_abbr?: string | null
+          year?: number
+        }
+        Update: {
+          category?: string | null
+          ceiling?: number | null
+          created_at?: string
+          fee?: number | null
+          fee_rental?: number | null
+          floor?: number | null
+          hcpcs?: string
+          id?: string
+          jurisdiction?: string | null
+          modifier?: string | null
+          modifier2?: string | null
+          short_desc?: string | null
+          source_file?: string
+          state_abbr?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
+      dmepos_fee_schedule: {
+        Row: {
+          category: string | null
+          ceiling: number | null
+          created_at: string
+          fee: number | null
+          fee_rental: number | null
+          floor: number | null
+          hcpcs: string
+          id: string
+          jurisdiction: string | null
+          modifier: string | null
+          modifier2: string | null
+          short_desc: string | null
+          source_file: string
+          state_abbr: string | null
+          year: number
+        }
+        Insert: {
+          category?: string | null
+          ceiling?: number | null
+          created_at?: string
+          fee?: number | null
+          fee_rental?: number | null
+          floor?: number | null
+          hcpcs: string
+          id?: string
+          jurisdiction?: string | null
+          modifier?: string | null
+          modifier2?: string | null
+          short_desc?: string | null
+          source_file?: string
+          state_abbr?: string | null
+          year?: number
+        }
+        Update: {
+          category?: string | null
+          ceiling?: number | null
+          created_at?: string
+          fee?: number | null
+          fee_rental?: number | null
+          floor?: number | null
+          hcpcs?: string
+          id?: string
+          jurisdiction?: string | null
+          modifier?: string | null
+          modifier2?: string | null
+          short_desc?: string | null
+          source_file?: string
+          state_abbr?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       gpci_localities: {
         Row: {
           created_at: string
@@ -142,6 +250,54 @@ export type Database = {
           source?: string
           status?: string | null
           work_rvu?: number | null
+          year?: number
+        }
+        Relationships: []
+      }
+      opps_addendum_b: {
+        Row: {
+          apc: string | null
+          created_at: string
+          hcpcs: string
+          id: string
+          long_desc: string | null
+          minimum_unadjusted_copayment: number | null
+          national_unadjusted_copayment: number | null
+          payment_rate: number | null
+          relative_weight: number | null
+          short_desc: string | null
+          source_file: string
+          status_indicator: string | null
+          year: number
+        }
+        Insert: {
+          apc?: string | null
+          created_at?: string
+          hcpcs: string
+          id?: string
+          long_desc?: string | null
+          minimum_unadjusted_copayment?: number | null
+          national_unadjusted_copayment?: number | null
+          payment_rate?: number | null
+          relative_weight?: number | null
+          short_desc?: string | null
+          source_file?: string
+          status_indicator?: string | null
+          year: number
+        }
+        Update: {
+          apc?: string | null
+          created_at?: string
+          hcpcs?: string
+          id?: string
+          long_desc?: string | null
+          minimum_unadjusted_copayment?: number | null
+          national_unadjusted_copayment?: number | null
+          payment_rate?: number | null
+          relative_weight?: number | null
+          short_desc?: string | null
+          source_file?: string
+          status_indicator?: string | null
           year?: number
         }
         Relationships: []
