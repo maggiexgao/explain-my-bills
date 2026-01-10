@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.import-medicare-data]
 verify_jwt = false
+
+[functions.admin-import]
+verify_jwt = false
