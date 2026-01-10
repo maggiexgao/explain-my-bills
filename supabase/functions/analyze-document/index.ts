@@ -104,8 +104,21 @@ For each issue found, provide:
 - relatedAmounts: Object with billed values if applicable
 
 ## SECTION 2: EXPLAINER
-### cptCodes - For EACH code on the bill, provide ALL these fields:
-- code: The exact CPT code
+
+### CRITICAL: CPT/HCPCS CODE VALIDATION
+ONLY extract codes that match these EXACT formats:
+- CPT codes: Exactly 5 digits (e.g., 99284, 77386, 43239)
+- HCPCS Level II: One letter followed by 4 digits (e.g., A0428, J1885, G0463)
+
+NEVER treat these words as codes: LEVEL, VISIT, TOTAL, CHARGE, AMOUNT, UNITS, UNIT, QTY, DATE, ER, OFFICE, FACILITY, SERVICE, ROOM, EMERGENCY, PATIENT, PROVIDER
+
+A valid code MUST:
+1. Match the format above (5 digits OR 1 letter + 4 digits)
+2. Appear in a context suggesting it's a procedure code (near "CPT", "HCPCS", "CODE", "PROC", or on a line with a dollar amount)
+3. NOT be part of a date (like 03/19/09), phone number, or account number
+
+### cptCodes - For EACH validated code on the bill, provide ALL these fields:
+- code: The exact CPT/HCPCS code (MUST be 5 digits or letter + 4 digits)
 - shortLabel: 2-4 word plain English name (use standard terms: "Office visit", "Lab test", "X-ray", etc.)
 - explanation: One sentence at 6th grade level explaining what this is
 - category: MUST be one of: evaluation | lab | radiology | surgery | medicine | other
@@ -584,6 +597,108 @@ Each flagged issue should indicate confidence:
 - Moderate concern: Unusual but could have explanation
 - Soft concern: Worth asking about, may be fine`;
 
+// CPT/HCPCS Code Validation
+const CPT_PATTERN = /^\d{5}$/;
+const HCPCS_PATTERN = /^[A-Z]\d{4}$/;
+const REJECTED_WORDS = new Set([
+  'LEVEL', 'VISIT', 'TOTAL', 'CHARGE', 'SERVICE', 'PRICE', 'AMOUNT',
+  'PATIENT', 'PROVIDER', 'HOSPITAL', 'CLINIC', 'DOCTOR', 'NURSE',
+  'DATE', 'TIME', 'PAGE', 'BILL', 'STATEMENT', 'INVOICE', 'ACCOUNT',
+  'BALANCE', 'PAYMENT', 'CREDIT', 'DEBIT', 'INSURANCE', 'COPAY',
+  'DEDUCTIBLE', 'COINSURANCE', 'ALLOWED', 'BILLED', 'PAID', 'DUE',
+  'DESCRIPTION', 'CODE', 'PROCEDURE', 'DIAGNOSIS', 'MODIFIER',
+  'UNIT', 'UNITS', 'QTY', 'QUANTITY', 'EACH', 'ROOM', 'EMERGENCY',
+  'FACILITY', 'OFFICE', 'OUTPATIENT', 'INPATIENT', 'AMBULATORY',
+  'PHARMACY', 'LABORATORY', 'RADIOLOGY', 'SURGICAL', 'MEDICAL',
+  'NAME', 'ADDRESS', 'PHONE', 'FAX', 'EMAIL', 'ER', 'ED', 'OR'
+]);
+
+interface CodeValidationResult {
+  validCodes: any[];
+  rejectedTokens: { token: string; reason: string }[];
+}
+
+function validateCptCode(code: string): { valid: boolean; reason?: string } {
+  if (!code || typeof code !== 'string') {
+    return { valid: false, reason: 'Empty or non-string input' };
+  }
+  
+  const cleaned = code.trim().toUpperCase();
+  
+  // Check if it's a rejected word
+  if (REJECTED_WORDS.has(cleaned)) {
+    return { valid: false, reason: `Rejected word: ${cleaned}` };
+  }
+  
+  // Check if purely alphabetic
+  if (/^[A-Z]+$/.test(cleaned)) {
+    return { valid: false, reason: 'Purely alphabetic token' };
+  }
+  
+  // Check valid formats
+  if (CPT_PATTERN.test(cleaned)) {
+    return { valid: true };
+  }
+  
+  if (HCPCS_PATTERN.test(cleaned)) {
+    return { valid: true };
+  }
+  
+  return { valid: false, reason: `Invalid format: ${cleaned}` };
+}
+
+function validateAndFilterCptCodes(codes: any[]): CodeValidationResult {
+  const validCodes: any[] = [];
+  const rejectedTokens: { token: string; reason: string }[] = [];
+  const seenCodes = new Set<string>();
+  
+  for (const codeObj of codes) {
+    const code = codeObj?.code;
+    const validation = validateCptCode(code);
+    
+    if (validation.valid && !seenCodes.has(code.toUpperCase())) {
+      seenCodes.add(code.toUpperCase());
+      validCodes.push(codeObj);
+    } else if (!validation.valid) {
+      rejectedTokens.push({ token: code || 'unknown', reason: validation.reason || 'Unknown' });
+    }
+  }
+  
+  return { validCodes, rejectedTokens };
+}
+
+function postProcessAnalysis(analysis: any): { analysis: any; debugInfo: any } {
+  const debugInfo: any = {
+    codeValidation: null,
+    originalCodeCount: 0,
+    validCodeCount: 0,
+  };
+  
+  // Validate and filter CPT codes
+  if (analysis.cptCodes && Array.isArray(analysis.cptCodes)) {
+    debugInfo.originalCodeCount = analysis.cptCodes.length;
+    const { validCodes, rejectedTokens } = validateAndFilterCptCodes(analysis.cptCodes);
+    analysis.cptCodes = validCodes;
+    debugInfo.validCodeCount = validCodes.length;
+    debugInfo.codeValidation = {
+      acceptedCodes: validCodes.map((c: any) => c.code),
+      rejectedTokens: rejectedTokens.slice(0, 30),
+    };
+  }
+  
+  // Also validate medicalCodes for legacy support
+  if (analysis.medicalCodes && Array.isArray(analysis.medicalCodes)) {
+    const { validCodes } = validateAndFilterCptCodes(
+      analysis.medicalCodes.map((c: any) => ({ code: c.code }))
+    );
+    analysis.medicalCodes = analysis.medicalCodes.filter((c: any) => 
+      validCodes.some((v: any) => v.code === c.code)
+    );
+  }
+  
+  return { analysis, debugInfo };
+}
+
 // Input validation constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_LANGUAGES = ['en', 'es', 'zh-Hans', 'zh-Hant', 'ar'];
@@ -986,15 +1101,24 @@ Output ONLY valid JSON matching the exact structure in the system prompt. No mar
     }
 
     let analysis;
+    let debugInfo = null;
     try {
       analysis = JSON.parse(analysisJson);
       console.log('Analysis parsed successfully');
+      
+      // Post-process to validate CPT codes and add debug info (bill mode only)
+      if (!isMedicalDoc) {
+        const processed = postProcessAnalysis(analysis);
+        analysis = processed.analysis;
+        debugInfo = processed.debugInfo;
+        console.log('Code validation:', debugInfo.codeValidation);
+      }
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', content.substring(0, 500));
       analysis = isMedicalDoc ? createFallbackMedicalDocAnalysis(state || 'US') : createFallbackAnalysis(state || 'US', hasEOB);
     }
 
-    return new Response(JSON.stringify({ analysis }), {
+    return new Response(JSON.stringify({ analysis, debugInfo }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
