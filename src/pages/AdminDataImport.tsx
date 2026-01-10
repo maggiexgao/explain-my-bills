@@ -10,7 +10,10 @@ import {
   fetchAndParseExcel,
   parseGpciData,
   importGpciToDatabase,
+  parseZipToLocalityData,
+  importZipToLocalityDatabase,
 } from '@/lib/medicareDataImporter';
+import { MapPin } from 'lucide-react';
 
 type ImportStatus = 'idle' | 'loading' | 'importing' | 'success' | 'error';
 
@@ -91,6 +94,13 @@ export default function AdminDataImport() {
   });
   
   const [gpciState, setGpciState] = useState<ImportState>({
+    status: 'idle',
+    progress: 0,
+    total: 0,
+    message: '',
+  });
+
+  const [zipCrosswalkState, setZipCrosswalkState] = useState<ImportState>({
     status: 'idle',
     progress: 0,
     total: 0,
@@ -473,6 +483,67 @@ export default function AdminDataImport() {
     }
   };
 
+  const importZipCrosswalk = async () => {
+    setZipCrosswalkState({ status: 'loading', progress: 0, total: 0, message: 'Loading ZIP crosswalk Excel file...' });
+    
+    try {
+      const data = await fetchAndParseExcel('/data/ZIP5_JAN2026.xlsx');
+      console.log(`ZIP crosswalk: loaded ${data.length} rows from Excel`);
+      
+      const records = parseZipToLocalityData(data);
+      console.log(`ZIP crosswalk: parsed ${records.length} valid records`);
+      
+      if (records.length === 0) {
+        setZipCrosswalkState({
+          status: 'error',
+          progress: 0,
+          total: 0,
+          message: 'No valid ZIP records found. Check that the file has STATE, ZIP CODE, CARRIER, LOCALITY columns.',
+        });
+        return;
+      }
+      
+      setZipCrosswalkState({
+        status: 'importing',
+        progress: 0,
+        total: records.length,
+        message: `Importing ${records.length} ZIP→Locality mappings...`,
+      });
+      
+      const result = await importZipToLocalityDatabase(records, (imported, total) => {
+        setZipCrosswalkState(prev => ({
+          ...prev,
+          progress: imported,
+          message: `Imported ${imported.toLocaleString()} of ${total.toLocaleString()} unique ZIPs...`,
+        }));
+      });
+      
+      if (result.success) {
+        setZipCrosswalkState({
+          status: 'success',
+          progress: result.imported,
+          total: records.length,
+          message: `Successfully imported ${result.imported.toLocaleString()} unique ZIP mappings!${result.duplicatesSkipped > 0 ? ` (${result.duplicatesSkipped.toLocaleString()} duplicates merged)` : ''}`,
+        });
+      } else {
+        setZipCrosswalkState({
+          status: 'error',
+          progress: result.imported,
+          total: records.length,
+          message: result.error || 'Unknown error occurred',
+        });
+      }
+    } catch (error) {
+      console.error('ZIP crosswalk import error:', error);
+      setZipCrosswalkState({
+        status: 'error',
+        progress: 0,
+        total: 0,
+        message: error instanceof Error ? error.message : 'Failed to load file',
+      });
+    }
+  };
+
   const renderStatusIcon = (status: ImportStatus) => {
     switch (status) {
       case 'loading':
@@ -602,6 +673,57 @@ export default function AdminDataImport() {
                 'Re-import GPCI Data'
               ) : (
                 'Import GPCI Data'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* ZIP→Locality Crosswalk Import */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              {zipCrosswalkState.status === 'idle' ? (
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                renderStatusIcon(zipCrosswalkState.status)
+              )}
+              <CardTitle>ZIP → Locality Crosswalk</CardTitle>
+            </div>
+            <CardDescription>
+              CMS ZIP code to Medicare carrier/locality mapping (2026) — enables ZIP-based GPCI adjustments
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {zipCrosswalkState.status === 'importing' && zipCrosswalkState.total > 0 && (
+              <Progress value={(zipCrosswalkState.progress / zipCrosswalkState.total) * 100} />
+            )}
+            
+            {zipCrosswalkState.message && (
+              <p className={`text-sm ${zipCrosswalkState.status === 'error' ? 'text-destructive' : zipCrosswalkState.status === 'success' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                {zipCrosswalkState.message}
+              </p>
+            )}
+            
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p><strong>Source:</strong> CMS ZIP Code to Carrier Locality File (ZIP5_JAN2026.xlsx)</p>
+              <p><strong>Columns:</strong> STATE, ZIP CODE, CARRIER, LOCALITY, YEAR/QTR</p>
+              <p><strong>Purpose:</strong> Maps user ZIP codes to Medicare payment localities for accurate geographic fee adjustments</p>
+            </div>
+            
+            <Button
+              onClick={importZipCrosswalk}
+              disabled={zipCrosswalkState.status === 'loading' || zipCrosswalkState.status === 'importing'}
+              className="w-full"
+            >
+              {zipCrosswalkState.status === 'loading' || zipCrosswalkState.status === 'importing' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : zipCrosswalkState.status === 'success' ? (
+                'Re-import ZIP Crosswalk'
+              ) : (
+                'Import ZIP → Locality Crosswalk'
               )}
             </Button>
           </CardContent>
