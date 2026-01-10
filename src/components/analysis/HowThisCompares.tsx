@@ -605,7 +605,9 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
           </p>
           {item.benchmarkYearUsed && item.matchStatus === 'matched' && (
             <p className="text-xs text-muted-foreground">
-              {item.benchmarkYearUsed} Medicare rate
+              {item.benchmarkYearUsed} Medicare {item.feeSource === 'rvu_calc_local' ? '(MPFS, location-adjusted)' : 
+                item.feeSource === 'rvu_calc_national' ? '(MPFS, national)' : 
+                item.feeSource === 'direct_fee' ? '(MPFS)' : 'reference'}
             </p>
           )}
         </div>
@@ -721,6 +723,11 @@ function SummaryCard({ output }: { output: MedicareBenchmarkOutput }) {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <MapPin className="h-4 w-4" />
           <span>{confidenceQualifier}</span>
+          {output.metadata.localityUsed === 'local_adjusted' && (
+            <Badge variant="outline" className="text-[10px] bg-success/10 border-success/30 text-success">
+              Location-adjusted
+            </Badge>
+          )}
         </div>
         
         {/* Year Fallback Disclosure */}
@@ -801,29 +808,43 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
   const existsNotPricedItems = items.filter(i => i.matchStatus === 'exists_not_priced');
   if (existsNotPricedItems.length === 0) return null;
   
+  // Group by reason for better messaging
+  const mpfsItems = existsNotPricedItems.filter(i => 
+    i.notPricedReason === 'rvus_zero_or_missing' || 
+    i.notPricedReason === 'fees_missing' ||
+    i.notPricedReason === 'status_indicator_nonpayable'
+  );
+  
+  const getReasonLabel = (reason: string | null): string => {
+    switch (reason) {
+      case 'rvus_zero_or_missing': return 'no RVUs';
+      case 'fees_missing': return 'no fee';
+      case 'status_indicator_nonpayable': return 'not payable';
+      case 'packaged': return 'packaged (OPPS)';
+      default: return 'no reference';
+    }
+  };
+  
   return (
     <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
       <div className="flex items-start gap-3">
         <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-foreground mb-1">
-            Codes found, but Medicare reference price not available
+            Codes found in Medicare data, but no reference price available
           </p>
           <p className="text-sm text-muted-foreground mb-2">
-            These services exist in Medicare's physician fee schedule but do not have a 
-            separate payable amount. They are often bundled into other services or used for reporting purposes.
+            These services exist in Medicare's fee schedules but do not have a 
+            separately payable amount. They may be bundled into other services, 
+            packaged under OPPS, or used for reporting purposes only.
           </p>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {existsNotPricedItems.slice(0, 8).map(item => (
               <Badge key={item.hcpcs} variant="outline" className="text-xs bg-warning/10 border-warning/30 text-warning-foreground">
                 {item.hcpcs}
-                {item.notPricedReason && (
-                  <span className="ml-1 text-[10px] text-muted-foreground">
-                    ({item.notPricedReason === 'rvus_zero_or_missing' ? 'no RVUs' : 
-                      item.notPricedReason === 'status_indicator_nonpayable' ? 'not payable' : 
-                      item.notPricedReason === 'fees_missing' ? 'no fee' : item.notPricedReason})
-                  </span>
-                )}
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  ({getReasonLabel(item.notPricedReason)})
+                </span>
               </Badge>
             ))}
             {existsNotPricedItems.length > 8 && (
@@ -835,7 +856,7 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
           <p className="text-xs text-muted-foreground">
             <strong>Note:</strong> These are NOT missing from Medicare's data — they simply 
             don't have a separately payable Medicare rate. This is common for add-on codes, 
-            carrier-priced services, or informational codes.
+            packaged services under OPPS, carrier-priced services, or informational codes.
           </p>
         </div>
       </div>
@@ -844,7 +865,7 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
 }
 
 /**
- * Section for codes that do NOT exist in MPFS at all
+ * Section for codes that do NOT exist in any Medicare dataset
  */
 function CodesMissingSection({ codes }: { codes: string[] }) {
   if (codes.length === 0) return null;
@@ -855,11 +876,11 @@ function CodesMissingSection({ codes }: { codes: string[] }) {
         <FileQuestion className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-foreground mb-1">
-            Codes not found in our Medicare dataset
+            Codes not found in our current Medicare datasets
           </p>
           <p className="text-sm text-muted-foreground mb-2">
-            We couldn't find these codes in our Medicare Physician Fee Schedule dataset. 
-            They may be newer codes, DME codes, clinical lab codes, or services outside the MPFS.
+            We couldn't find these codes in our Medicare datasets (MPFS, OPPS, or DMEPOS). 
+            They may be newer codes, clinical lab codes (CLFS), or services covered under other schedules.
           </p>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {codes.slice(0, 8).map(code => (
@@ -873,6 +894,10 @@ function CodesMissingSection({ codes }: { codes: string[] }) {
               </Badge>
             )}
           </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            <strong>Note:</strong> Some specialized services may be billed under other fee schedules 
+            (Clinical Lab Fee Schedule, ASC Fee Schedule, etc.) that we don't currently cover.
+          </p>
           <a 
             href="https://www.cms.gov/medicare/payment/fee-schedules/physician"
             target="_blank"

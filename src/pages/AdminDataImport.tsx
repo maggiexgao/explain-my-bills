@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -13,7 +13,9 @@ import {
   parseZipToLocalityData,
   importZipToLocalityDatabase,
 } from '@/lib/medicareDataImporter';
-import { MapPin } from 'lucide-react';
+import { fetchAndParseOpps, importOppsToDatabase, OppsRecord } from '@/lib/oppsImporter';
+import { fetchAndParseDmepos, importDmeposToDatabase, DmeposRecord } from '@/lib/dmeposImporter';
+import { MapPin, FileSpreadsheet } from 'lucide-react';
 
 type ImportStatus = 'idle' | 'loading' | 'importing' | 'success' | 'error';
 
@@ -106,6 +108,72 @@ export default function AdminDataImport() {
     total: 0,
     message: '',
   });
+
+  const [oppsState, setOppsState] = useState<ImportState>({
+    status: 'idle',
+    progress: 0,
+    total: 0,
+    message: '',
+  });
+
+  const [dmeposState, setDmeposState] = useState<ImportState>({
+    status: 'idle',
+    progress: 0,
+    total: 0,
+    message: '',
+  });
+
+  const [dmepenState, setDmepenState] = useState<ImportState>({
+    status: 'idle',
+    progress: 0,
+    total: 0,
+    message: '',
+  });
+
+  const [coverageMetrics, setCoverageMetrics] = useState<{
+    mpfs: { total: number; unique: number } | null;
+    opps: { total: number; unique: number } | null;
+    dmepos: { total: number; unique: number } | null;
+    dmepen: { total: number; unique: number } | null;
+  }>({ mpfs: null, opps: null, dmepos: null, dmepen: null });
+
+  // Load coverage metrics on mount
+  useEffect(() => {
+    loadCoverageMetrics();
+  }, []);
+
+  const loadCoverageMetrics = async () => {
+    try {
+      // Get MPFS counts
+      const { count: mpfsTotal } = await supabase.from('mpfs_benchmarks').select('*', { count: 'exact', head: true });
+      const { data: mpfsUnique } = await supabase.from('mpfs_benchmarks').select('hcpcs').limit(50000);
+      const mpfsUniqueCount = new Set(mpfsUnique?.map(r => r.hcpcs) || []).size;
+
+      // Get OPPS counts
+      const { count: oppsTotal } = await supabase.from('opps_addendum_b').select('*', { count: 'exact', head: true });
+      const { data: oppsUnique } = await supabase.from('opps_addendum_b').select('hcpcs').limit(50000);
+      const oppsUniqueCount = new Set(oppsUnique?.map(r => r.hcpcs) || []).size;
+
+      // Get DMEPOS counts
+      const { count: dmeposTotal } = await supabase.from('dmepos_fee_schedule').select('*', { count: 'exact', head: true });
+      const { data: dmeposUnique } = await supabase.from('dmepos_fee_schedule').select('hcpcs').limit(50000);
+      const dmeposUniqueCount = new Set(dmeposUnique?.map(r => r.hcpcs) || []).size;
+
+      // Get DMEPEN counts
+      const { count: dmepenTotal } = await supabase.from('dmepen_fee_schedule').select('*', { count: 'exact', head: true });
+      const { data: dmepenUnique } = await supabase.from('dmepen_fee_schedule').select('hcpcs').limit(50000);
+      const dmepenUniqueCount = new Set(dmepenUnique?.map(r => r.hcpcs) || []).size;
+
+      setCoverageMetrics({
+        mpfs: { total: mpfsTotal || 0, unique: mpfsUniqueCount },
+        opps: { total: oppsTotal || 0, unique: oppsUniqueCount },
+        dmepos: { total: dmeposTotal || 0, unique: dmeposUniqueCount },
+        dmepen: { total: dmepenTotal || 0, unique: dmepenUniqueCount },
+      });
+    } catch (error) {
+      console.error('Error loading coverage metrics:', error);
+    }
+  };
 
   // Parse numeric value, return null if invalid/blank
   // Coerces "not found" (case-insensitive) to null
@@ -483,6 +551,184 @@ export default function AdminDataImport() {
     }
   };
 
+  const importOpps = async () => {
+    setOppsState({ status: 'loading', progress: 0, total: 0, message: 'Loading OPPS Addendum B Excel file...' });
+    
+    try {
+      const records = await fetchAndParseOpps('/data/opps_addendum_b_2025.xlsx', 2025);
+      console.log(`OPPS: parsed ${records.length} records`);
+      
+      if (records.length === 0) {
+        setOppsState({
+          status: 'error',
+          progress: 0,
+          total: 0,
+          message: 'No valid OPPS records found. Check the file format.',
+        });
+        return;
+      }
+      
+      setOppsState({
+        status: 'importing',
+        progress: 0,
+        total: records.length,
+        message: `Importing ${records.length} OPPS records...`,
+      });
+      
+      const result = await importOppsToDatabase(records, (imported, total) => {
+        setOppsState(prev => ({
+          ...prev,
+          progress: imported,
+          message: `Imported ${imported.toLocaleString()} of ${total.toLocaleString()} records...`,
+        }));
+      });
+      
+      if (result.success) {
+        setOppsState({
+          status: 'success',
+          progress: result.imported,
+          total: records.length,
+          message: `Successfully imported ${result.imported.toLocaleString()} OPPS records!`,
+        });
+        loadCoverageMetrics();
+      } else {
+        setOppsState({
+          status: 'error',
+          progress: result.imported,
+          total: records.length,
+          message: result.errors.join('; ') || 'Unknown error occurred',
+        });
+      }
+    } catch (error) {
+      console.error('OPPS import error:', error);
+      setOppsState({
+        status: 'error',
+        progress: 0,
+        total: 0,
+        message: error instanceof Error ? error.message : 'Failed to load file',
+      });
+    }
+  };
+
+  const importDmepos = async () => {
+    setDmeposState({ status: 'loading', progress: 0, total: 0, message: 'Loading DMEPOS Excel file...' });
+    
+    try {
+      const records = await fetchAndParseDmepos('/data/DMEPOS26_JAN.xlsx', 2026, 'DMEPOS26_JAN');
+      console.log(`DMEPOS: parsed ${records.length} records`);
+      
+      if (records.length === 0) {
+        setDmeposState({
+          status: 'error',
+          progress: 0,
+          total: 0,
+          message: 'No valid DMEPOS records found. Check the file format.',
+        });
+        return;
+      }
+      
+      setDmeposState({
+        status: 'importing',
+        progress: 0,
+        total: records.length,
+        message: `Importing ${records.length} DMEPOS records...`,
+      });
+      
+      const result = await importDmeposToDatabase(records, 'dmepos_fee_schedule', (imported, total) => {
+        setDmeposState(prev => ({
+          ...prev,
+          progress: imported,
+          message: `Imported ${imported.toLocaleString()} of ${total.toLocaleString()} records...`,
+        }));
+      });
+      
+      if (result.success) {
+        setDmeposState({
+          status: 'success',
+          progress: result.imported,
+          total: records.length,
+          message: `Successfully imported ${result.imported.toLocaleString()} DMEPOS records!`,
+        });
+        loadCoverageMetrics();
+      } else {
+        setDmeposState({
+          status: 'error',
+          progress: result.imported,
+          total: records.length,
+          message: result.errors.join('; ') || 'Unknown error occurred',
+        });
+      }
+    } catch (error) {
+      console.error('DMEPOS import error:', error);
+      setDmeposState({
+        status: 'error',
+        progress: 0,
+        total: 0,
+        message: error instanceof Error ? error.message : 'Failed to load file',
+      });
+    }
+  };
+
+  const importDmepen = async () => {
+    setDmepenState({ status: 'loading', progress: 0, total: 0, message: 'Loading DMEPEN Excel file...' });
+    
+    try {
+      // Note: DMEPEN may use the same file format as DMEPOS
+      const records = await fetchAndParseDmepos('/data/DMEPEN26_JAN.xlsx', 2026, 'DMEPEN26_JAN');
+      console.log(`DMEPEN: parsed ${records.length} records`);
+      
+      if (records.length === 0) {
+        setDmepenState({
+          status: 'error',
+          progress: 0,
+          total: 0,
+          message: 'No valid DMEPEN records found. Check the file format.',
+        });
+        return;
+      }
+      
+      setDmepenState({
+        status: 'importing',
+        progress: 0,
+        total: records.length,
+        message: `Importing ${records.length} DMEPEN records...`,
+      });
+      
+      const result = await importDmeposToDatabase(records, 'dmepen_fee_schedule', (imported, total) => {
+        setDmepenState(prev => ({
+          ...prev,
+          progress: imported,
+          message: `Imported ${imported.toLocaleString()} of ${total.toLocaleString()} records...`,
+        }));
+      });
+      
+      if (result.success) {
+        setDmepenState({
+          status: 'success',
+          progress: result.imported,
+          total: records.length,
+          message: `Successfully imported ${result.imported.toLocaleString()} DMEPEN records!`,
+        });
+        loadCoverageMetrics();
+      } else {
+        setDmepenState({
+          status: 'error',
+          progress: result.imported,
+          total: records.length,
+          message: result.errors.join('; ') || 'Unknown error occurred',
+        });
+      }
+    } catch (error) {
+      console.error('DMEPEN import error:', error);
+      setDmepenState({
+        status: 'error',
+        progress: 0,
+        total: 0,
+        message: error instanceof Error ? error.message : 'Failed to load file',
+      });
+    }
+  };
+
   const importZipCrosswalk = async () => {
     setZipCrosswalkState({ status: 'loading', progress: 0, total: 0, message: 'Loading ZIP crosswalk Excel file...' });
     
@@ -673,6 +919,191 @@ export default function AdminDataImport() {
                 'Re-import GPCI Data'
               ) : (
                 'Import GPCI Data'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Coverage Metrics Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              <CardTitle>Coverage Metrics</CardTitle>
+            </div>
+            <CardDescription>
+              Current dataset coverage across all Medicare reference sources
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="p-3 rounded-md border bg-muted/30">
+                <p className="font-medium text-foreground">MPFS (Physician)</p>
+                <p className="text-muted-foreground">
+                  {coverageMetrics.mpfs ? `${coverageMetrics.mpfs.total.toLocaleString()} rows, ${coverageMetrics.mpfs.unique.toLocaleString()} codes` : 'Not loaded'}
+                </p>
+              </div>
+              <div className="p-3 rounded-md border bg-muted/30">
+                <p className="font-medium text-foreground">OPPS (Hospital Outpatient)</p>
+                <p className="text-muted-foreground">
+                  {coverageMetrics.opps ? `${coverageMetrics.opps.total.toLocaleString()} rows, ${coverageMetrics.opps.unique.toLocaleString()} codes` : 'Not loaded'}
+                </p>
+              </div>
+              <div className="p-3 rounded-md border bg-muted/30">
+                <p className="font-medium text-foreground">DMEPOS (Equipment)</p>
+                <p className="text-muted-foreground">
+                  {coverageMetrics.dmepos ? `${coverageMetrics.dmepos.total.toLocaleString()} rows, ${coverageMetrics.dmepos.unique.toLocaleString()} codes` : 'Not loaded'}
+                </p>
+              </div>
+              <div className="p-3 rounded-md border bg-muted/30">
+                <p className="font-medium text-foreground">DMEPEN (Nutrition)</p>
+                <p className="text-muted-foreground">
+                  {coverageMetrics.dmepen ? `${coverageMetrics.dmepen.total.toLocaleString()} rows, ${coverageMetrics.dmepen.unique.toLocaleString()} codes` : 'Not loaded'}
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" onClick={loadCoverageMetrics} className="w-full mt-4">
+              Refresh Metrics
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* OPPS Import */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              {renderStatusIcon(oppsState.status)}
+              <CardTitle>OPPS Addendum B (2025)</CardTitle>
+            </div>
+            <CardDescription>
+              Hospital Outpatient Prospective Payment System — facility payment rates
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {oppsState.status === 'importing' && oppsState.total > 0 && (
+              <Progress value={(oppsState.progress / oppsState.total) * 100} />
+            )}
+            
+            {oppsState.message && (
+              <p className={`text-sm ${oppsState.status === 'error' ? 'text-destructive' : oppsState.status === 'success' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                {oppsState.message}
+              </p>
+            )}
+            
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p><strong>Source:</strong> CMS OPPS Addendum B (January 2025)</p>
+              <p><strong>Columns:</strong> HCPCS, APC, Status Indicator, Payment Rate</p>
+              <p><strong>Purpose:</strong> Hospital outpatient facility fee reference for facility setting</p>
+            </div>
+            
+            <Button
+              onClick={importOpps}
+              disabled={oppsState.status === 'loading' || oppsState.status === 'importing'}
+              className="w-full"
+            >
+              {oppsState.status === 'loading' || oppsState.status === 'importing' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : oppsState.status === 'success' ? (
+                'Re-import OPPS Data'
+              ) : (
+                'Import OPPS Addendum B'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* DMEPOS Import */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              {renderStatusIcon(dmeposState.status)}
+              <CardTitle>DMEPOS Fee Schedule (2026)</CardTitle>
+            </div>
+            <CardDescription>
+              Durable Medical Equipment, Prosthetics, Orthotics & Supplies
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {dmeposState.status === 'importing' && dmeposState.total > 0 && (
+              <Progress value={(dmeposState.progress / dmeposState.total) * 100} />
+            )}
+            
+            {dmeposState.message && (
+              <p className={`text-sm ${dmeposState.status === 'error' ? 'text-destructive' : dmeposState.status === 'success' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                {dmeposState.message}
+              </p>
+            )}
+            
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p><strong>Source:</strong> CMS DMEPOS Fee Schedule (January 2026)</p>
+              <p><strong>Columns:</strong> HCPCS, Modifier, State fees (NR/R)</p>
+              <p><strong>Purpose:</strong> Reference pricing for medical equipment (A/E/K/L codes)</p>
+            </div>
+            
+            <Button
+              onClick={importDmepos}
+              disabled={dmeposState.status === 'loading' || dmeposState.status === 'importing'}
+              className="w-full"
+            >
+              {dmeposState.status === 'loading' || dmeposState.status === 'importing' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : dmeposState.status === 'success' ? (
+                'Re-import DMEPOS Data'
+              ) : (
+                'Import DMEPOS Fee Schedule'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* DMEPEN Import */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              {renderStatusIcon(dmepenState.status)}
+              <CardTitle>DMEPEN Fee Schedule (2026)</CardTitle>
+            </div>
+            <CardDescription>
+              Enteral and Parenteral Nutrition supplies
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {dmepenState.status === 'importing' && dmepenState.total > 0 && (
+              <Progress value={(dmepenState.progress / dmepenState.total) * 100} />
+            )}
+            
+            {dmepenState.message && (
+              <p className={`text-sm ${dmepenState.status === 'error' ? 'text-destructive' : dmepenState.status === 'success' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                {dmepenState.message}
+              </p>
+            )}
+            
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p><strong>Source:</strong> CMS DMEPEN Fee Schedule (January 2026)</p>
+              <p><strong>Columns:</strong> HCPCS, Modifier, State fees</p>
+              <p><strong>Purpose:</strong> Reference pricing for enteral/parenteral nutrition (B codes)</p>
+            </div>
+            
+            <Button
+              onClick={importDmepen}
+              disabled={dmepenState.status === 'loading' || dmepenState.status === 'importing'}
+              className="w-full"
+            >
+              {dmepenState.status === 'loading' || dmepenState.status === 'importing' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : dmepenState.status === 'success' ? (
+                'Re-import DMEPEN Data'
+              ) : (
+                'Import DMEPEN Fee Schedule'
               )}
             </Button>
           </CardContent>
