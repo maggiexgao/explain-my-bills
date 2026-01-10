@@ -236,9 +236,7 @@ export function parseZipToLocalityData(data: unknown[][]): ZipToLocalityRecord[]
   const carrierIdx = headerRow.findIndex(h => String(h).toUpperCase().includes('CARRIER'));
   const localityIdx = headerRow.findIndex(h => String(h).toUpperCase() === 'LOCALITY');
   const yearQtrIdx = headerRow.findIndex(h => String(h).toUpperCase().includes('YEAR'));
-  
-  console.log('ZIP crosswalk column indices:', { stateIdx, zipIdx, carrierIdx, localityIdx, yearQtrIdx });
-  
+
   if (zipIdx === -1 || localityIdx === -1) {
     console.error('Required columns (ZIP, LOCALITY) not found in header:', headerRow);
     return records;
@@ -318,10 +316,9 @@ export async function importZipToLocalityDatabase(
       duplicatesSkipped++;
     }
   }
-  
+
   const uniqueRecords = Array.from(zipMap.values());
-  console.log(`ZIP crosswalk: ${records.length} total rows, ${uniqueRecords.length} unique ZIPs, ${duplicatesSkipped} duplicates merged`);
-  
+
   try {
     for (let i = 0; i < uniqueRecords.length; i += batchSize) {
       const batch = uniqueRecords.slice(i, i + batchSize);

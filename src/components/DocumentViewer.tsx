@@ -69,7 +69,6 @@ export function DocumentViewer({ file, activeHighlight }: DocumentViewerProps) {
   const renderPreview = () => {
     // No preview URL available
     if (!previewUrl) {
-      console.log('No preview URL available for file:', file.file.name);
       return renderUnavailableMessage();
     }
 
@@ -108,7 +107,6 @@ export function DocumentViewer({ file, activeHighlight }: DocumentViewerProps) {
               alt=""
               className="hidden"
               onLoad={() => {
-                console.log('Image loaded successfully:', file.file.name);
                 setImageLoaded(true);
               }}
               onError={(e) => {

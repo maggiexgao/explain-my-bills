@@ -325,18 +325,6 @@ export function buildEobBillComparison(
   const totalsMatchButWarnings = patientTotalsMatch && !overallClean;
   const totalsMismatch = canCompareEOB ? !patientTotalsMatch : !hasEOB;
 
-  console.log('🔍 EOB/Bill comparison:', {
-    billTotal,
-    eobPatientResponsibility,
-    patientTotalsMatch,
-    overallClean,
-    totalsMatchButWarnings,
-    totalsMismatch,
-    visibleCalloutCount,
-    dedupedCount: deduped.length,
-    filteredCount: filtered.length,
-  });
-  
   return {
     hasBill,
     hasEOB,

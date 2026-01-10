@@ -105,9 +105,7 @@ export function parseOppsData(data: unknown[][], year: number = 2025): OppsRecor
     console.error('Could not find HCPCS header in OPPS file');
     return records;
   }
-  
-  console.log('OPPS header found at row', headerRowIndex, 'columns:', colMap);
-  
+
   // Parse data rows
   for (let i = headerRowIndex + 1; i < data.length; i++) {
     const row = data[i];

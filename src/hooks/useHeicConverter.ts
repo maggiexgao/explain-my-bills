@@ -43,11 +43,9 @@ export function useHeicConverter() {
     // HEIC file - try to convert
     setIsConverting(true);
     try {
-      console.log('Converting HEIC file to JPEG...');
       const jpegBlob = await convertHeicToJpeg(file);
       const previewUrl = URL.createObjectURL(jpegBlob);
-      console.log('HEIC conversion successful');
-      
+
       return {
         previewUrl,
         originalUrl,

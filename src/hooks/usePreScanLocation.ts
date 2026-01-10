@@ -121,9 +121,7 @@ export function usePreScanLocation({
     const runScan = async () => {
       scannedFileIdRef.current = uploadedFile.id;
       setScanState(prev => ({ ...prev, isScanning: true }));
-      
-      console.log('[usePreScanLocation] Starting scan for file:', uploadedFile.file.name);
-      
+
       try {
         // Convert file to base64
         const documentContent = await fileToBase64(uploadedFile.file);
@@ -142,16 +140,7 @@ export function usePreScanLocation({
         }
         
         const result = data as PreScanLocationResult;
-        
-        console.log('[usePreScanLocation] Scan complete:', {
-          ran: result.ran,
-          zip: result.zip5,
-          state: result.stateAbbr,
-          confidence: result.confidence,
-          evidence: result.evidence,
-          stateSource: result.stateSource,
-        });
-        
+
         setScanState({
           isScanning: false,
           result,
@@ -159,13 +148,11 @@ export function usePreScanLocation({
         
         // Apply detected values if user hasn't manually edited
         if (result.zip5 && !userEditedZipRef.current && !currentZip) {
-          console.log('[usePreScanLocation] Auto-populating ZIP:', result.zip5);
           onZipDetected(result.zip5);
           setSourceState(prev => ({ ...prev, zipSource: 'detected' }));
         }
-        
+
         if (result.stateAbbr && !userEditedStateRef.current && !currentState) {
-          console.log('[usePreScanLocation] Auto-populating state:', result.stateAbbr);
           onStateDetected(result.stateAbbr);
           setSourceState(prev => ({ ...prev, stateSource: 'detected' }));
         }

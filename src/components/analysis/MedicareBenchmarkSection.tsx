@@ -44,7 +44,6 @@ async function loadMpfsIndex(): Promise<MpfsIndex | null> {
       const content = await response.text();
       const rows = buildMpfsTable(content);
       cachedMpfsIndex = buildMpfsIndex(rows);
-      console.log(`MPFS index built with ${rows.length} rows`);
       return cachedMpfsIndex;
     } catch (error) {
       console.error('Error loading MPFS data:', error);

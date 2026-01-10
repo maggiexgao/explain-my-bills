@@ -135,11 +135,7 @@ export function parseDmeposData(data: unknown[][], year: number = 2026, sourceFi
     console.error('Could not find HCPCS header in DMEPOS file');
     return records;
   }
-  
-  console.log('DMEPOS header found at row', headerRowIndex);
-  console.log('Column map:', colMap);
-  console.log('State columns found:', stateColumns.length);
-  
+
   // Parse data rows
   for (let i = headerRowIndex + 1; i < data.length; i++) {
     const row = data[i];

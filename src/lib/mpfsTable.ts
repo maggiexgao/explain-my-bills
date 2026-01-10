@@ -117,42 +117,36 @@ export function getMpfsRowsForCpt(
   
   const yearMap = index.byCpt.get(year);
   if (!yearMap) {
-    console.log('[MPFS] lookup miss: year not found', { year, state, cpt: normCpt, modifier: modKey });
     return [];
   }
-  
+
   const stateMap = yearMap.get(state);
   if (!stateMap) {
-    console.log('[MPFS] lookup miss: state not found', { year, state, cpt: normCpt, modifier: modKey });
     return [];
   }
-  
+
   const cptMap = stateMap.get(normCpt);
   if (!cptMap) {
-    console.log('[MPFS] lookup miss: CPT not found in state data', { year, state, cpt: normCpt, modifier: modKey });
     return [];
   }
-  
+
   // Try exact modifier match first
   if (cptMap.has(modKey)) {
     const rows = cptMap.get(modKey)!;
-    console.log('[MPFS] lookup hit', { year, state, cpt: normCpt, modifier: modKey, rowsFound: rows.length });
     return rows;
   }
-  
+
   // If no modifier specified, try to get global (no modifier)
   if (!modKey && cptMap.has('')) {
     const rows = cptMap.get('')!;
-    console.log('[MPFS] lookup hit (no modifier)', { year, state, cpt: normCpt, rowsFound: rows.length });
     return rows;
   }
-  
+
   // Return all modifier variants if no exact match
   const allRows: MpfsRow[] = [];
   for (const rows of cptMap.values()) {
     allRows.push(...rows);
   }
-  console.log('[MPFS] lookup fallback (all modifiers)', { year, state, cpt: normCpt, rowsFound: allRows.length });
   return allRows;
 }
 
@@ -186,27 +180,25 @@ export function getStateMedianAllowed(
   modifier?: string
 ): StateMedianAllowed {
   const rows = getMpfsRowsForCpt(index, year, state, cpt, modifier);
-  
+
   if (rows.length === 0) {
-    console.log('[MPFS] getStateMedianAllowed: no rows found', { year, state, cpt, modifier });
     return { nonfacilityMedian: null, facilityMedian: null, count: 0 };
   }
-  
+
   const nonfacilityFees = rows
     .map(r => r.nonfacilityFee)
     .filter((f): f is number => f !== null);
-  
+
   const facilityFees = rows
     .map(r => r.facilityFee)
     .filter((f): f is number => f !== null);
-  
+
   const result = {
     nonfacilityMedian: nonfacilityFees.length > 0 ? median(nonfacilityFees) : null,
     facilityMedian: facilityFees.length > 0 ? median(facilityFees) : null,
     count: rows.length,
   };
-  
-  console.log('[MPFS] getStateMedianAllowed result', { year, state, cpt, modifier, ...result });
+
   return result;
 }
 

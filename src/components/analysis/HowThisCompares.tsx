@@ -1102,12 +1102,7 @@ export function HowThisCompares({
         const { items: lineItems, rawCodes: extractedRawCodes, rejectedTokens: rejected } = extractLineItems(analysis);
         setRawCodes(extractedRawCodes);
         setRejectedTokens(rejected);
-        
-        console.log('[HowThisCompares] Extracted line items:', lineItems.length);
-        console.log('[HowThisCompares] Raw codes found:', extractedRawCodes);
-        console.log('[HowThisCompares] Rejected tokens:', rejected);
-        console.log('[HowThisCompares] Service date:', extractedDate);
-        
+
         let finalLineItems = lineItems;
         
         // === REVERSE SEARCH LOGIC ===
@@ -1121,7 +1116,6 @@ export function HowThisCompares({
           (lineItems.length > 0 && lineItems.every(i => !i.billedAmount || i.billedAmount === 0));
         
         if (needsReverseSearch) {
-          console.log('[HowThisCompares] Triggering reverse search...');
           setReverseSearchTriggered(true);
           
           // Determine the reason
@@ -1179,10 +1173,9 @@ export function HowThisCompares({
             }
             
             setReverseSearchResults(searchResultsForDebug);
-            
+
             // Use inferred codes if we got any
             if (inferredCodes.length > 0) {
-              console.log('[HowThisCompares] Reverse search found:', inferredCodes.length, 'codes');
               finalLineItems = inferredCodes;
             }
           }
@@ -1200,10 +1193,7 @@ export function HowThisCompares({
           state,
           zipCode
         );
-        
-        console.log('[HowThisCompares] Benchmark result:', result.status);
-        console.log('[HowThisCompares] Debug info:', result.debug);
-        
+
         if (!cancelled) {
           setOutput(result);
         }

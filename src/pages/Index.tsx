@@ -447,14 +447,6 @@ const Index = () => {
             : undefined,
       };
 
-      // DEBUG: confirm parsed totals for bill and EOB
-      console.log("EOB/Bill analysisResult DEBUG", {
-        billTotal: analysisResult.billTotal,
-        eobPatientResponsibility: analysisResult.eobData?.patientResponsibility,
-        rawBillTotal: ai.billTotal,
-        rawEobPatientResp: ai.eobData?.patientResponsibility,
-      });
-
       setState((prev) => ({ ...prev, isAnalyzing: false, analysisResult }));
     } catch (error) {
       console.error("Analysis error:", error);
