@@ -11,11 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle, Building2, Stethoscope, Sparkles } from 'lucide-react';
+import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle, Building2, Stethoscope, Sparkles, Loader2 } from 'lucide-react';
 import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode, CareSetting } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AddressDetectionResult } from '@/lib/billAddressExtractor';
+import { LocationSource, PreScanLocationResult } from '@/lib/preScanLocation';
 
 interface UploadPageProps {
   uploadedFile: UploadedFile | null;
@@ -25,7 +25,10 @@ interface UploadPageProps {
   zipCode: string;
   careSetting: CareSetting;
   analysisMode: AnalysisMode;
-  detectedAddress?: AddressDetectionResult | null;
+  zipSource: LocationSource;
+  stateSource: LocationSource;
+  isScanning?: boolean;
+  preScanResult?: PreScanLocationResult | null;
   onFileSelect: (file: UploadedFile) => void;
   onRemoveFile: () => void;
   onEOBSelect: (file: UploadedFile) => void;
@@ -46,7 +49,10 @@ export function UploadPage({
   zipCode,
   careSetting,
   analysisMode,
-  detectedAddress,
+  zipSource,
+  stateSource,
+  isScanning,
+  preScanResult,
   onFileSelect,
   onRemoveFile,
   onEOBSelect,
@@ -62,11 +68,9 @@ export function UploadPage({
   const canAnalyze = uploadedFile && selectedState;
   const isMedicalDoc = analysisMode === 'medical_document';
   
-  // Check if current values match detected values
-  const stateWasAutoFilled = detectedAddress?.detected_state && 
-    selectedState === detectedAddress.detected_state;
-  const zipWasAutoFilled = detectedAddress?.detected_zip && 
-    zipCode === detectedAddress.detected_zip;
+  // Show detected badges based on source
+  const showZipDetectedBadge = zipSource === 'detected' && zipCode;
+  const showStateDetectedBadge = stateSource === 'detected' && selectedState;
 
   // Mode-specific content
   const content = {
@@ -139,7 +143,7 @@ export function UploadPage({
                   <MapPin className="h-2.5 w-2.5 text-purple" />
                   {t('upload.state.label')}
                 </label>
-                {stateWasAutoFilled && (
+                {showStateDetectedBadge && (
                   <Badge variant="outline" className="h-4 px-1 text-[8px] bg-success/10 text-success border-success/30 gap-0.5">
                     <Sparkles className="h-2 w-2" />
                     detected
@@ -178,12 +182,17 @@ export function UploadPage({
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  {zipWasAutoFilled && (
+                  {isScanning ? (
+                    <Badge variant="outline" className="h-4 px-1 text-[8px] bg-muted/50 text-muted-foreground border-border/50 gap-0.5">
+                      <Loader2 className="h-2 w-2 animate-spin" />
+                      scanning
+                    </Badge>
+                  ) : showZipDetectedBadge ? (
                     <Badge variant="outline" className="h-4 px-1 text-[8px] bg-success/10 text-success border-success/30 gap-0.5">
                       <Sparkles className="h-2 w-2" />
-                      detected
+                      {preScanResult?.stateSource === 'zip_lookup' ? 'detected (from ZIP)' : 'detected'}
                     </Badge>
-                  )}
+                  ) : null}
                 </div>
                 <Input
                   type="text"
