@@ -14,12 +14,21 @@ import {
 
 type ImportStatus = 'idle' | 'loading' | 'importing' | 'success' | 'error';
 
+interface ImportStats {
+  rowsRead: number;
+  rowsInserted: number;
+  rowsSkippedBlankHcpcs: number;
+  rowsSkippedInvalid: number;
+  rowsWithFeeNull: number;
+  rowsWithRvusZero: number;
+}
+
 interface ImportState {
   status: ImportStatus;
   progress: number;
   total: number;
   message: string;
-  skippedRows?: number;
+  stats?: ImportStats;
 }
 
 // Raw CSV row - using exact CSV headers (HCPCS, MOD, etc.)
@@ -89,20 +98,55 @@ export default function AdminDataImport() {
   });
 
   // Parse numeric value, return null if invalid/blank
+  // Coerces "not found" (case-insensitive) to null
   const parseNumber = (value: string | undefined | null): number | null => {
-    if (!value || value.trim() === '') return null;
-    const trimmed = value.trim().toLowerCase();
-    // Handle "not found" literal as null (not an error)
-    if (trimmed === 'not found') return null;
+    if (value === undefined || value === null) return null;
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    // Handle "not found" literal as null (case-insensitive)
+    if (trimmed.toLowerCase() === 'not found') return null;
+    // Handle other non-numeric placeholders
+    if (trimmed.toLowerCase() === 'n/a' || trimmed === '-') return null;
     const parsed = parseFloat(trimmed);
     return isNaN(parsed) ? null : parsed;
   };
 
   // Parse integer, return null if invalid/blank
   const parseInteger = (value: string | undefined | null): number | null => {
-    if (!value || value.trim() === '') return null;
-    const parsed = parseInt(value.trim(), 10);
+    if (value === undefined || value === null) return null;
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    const parsed = parseInt(trimmed, 10);
     return isNaN(parsed) ? null : parsed;
+  };
+
+  // Check if a row has a valid (non-blank) HCPCS code
+  const hasValidHcpcs = (row: MpfsCsvRawRow): boolean => {
+    const hcpcs = getRowValue(row, 'hcpcs');
+    if (!hcpcs) return false;
+    const trimmed = hcpcs.trim();
+    return trimmed !== '';
+  };
+
+  // Check if a column name is valid (not unnamed/empty)
+  const isValidColumnName = (name: string): boolean => {
+    if (!name) return false;
+    const lower = name.toLowerCase().trim();
+    // Skip unnamed columns (from pandas/Excel exports)
+    if (lower.startsWith('unnamed:') || lower.startsWith('unnamed ')) return false;
+    if (lower === '' || lower === 'undefined') return false;
+    return true;
+  };
+
+  // Filter out unnamed/empty columns from a row
+  const filterValidColumns = (row: MpfsCsvRawRow): MpfsCsvRawRow => {
+    const filtered: MpfsCsvRawRow = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (isValidColumnName(key)) {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
   };
 
   // Get value from row using either CSV header or DB column name
@@ -120,44 +164,60 @@ export default function AdminDataImport() {
   };
 
   // Transform a raw CSV row to a clean DB record
-  const transformRow = (row: MpfsCsvRawRow, rowIndex: number): { record: MpfsDbRecord | null; error: string | null } => {
+  // Returns record stats for tracking fee/RVU nulls
+  const transformRow = (row: MpfsCsvRawRow, rowIndex: number): { 
+    record: MpfsDbRecord | null; 
+    error: string | null;
+    hasFeeNull: boolean;
+    hasRvusZero: boolean;
+  } => {
+    // Filter out unnamed/empty columns first
+    const cleanRow = filterValidColumns(row);
+    
     // Get HCPCS - required field, preserve as text (leading zeros, letters)
-    const hcpcs = getRowValue(row, 'hcpcs')?.trim();
+    const hcpcs = getRowValue(cleanRow, 'hcpcs')?.trim();
     if (!hcpcs) {
-      return { record: null, error: `Row ${rowIndex + 1}: Missing HCPCS code` };
+      return { record: null, error: `Row ${rowIndex + 1}: Missing HCPCS code`, hasFeeNull: false, hasRvusZero: false };
     }
 
     // Get modifier - normalize: trim, uppercase, default to '' if blank
-    const rawModifier = getRowValue(row, 'modifier');
+    const rawModifier = getRowValue(cleanRow, 'modifier');
     const modifier = rawModifier?.trim().toUpperCase() || '';
 
-    // Get year - required field
-    const yearValue = parseInteger(getRowValue(row, 'year'));
+    // Get year - default to 2026 if missing (for our current dataset)
+    let yearValue = parseInteger(getRowValue(cleanRow, 'year'));
     if (yearValue === null) {
-      return { record: null, error: `Row ${rowIndex + 1}: Missing or invalid year for HCPCS ${hcpcs}` };
+      yearValue = 2026; // Default year for current MPFS dataset
     }
 
     // Get qp_status - default to 'nonQP' if missing
-    const qpStatus = getRowValue(row, 'qp_status')?.trim() || 'nonQP';
+    const qpStatus = getRowValue(cleanRow, 'qp_status')?.trim() || 'nonQP';
 
     // Get source - default to 'CMS MPFS' if missing
-    const source = getRowValue(row, 'source')?.trim() || 'CMS MPFS';
+    const source = getRowValue(cleanRow, 'source')?.trim() || 'CMS MPFS';
 
-    // Parse numeric fields (allow null)
-    const workRvu = parseNumber(getRowValue(row, 'work_rvu'));
-    const nonfacPeRvu = parseNumber(getRowValue(row, 'nonfac_pe_rvu'));
-    const facPeRvu = parseNumber(getRowValue(row, 'fac_pe_rvu'));
-    const mpRvu = parseNumber(getRowValue(row, 'mp_rvu'));
-    const nonfacFee = parseNumber(getRowValue(row, 'nonfac_fee'));
-    const facFee = parseNumber(getRowValue(row, 'fac_fee'));
-    const conversionFactor = parseNumber(getRowValue(row, 'conversion_factor'));
+    // Parse numeric fields (allow null) - "not found" coerced to null
+    const workRvu = parseNumber(getRowValue(cleanRow, 'work_rvu'));
+    const nonfacPeRvu = parseNumber(getRowValue(cleanRow, 'nonfac_pe_rvu'));
+    const facPeRvu = parseNumber(getRowValue(cleanRow, 'fac_pe_rvu'));
+    const mpRvu = parseNumber(getRowValue(cleanRow, 'mp_rvu'));
+    const nonfacFee = parseNumber(getRowValue(cleanRow, 'nonfac_fee'));
+    const facFee = parseNumber(getRowValue(cleanRow, 'fac_fee'));
+    const conversionFactor = parseNumber(getRowValue(cleanRow, 'conversion_factor'));
+
+    // Track stats
+    const hasFeeNull = nonfacFee === null && facFee === null;
+    const hasRvusZero = (workRvu === null || workRvu === 0) && 
+                        (nonfacPeRvu === null || nonfacPeRvu === 0) && 
+                        (facPeRvu === null || facPeRvu === 0) && 
+                        (mpRvu === null || mpRvu === 0);
 
     // String fields (keep as text)
-    const description = getRowValue(row, 'description')?.trim() || null;
-    const status = getRowValue(row, 'status')?.trim() || null;
-    const pctc = getRowValue(row, 'pctc')?.trim() || null;
-    const globalDays = getRowValue(row, 'global_days')?.trim() || null; // Keep as text (can be "XXX")
-    const multSurgeryIndicator = getRowValue(row, 'mult_surgery_indicator')?.trim() || null;
+    const description = getRowValue(cleanRow, 'description')?.trim() || null;
+    const status = getRowValue(cleanRow, 'status')?.trim() || null;
+    const pctc = getRowValue(cleanRow, 'pctc')?.trim() || null;
+    const globalDays = getRowValue(cleanRow, 'global_days')?.trim() || null; // Keep as text (can be "XXX")
+    const multSurgeryIndicator = getRowValue(cleanRow, 'mult_surgery_indicator')?.trim() || null;
 
     return {
       record: {
@@ -180,6 +240,8 @@ export default function AdminDataImport() {
         source,
       },
       error: null,
+      hasFeeNull,
+      hasRvusZero,
     };
   };
 
@@ -191,51 +253,86 @@ export default function AdminDataImport() {
 
     Papa.parse<MpfsCsvRawRow>(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: 'greedy', // Skip all empty lines including whitespace-only
       complete: async (results) => {
         if (results.errors.length > 0) {
-          console.error('CSV parsing errors:', results.errors);
+          // Filter out "TooFewFields" errors which are common in padded CSVs
+          const criticalErrors = results.errors.filter(e => e.type !== 'FieldMismatch');
+          if (criticalErrors.length > 0) {
+            console.error('CSV parsing errors:', criticalErrors);
+            setMpfsState({
+              status: 'error',
+              progress: 0,
+              total: 0,
+              message: `CSV parsing error: ${criticalErrors[0].message}`,
+            });
+            return;
+          }
+        }
+
+        const allRows = results.data;
+        
+        // Filter out valid column names from headers
+        const rawHeaders = results.meta.fields || [];
+        const validHeaders = rawHeaders.filter(isValidColumnName);
+        const droppedColumns = rawHeaders.filter(h => !isValidColumnName(h));
+        
+        console.log(`CSV headers (${rawHeaders.length} total):`, rawHeaders);
+        console.log(`Valid headers (${validHeaders.length}):`, validHeaders);
+        if (droppedColumns.length > 0) {
+          console.log(`Dropped unnamed/empty columns (${droppedColumns.length}):`, droppedColumns);
+        }
+        
+        // CRITICAL: Filter out rows with blank HCPCS BEFORE processing
+        const validRows = allRows.filter(hasValidHcpcs);
+        const blankHcpcsCount = allRows.length - validRows.length;
+        
+        console.log(`Total rows read: ${allRows.length}`);
+        console.log(`Rows with blank HCPCS (skipped): ${blankHcpcsCount}`);
+        console.log(`Rows with valid HCPCS: ${validRows.length}`);
+        
+        if (validRows.length === 0) {
           setMpfsState({
             status: 'error',
             progress: 0,
             total: 0,
-            message: `CSV parsing error: ${results.errors[0].message}`,
+            message: `No valid HCPCS rows found in CSV. All ${allRows.length} rows had blank HCPCS.`,
           });
           return;
         }
-
-        const rows = results.data;
-        console.log(`Parsed ${rows.length} rows from CSV`);
-        console.log('CSV headers:', results.meta.fields);
         
         setMpfsState({
           status: 'importing',
           progress: 0,
-          total: rows.length,
-          message: `Processing ${rows.length} rows...`,
+          total: validRows.length,
+          message: `Processing ${validRows.length} valid rows (${blankHcpcsCount} blank rows skipped)...`,
         });
 
         try {
           const BATCH_SIZE = 500;
           let totalImported = 0;
-          let skippedRows = 0;
+          let rowsSkippedInvalid = 0;
+          let rowsWithFeeNull = 0;
+          let rowsWithRvusZero = 0;
           const errors: string[] = [];
 
-          for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-            const batchRows = rows.slice(i, i + BATCH_SIZE);
+          for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+            const batchRows = validRows.slice(i, i + BATCH_SIZE);
             const batchNum = Math.floor(i / BATCH_SIZE) + 1;
             const records: MpfsDbRecord[] = [];
             
             for (let j = 0; j < batchRows.length; j++) {
-              const { record, error } = transformRow(batchRows[j], i + j);
+              const { record, error, hasFeeNull, hasRvusZero } = transformRow(batchRows[j], i + j);
               if (error) {
                 errors.push(error);
-                skippedRows++;
+                rowsSkippedInvalid++;
                 if (errors.length <= 5) {
                   console.warn(error);
                 }
               } else if (record) {
                 records.push(record);
+                if (hasFeeNull) rowsWithFeeNull++;
+                if (hasRvusZero) rowsWithRvusZero++;
               }
             }
 
@@ -270,20 +367,33 @@ export default function AdminDataImport() {
             setMpfsState(prev => ({
               ...prev,
               progress: totalImported,
-              message: `Imported ${totalImported} of ${rows.length} records (batch ${batchNum})...`,
+              message: `Imported ${totalImported} of ${validRows.length} records (batch ${batchNum})...`,
             }));
           }
 
-          const successMessage = skippedRows > 0
-            ? `Successfully imported ${totalImported} records! (${skippedRows} rows skipped due to errors)`
-            : `Successfully imported ${totalImported} MPFS records!`;
+          const stats: ImportStats = {
+            rowsRead: allRows.length,
+            rowsInserted: totalImported,
+            rowsSkippedBlankHcpcs: blankHcpcsCount,
+            rowsSkippedInvalid,
+            rowsWithFeeNull,
+            rowsWithRvusZero,
+          };
+          
+          console.log('=== MPFS Import Complete ===');
+          console.log(`Rows read from CSV: ${stats.rowsRead}`);
+          console.log(`Rows inserted: ${stats.rowsInserted}`);
+          console.log(`Rows skipped (blank HCPCS): ${stats.rowsSkippedBlankHcpcs}`);
+          console.log(`Rows skipped (invalid): ${stats.rowsSkippedInvalid}`);
+          console.log(`Rows with NULL fees: ${stats.rowsWithFeeNull}`);
+          console.log(`Rows with zero/null RVUs: ${stats.rowsWithRvusZero}`);
 
           setMpfsState({
             status: 'success',
             progress: totalImported,
-            total: rows.length,
-            message: successMessage,
-            skippedRows,
+            total: allRows.length,
+            message: `Successfully imported ${totalImported} MPFS records!`,
+            stats,
           });
 
           if (errors.length > 0) {
@@ -294,7 +404,7 @@ export default function AdminDataImport() {
           setMpfsState({
             status: 'error',
             progress: 0,
-            total: rows.length,
+            total: validRows.length,
             message: error instanceof Error ? error.message : 'Failed to import data',
           });
         }
@@ -410,6 +520,27 @@ export default function AdminDataImport() {
               </p>
             )}
             
+            {/* Import Statistics */}
+            {mpfsState.stats && mpfsState.status === 'success' && (
+              <div className="rounded-md border bg-muted/50 p-4 text-sm space-y-1">
+                <p className="font-medium text-foreground">Import Statistics:</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+                  <span>Rows read from CSV:</span>
+                  <span className="font-mono">{mpfsState.stats.rowsRead.toLocaleString()}</span>
+                  <span>Rows inserted:</span>
+                  <span className="font-mono text-green-600">{mpfsState.stats.rowsInserted.toLocaleString()}</span>
+                  <span>Skipped (blank HCPCS):</span>
+                  <span className="font-mono text-amber-600">{mpfsState.stats.rowsSkippedBlankHcpcs.toLocaleString()}</span>
+                  <span>Skipped (invalid):</span>
+                  <span className="font-mono">{mpfsState.stats.rowsSkippedInvalid.toLocaleString()}</span>
+                  <span>With NULL fees:</span>
+                  <span className="font-mono">{mpfsState.stats.rowsWithFeeNull.toLocaleString()}</span>
+                  <span>With zero RVUs:</span>
+                  <span className="font-mono">{mpfsState.stats.rowsWithRvusZero.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+            
             <div className="flex flex-col gap-2">
               <Input
                 ref={mpfsFileInputRef}
@@ -421,6 +552,9 @@ export default function AdminDataImport() {
               />
               <p className="text-xs text-muted-foreground">
                 Expected columns: HCPCS, MOD, description, status, work_rvu, nonfac_pe_rvu, fac_pe_rvu, mp_rvu, nonfac_fee, fac_fee, pctc, global_days, mult_surgery_indicator, conversion_factor, year, qp_status, source
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Note: Blank/padded rows (empty HCPCS) and unnamed columns are automatically skipped. "not found" values in fee columns are stored as NULL.
               </p>
             </div>
 
