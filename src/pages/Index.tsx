@@ -11,7 +11,8 @@ import { ZoomProvider } from "@/contexts/ZoomContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult, CareSetting } from "@/types";
 import { toast } from "sonner";
-import { extractAddressWithFallback, AddressDetectionResult } from "@/lib/billAddressExtractor";
+import { usePreScanLocation } from "@/hooks/usePreScanLocation";
+import { LocationSource } from "@/lib/preScanLocation";
 
 // Helper to ensure value is always an array
 const ensureArray = (value: any): any[] => {
@@ -43,22 +44,26 @@ const Index = () => {
     isAnalyzing: false,
     activeHighlight: null,
   });
-  
-  // Track detected address from bill scan
-  const [detectedAddress, setDetectedAddress] = useState<AddressDetectionResult | null>(null);
+
+  // Pre-scan hook for ZIP/State detection
+  const preScan = usePreScanLocation({
+    uploadedFile: state.uploadedFile,
+    analysisMode: state.analysisMode,
+    currentZip: state.zipCode,
+    currentState: state.selectedState,
+    onZipDetected: (zip) => setState(prev => ({ ...prev, zipCode: zip })),
+    onStateDetected: (stateAbbr) => setState(prev => ({ ...prev, selectedState: stateAbbr })),
+  });
 
   const handleFileSelect = useCallback((file: UploadedFile) => {
     setState((prev) => ({ ...prev, uploadedFile: file }));
-    // Reset detected address when new file is selected
-    setDetectedAddress(null);
   }, []);
 
   const handleRemoveFile = useCallback(() => {
     if (state.uploadedFile?.preview) {
       URL.revokeObjectURL(state.uploadedFile.preview);
     }
-    setState((prev) => ({ ...prev, uploadedFile: null }));
-    setDetectedAddress(null);
+    setState((prev) => ({ ...prev, uploadedFile: null, zipCode: "", selectedState: "" }));
   }, [state.uploadedFile]);
 
   const handleEOBSelect = useCallback((file: UploadedFile) => {
@@ -73,8 +78,9 @@ const Index = () => {
   }, [state.eobFile]);
 
   const handleStateChange = useCallback((selectedState: string) => {
+    preScan.markStateAsUserEdited();
     setState((prev) => ({ ...prev, selectedState }));
-  }, []);
+  }, [preScan]);
 
   const handleLanguageChange = useCallback((selectedLanguage: Language) => {
     setState((prev) => ({ ...prev, selectedLanguage }));
@@ -85,8 +91,9 @@ const Index = () => {
   }, []);
 
   const handleZipCodeChange = useCallback((zipCode: string) => {
+    preScan.markZipAsUserEdited();
     setState((prev) => ({ ...prev, zipCode }));
-  }, []);
+  }, [preScan]);
 
   const handleCareSettingChange = useCallback((careSetting: CareSetting) => {
     setState((prev) => ({ ...prev, careSetting }));
@@ -501,7 +508,10 @@ const Index = () => {
                   zipCode={state.zipCode}
                   careSetting={state.careSetting}
                   analysisMode={state.analysisMode}
-                  detectedAddress={detectedAddress}
+                  zipSource={preScan.zipSource}
+                  stateSource={preScan.stateSource}
+                  isScanning={preScan.isScanning}
+                  preScanResult={preScan.result}
                   onFileSelect={handleFileSelect}
                   onRemoveFile={handleRemoveFile}
                   onEOBSelect={handleEOBSelect}
