@@ -29,8 +29,8 @@ const verdictConfig: Record<VerdictLevel, { icon: React.ReactNode; bg: string; c
 
 function ReviewItemRow({ item }: { item: ReviewItem }) {
   const [showDetails, setShowDetails] = useState(false);
-  const verdict = issueTypeToVerdict[item.issueType];
-  const config = verdictConfig[verdict];
+  const verdict = issueTypeToVerdict[item.issueType] ?? 'info';
+  const config = verdictConfig[verdict] ?? verdictConfig.info;
 
   return (
     <div className="py-2 border-b border-border/20 last:border-0">
