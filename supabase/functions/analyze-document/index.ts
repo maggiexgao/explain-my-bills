@@ -32,8 +32,16 @@ You MUST output ALL of the following Pond sections in your JSON response:
   "totalBilled": number or null,
   "amountYouMayOwe": number or null,
   "status": "looks_standard" | "worth_reviewing" | "likely_issues",
-  "statusExplanation": "One sentence: Based on what's shown here..."
+  "statusExplanation": "One sentence: Based on what's shown here...",
+  "documentClassification": "itemized_statement" | "eob" | "portal_summary" | "payment_receipt" | "unknown"
 }
+
+CRITICAL - TOTAL EXTRACTION: You MUST extract the totalBilled value accurately. Search for:
+- "Total Charges", "Total Billed", "Statement Total", "Amount Billed", "Gross Charges"
+- The largest dollar amount that represents the sum of all services
+- If there's a table of line items, totalBilled should be the sum or the "Total" row
+- NEVER return totalBilled as 0 or null if there are visible dollar amounts on the bill
+- If you can only find a patient balance/responsibility amount, put that in amountYouMayOwe AND try harder to find the original charges
 
 ### thingsWorthReviewing (REQUIRED - array, can be empty)
 [{ "whatToReview": "...", "whyItMatters": "...", "issueType": "error|negotiable|missing_info|confirmation" }]
@@ -425,7 +433,22 @@ Return valid JSON with this EXACT structure:
   "issuer": "Exact provider name from document",
   "dateOfService": "MM/DD/YYYY format",
   "documentPurpose": "Statement for [service type] services",
-  "charges": [],
+  "charges": [
+    {
+      "description": "Service description",
+      "amount": number,
+      "code": "CPT/HCPCS if visible",
+      "date": "date if shown"
+    }
+  ],
+  "extractedTotals": {
+    "totalCharges": number or null,
+    "totalAdjustments": number or null,
+    "insurancePaid": number or null,
+    "patientBalance": number or null,
+    "amountDue": number or null,
+    "totalsSource": "label from document where these were found"
+  },
   "medicalCodes": [],
   "faqs": [],
   "possibleIssues": [],
@@ -450,6 +473,14 @@ Return valid JSON with this EXACT structure:
   "billingIssues": [],
   "eobData": null
 }
+
+### extractedTotals (REQUIRED)
+You MUST populate extractedTotals by carefully reading the bill:
+- Look for labels like "Total Charges", "Total", "Amount Billed", "Balance Due", "Amount You Owe"
+- totalCharges = the pre-insurance total (gross charges)
+- patientBalance = what the patient currently owes
+- insurancePaid = any insurance payments shown
+- If you can only find one number, put it in the most appropriate field and explain in totalsSource
 
 ## STYLE RULES
 - Reading level: 6th-8th grade
