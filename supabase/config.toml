@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.verify-payment]
 verify_jwt = false
+
+[functions.pre-scan-location]
+verify_jwt = false
+
+[functions.import-medicare-data]
+verify_jwt = false

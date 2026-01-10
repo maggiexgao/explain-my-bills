@@ -597,21 +597,60 @@ Each flagged issue should indicate confidence:
 - Moderate concern: Unusual but could have explanation
 - Soft concern: Worth asking about, may be fine`;
 
-// CPT/HCPCS Code Validation
+// CPT/HCPCS Code Validation - STRICT
 const CPT_PATTERN = /^\d{5}$/;
 const HCPCS_PATTERN = /^[A-Z]\d{4}$/;
+
+// Comprehensive list of words that should NEVER be treated as codes
 const REJECTED_WORDS = new Set([
+  // Common bill labels
   'LEVEL', 'VISIT', 'TOTAL', 'CHARGE', 'SERVICE', 'PRICE', 'AMOUNT',
+  'CMPLX', 'COMPLEX', 'SIMPLE', 'MODERATE', 'MINOR', 'MAJOR',
+  // People/places
   'PATIENT', 'PROVIDER', 'HOSPITAL', 'CLINIC', 'DOCTOR', 'NURSE',
-  'DATE', 'TIME', 'PAGE', 'BILL', 'STATEMENT', 'INVOICE', 'ACCOUNT',
+  // Date/time
+  'DATE', 'TIME', 'PAGE', 'YEAR', 'MONTH', 'DAY',
+  // Bill structure
+  'BILL', 'STATEMENT', 'INVOICE', 'ACCOUNT', 'CLAIM', 'NUMBER',
   'BALANCE', 'PAYMENT', 'CREDIT', 'DEBIT', 'INSURANCE', 'COPAY',
   'DEDUCTIBLE', 'COINSURANCE', 'ALLOWED', 'BILLED', 'PAID', 'DUE',
+  // Code-related labels
   'DESCRIPTION', 'CODE', 'PROCEDURE', 'DIAGNOSIS', 'MODIFIER',
-  'UNIT', 'UNITS', 'QTY', 'QUANTITY', 'EACH', 'ROOM', 'EMERGENCY',
-  'FACILITY', 'OFFICE', 'OUTPATIENT', 'INPATIENT', 'AMBULATORY',
-  'PHARMACY', 'LABORATORY', 'RADIOLOGY', 'SURGICAL', 'MEDICAL',
-  'NAME', 'ADDRESS', 'PHONE', 'FAX', 'EMAIL', 'ER', 'ED', 'OR'
+  'HCPCS', 'ICD', 'REV', 'REVENUE',
+  // Quantities
+  'UNIT', 'UNITS', 'QTY', 'QUANTITY', 'EACH', 'PER',
+  // Locations
+  'ROOM', 'EMERGENCY', 'FACILITY', 'OFFICE', 'OUTPATIENT', 'INPATIENT',
+  'AMBULATORY', 'PHARMACY', 'LABORATORY', 'RADIOLOGY', 'SURGICAL',
+  'MEDICAL', 'NAME', 'ADDRESS', 'PHONE', 'FAX', 'EMAIL',
+  // Common abbreviations that aren't codes
+  'ER', 'ED', 'OR', 'PT', 'OT', 'IV', 'IM', 'PO', 'BID', 'TID', 'QID',
+  'PRN', 'STAT', 'ASA', 'BP', 'HR', 'RR', 'TEMP', 'HT', 'WT', 'BMI',
+  // Financial
+  'USD', 'DOLLAR', 'DOLLARS', 'CENTS', 'FEE', 'FEES', 'COST', 'COSTS',
+  'RATE', 'RATES', 'TAX', 'TAXES', 'DISCOUNT', 'ADJUSTMENT', 'WRITE',
+  // Status words
+  'NEW', 'ESTABLISHED', 'INITIAL', 'SUBSEQUENT', 'FINAL', 'FOLLOW',
+  // Generic descriptors that appear on bills
+  'HIGH', 'LOW', 'NORMAL', 'ABNORMAL', 'POSITIVE', 'NEGATIVE',
+  'PRIMARY', 'SECONDARY', 'TERTIARY', 'MAIN', 'SUB', 'CATEGORY',
+  'GROUP', 'SECTION', 'PART', 'ITEM', 'LINE', 'ROW', 'ENTRY',
+  'TYPE', 'CLASS', 'STATUS', 'APPROVED', 'DENIED', 'PENDING',
+  // More common non-code words from bills
+  'EVAL', 'MGMT', 'MGMNT', 'CONSULT', 'TREATMENT', 'THERAPY',
+  'TEST', 'TESTS', 'RESULT', 'RESULTS', 'REPORT', 'REPORTS',
+  'SUPPLY', 'SUPPLIES', 'EQUIPMENT', 'DEVICE', 'DRUG', 'MEDICATION',
+  'INJECTION', 'INFUSION', 'IMAGING', 'SCAN', 'XRAY', 'MRI', 'CT',
 ]);
+
+// Additional patterns to reject (case insensitive matching)
+const REJECTED_PATTERNS = [
+  /^[A-Z]+$/, // Purely alphabetic
+  /^\d{1,4}$/, // 1-4 digits (not 5)
+  /^\d{6,}$/, // 6+ digits
+  /^[A-Z]{2,}$/, // Multiple letters only
+  /^\d+[A-Z]+$/, // Digits followed by letters (like "99ER")
+];
 
 interface CodeValidationResult {
   validCodes: any[];
@@ -625,26 +664,45 @@ function validateCptCode(code: string): { valid: boolean; reason?: string } {
   
   const cleaned = code.trim().toUpperCase();
   
+  // Check if too short or too long
+  if (cleaned.length < 4) {
+    return { valid: false, reason: `Too short: ${cleaned}` };
+  }
+  if (cleaned.length > 7) {
+    return { valid: false, reason: `Too long: ${cleaned}` };
+  }
+  
   // Check if it's a rejected word
   if (REJECTED_WORDS.has(cleaned)) {
     return { valid: false, reason: `Rejected word: ${cleaned}` };
   }
   
-  // Check if purely alphabetic
-  if (/^[A-Z]+$/.test(cleaned)) {
-    return { valid: false, reason: 'Purely alphabetic token' };
+  // Check rejected patterns
+  for (const pattern of REJECTED_PATTERNS) {
+    if (pattern.test(cleaned)) {
+      return { valid: false, reason: `Matches rejected pattern: ${cleaned}` };
+    }
+  }
+  
+  // Extract core code (handle modifiers like "99284-25")
+  let coreCode = cleaned;
+  if (cleaned.includes('-')) {
+    coreCode = cleaned.split('-')[0];
+  }
+  if (cleaned.includes(' ')) {
+    coreCode = cleaned.split(' ')[0];
   }
   
   // Check valid formats
-  if (CPT_PATTERN.test(cleaned)) {
+  if (CPT_PATTERN.test(coreCode)) {
     return { valid: true };
   }
   
-  if (HCPCS_PATTERN.test(cleaned)) {
+  if (HCPCS_PATTERN.test(coreCode)) {
     return { valid: true };
   }
   
-  return { valid: false, reason: `Invalid format: ${cleaned}` };
+  return { valid: false, reason: `Invalid format: ${cleaned} (expected 5 digits or letter + 4 digits)` };
 }
 
 function validateAndFilterCptCodes(codes: any[]): CodeValidationResult {

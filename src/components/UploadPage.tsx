@@ -11,11 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle, Building2, Stethoscope, Sparkles, Loader2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ArrowRight, MapPin, Lock, FileSearch, Shield, Globe, BookOpen, HelpCircle, Building2, Stethoscope, Sparkles, Loader2, Bug, ChevronDown } from 'lucide-react';
 import { UploadedFile, US_STATES, Language, LANGUAGES, AnalysisMode, CareSetting } from '@/types';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { LocationSource, PreScanLocationResult } from '@/hooks/usePreScanLocation';
+import { useState } from 'react';
 
 interface UploadPageProps {
   uploadedFile: UploadedFile | null;
@@ -65,6 +67,7 @@ export function UploadPage({
   onAnalyze,
 }: UploadPageProps) {
   const { t } = useTranslation();
+  const [showDebug, setShowDebug] = useState(false);
   const canAnalyze = uploadedFile && selectedState;
   const isMedicalDoc = analysisMode === 'medical_document';
   
@@ -322,6 +325,87 @@ export function UploadPage({
               <ArrowRight className="h-4 w-4" />
             </span>
           </Button>
+
+          {/* Pre-scan Debug Panel - Only show in bill mode when there's a scan result */}
+          {!isMedicalDoc && preScanResult && (
+            <Collapsible open={showDebug} onOpenChange={setShowDebug} className="mt-2">
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full h-6 text-[10px] text-muted-foreground/60 hover:text-muted-foreground gap-1"
+                >
+                  <Bug className="h-2.5 w-2.5" />
+                  Pre-scan Debug
+                  <ChevronDown className={`h-2.5 w-2.5 transition-transform ${showDebug ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1">
+                <div className="p-2 rounded-lg bg-background/40 backdrop-blur-sm border border-border/30 text-[9px] font-mono space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Scan ran:</span>
+                    <span className={preScanResult.ran ? 'text-success' : 'text-destructive'}>
+                      {preScanResult.ran ? '✓ yes' : '✗ no'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">ZIP detected:</span>
+                    <span className={preScanResult.zip5 ? 'text-success' : 'text-muted-foreground'}>
+                      {preScanResult.zip5 || '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">State detected:</span>
+                    <span className={preScanResult.stateAbbr ? 'text-success' : 'text-muted-foreground'}>
+                      {preScanResult.stateAbbr || '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">State source:</span>
+                    <span>{preScanResult.stateSource || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Confidence:</span>
+                    <Badge 
+                      variant="outline" 
+                      className={`h-3.5 px-1 text-[8px] ${
+                        preScanResult.confidence === 'high' ? 'bg-success/10 text-success border-success/30' :
+                        preScanResult.confidence === 'medium' ? 'bg-warning/10 text-warning border-warning/30' :
+                        'bg-muted/50 text-muted-foreground border-muted/50'
+                      }`}
+                    >
+                      {preScanResult.confidence}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">ZIP source:</span>
+                    <span>{zipSource}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">State source (UI):</span>
+                    <span>{stateSource}</span>
+                  </div>
+                  {preScanResult.evidence && (
+                    <div className="pt-1 border-t border-border/20">
+                      <span className="text-muted-foreground block">Evidence:</span>
+                      <span className="text-[8px] break-all opacity-80">{preScanResult.evidence}</span>
+                    </div>
+                  )}
+                  {preScanResult.extractedText && (
+                    <div className="pt-1 border-t border-border/20">
+                      <span className="text-muted-foreground block">Extracted text:</span>
+                      <span className="text-[8px] break-all opacity-60 max-h-16 overflow-y-auto block">{preScanResult.extractedText}</span>
+                    </div>
+                  )}
+                  {preScanResult.error && (
+                    <div className="pt-1 border-t border-destructive/20 text-destructive">
+                      <span className="block">Error: {preScanResult.error}</span>
+                    </div>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
 
         {/* Condensed steps + features */}
