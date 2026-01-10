@@ -9,8 +9,9 @@
  * - All calculations are transparent and auditable
  * - Edge cases degrade gracefully with clear documentation
  * 
- * PHASE 1 FIX: Proper handling of "exists_not_priced" codes like 99140
- * PHASE 2 FIX: Enhanced GPCI locality adjustment with ZIP/State lookup
+ * STEP 2: Proper match states (priced, exists_not_priced, missing_from_dataset)
+ * STEP 3: ZIP→Locality crosswalk via zip_to_locality table
+ * STEP 4: Locality-adjusted RVU + GPCI + CF computation
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +21,21 @@ import { supabase } from '@/integrations/supabase/client';
 export type ConfidenceLevel = 'local_adjusted' | 'state_estimate' | 'national_estimate';
 export type BenchmarkStatus = 'ok' | 'no_codes' | 'no_matches' | 'partial';
 export type MatchStatus = 'matched' | 'missing' | 'exists_not_priced';
+
+// Fee source indicates how the Medicare fee was determined
+export type FeeSource = 
+  | 'direct_fee'          // Used pre-calculated fee from MPFS
+  | 'rvu_calc_national'   // Computed from RVUs without GPCI
+  | 'rvu_calc_local'      // Computed from RVUs with GPCI adjustment
+  | null;                 // Fee could not be determined
+
+// Reason why a code exists but has no price
+export type NotPricedReason = 
+  | 'fees_missing'                    // Fee columns are NULL
+  | 'rvus_zero_or_missing'           // RVUs are all zero or NULL
+  | 'conversion_factor_missing'       // No CF available
+  | 'status_indicator_nonpayable'     // MPFS status indicates not payable
+  | null;
 
 export interface NormalizedCode {
   hcpcs: string;
@@ -48,6 +64,7 @@ export interface MpfsQueryAttempt {
   row_exists: boolean;
   has_fee: boolean;
   has_rvu: boolean;
+  status_code?: string | null;
 }
 
 export interface BenchmarkLineResult {
@@ -69,6 +86,10 @@ export interface BenchmarkLineResult {
   modifierFallbackUsed?: boolean;
   gpciAdjusted?: boolean;
   exclusionReason?: string;
+  
+  // Step 2: Enhanced debug info
+  feeSource: FeeSource;
+  notPricedReason: NotPricedReason;
 }
 
 export interface BenchmarkMetadata {
@@ -98,9 +119,11 @@ export interface DebugInfo {
     stateUsed: string | null;
     localityFound: boolean;
     localityName: string | null;
+    localityCode: string | null;
     workGpci: number | null;
     peGpci: number | null;
     mpGpci: number | null;
+    lookupMethod: 'zip_crosswalk' | 'gpci_direct_zip' | 'gpci_state_fallback' | 'national' | null;
   };
 }
 
@@ -169,6 +192,15 @@ interface GpciLocalityRow {
   mp_gpci: number;
 }
 
+interface ZipToLocalityRow {
+  zip5: string;
+  state_abbr: string | null;
+  locality_num: string;
+  carrier_num: string | null;
+  county_name: string | null;
+  effective_year: number | null;
+}
+
 // ============= Constants =============
 
 // Default conversion factor (CY 2026)
@@ -180,6 +212,9 @@ const HIGH_THRESHOLD = 300;    // <= 300% = high, > 300% = very_high
 
 // Global surgery indicators that affect bundling
 const BUNDLED_GLOBAL_DAYS = ['010', '090'];
+
+// Status codes that indicate non-payable codes
+const NON_PAYABLE_STATUS_CODES = ['B', 'I', 'N', 'R', 'X'];
 
 // Cache for latest MPFS year (per request)
 let cachedLatestMpfsYear: number | null = null;
@@ -196,12 +231,6 @@ let cachedLatestMpfsYear: number | null = null;
  * - Split on whitespace or hyphen for modifier
  * - Preserve leading zeros (code must remain TEXT)
  * - Allow alphanumeric codes like 0001F, G0123, J1885, 99285, 58662
- * 
- * Examples:
- * - "CPT 58662" -> { hcpcs: "58662", modifier: "" }
- * - "58662-59" -> { hcpcs: "58662", modifier: "59" }
- * - "0001F" -> { hcpcs: "0001F", modifier: "" }
- * - "99285 25" -> { hcpcs: "99285", modifier: "25" }
  */
 export function normalizeCode(rawCode: string): NormalizedCode {
   if (!rawCode || typeof rawCode !== 'string') {
@@ -251,11 +280,9 @@ export function normalizeCode(rawCode: string): NormalizedCode {
   }
   
   // Validate HCPCS code format (alphanumeric, typically 5 chars but can be 4-5)
-  // Valid patterns: 99285, 0001F, G0123, J1885, A0123
   const isValidHcpcs = /^[A-Z0-9]{4,5}$/.test(hcpcs);
   
   if (!isValidHcpcs) {
-    // Maybe the raw input was just the code with extra stuff
     // Try to extract any 5-char alphanumeric sequence
     const match = cleaned.match(/\b([A-Z0-9]{5})\b/);
     if (match) {
@@ -274,15 +301,11 @@ export function normalizeCode(rawCode: string): NormalizedCode {
 
 /**
  * Check if a normalized code is valid and billable
- * 
- * DO NOT require 5 digits only - allow alphanumeric HCPCS
  */
 export function isValidBillableCode(normalized: NormalizedCode): boolean {
   if (!normalized.hcpcs || normalized.hcpcs.length < 4) {
     return false;
   }
-  
-  // Must be alphanumeric, 4-5 characters
   return /^[A-Z0-9]{4,5}$/.test(normalized.hcpcs);
 }
 
@@ -321,8 +344,42 @@ export function clearMpfsYearCache(): void {
   cachedLatestMpfsYear = null;
 }
 
+// ============= STEP 3: ZIP→Locality Resolution =============
+
 /**
- * Fetch GPCI locality data by ZIP code
+ * Lookup locality from ZIP using the crosswalk table
+ */
+async function lookupLocalityByZip(zip5: string): Promise<ZipToLocalityRow | null> {
+  const normalizedZip = zip5.trim().substring(0, 5);
+  
+  const { data, error } = await supabase
+    .from('zip_to_locality')
+    .select('*')
+    .eq('zip5', normalizedZip)
+    .limit(1)
+    .maybeSingle();
+  
+  if (error || !data) return null;
+  return data as ZipToLocalityRow;
+}
+
+/**
+ * Fetch GPCI data by locality number
+ */
+async function fetchGpciByLocality(localityNum: string): Promise<GpciLocalityRow | null> {
+  const { data, error } = await supabase
+    .from('gpci_localities')
+    .select('*')
+    .eq('locality_num', localityNum)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as GpciLocalityRow;
+}
+
+/**
+ * Fetch GPCI locality data by ZIP code (direct match on gpci_localities)
  */
 async function fetchGpciByZip(zipCode: string): Promise<GpciLocalityRow | null> {
   const zip5 = zipCode.trim().substring(0, 5);
@@ -346,11 +403,85 @@ async function fetchGpciByState(stateAbbr: string): Promise<GpciLocalityRow | nu
     .from('gpci_localities')
     .select('*')
     .eq('state_abbr', stateAbbr.toUpperCase())
+    .order('locality_num')
     .limit(1)
     .maybeSingle();
 
   if (error || !data) return null;
   return data as GpciLocalityRow;
+}
+
+/**
+ * STEP 3: Resolve locality from ZIP/State with proper fallbacks
+ * 
+ * Resolution order:
+ * 1. Try zip_to_locality crosswalk (most accurate)
+ * 2. Try direct ZIP match in gpci_localities
+ * 3. Fall back to state-level estimate
+ * 4. Fall back to national estimate
+ */
+async function resolveLocality(
+  zipCode: string | undefined,
+  state: string | undefined
+): Promise<{
+  gpci: GpciLocalityRow | null;
+  confidence: ConfidenceLevel;
+  localityName: string | null;
+  localityCode: string | null;
+  lookupMethod: 'zip_crosswalk' | 'gpci_direct_zip' | 'gpci_state_fallback' | 'national';
+}> {
+  // 1. Try ZIP crosswalk first (most accurate)
+  if (zipCode) {
+    const crosswalkResult = await lookupLocalityByZip(zipCode);
+    if (crosswalkResult) {
+      // Found in crosswalk, now get GPCI for this locality
+      const gpci = await fetchGpciByLocality(crosswalkResult.locality_num);
+      if (gpci) {
+        return {
+          gpci,
+          confidence: 'local_adjusted',
+          localityName: crosswalkResult.county_name || gpci.locality_name,
+          localityCode: crosswalkResult.locality_num,
+          lookupMethod: 'zip_crosswalk'
+        };
+      }
+    }
+    
+    // 2. Try direct ZIP match in gpci_localities
+    const directZipGpci = await fetchGpciByZip(zipCode);
+    if (directZipGpci) {
+      return {
+        gpci: directZipGpci,
+        confidence: 'local_adjusted',
+        localityName: directZipGpci.locality_name,
+        localityCode: directZipGpci.locality_num,
+        lookupMethod: 'gpci_direct_zip'
+      };
+    }
+  }
+  
+  // 3. Fall back to state-level estimate
+  if (state) {
+    const stateGpci = await fetchGpciByState(state);
+    if (stateGpci) {
+      return {
+        gpci: stateGpci,
+        confidence: 'state_estimate',
+        localityName: `${state} (state estimate)`,
+        localityCode: stateGpci.locality_num,
+        lookupMethod: 'gpci_state_fallback'
+      };
+    }
+  }
+  
+  // 4. National estimate (no GPCI adjustment)
+  return {
+    gpci: null,
+    confidence: 'national_estimate',
+    localityName: null,
+    localityCode: null,
+    lookupMethod: 'national'
+  };
 }
 
 /**
@@ -373,7 +504,8 @@ async function fetchMpfsBenchmark(
     result_count: 0,
     row_exists: false,
     has_fee: false,
-    has_rvu: false
+    has_rvu: false,
+    status_code: null
   };
   
   // Try exact modifier match first
@@ -392,10 +524,12 @@ async function fetchMpfsBenchmark(
       const row = data as MpfsBenchmarkRow;
       queryAttempt.result_count = count || 1;
       queryAttempt.row_exists = true;
+      queryAttempt.status_code = row.status;
       queryAttempt.has_fee = (row.nonfac_fee !== null && row.nonfac_fee > 0) || 
                              (row.fac_fee !== null && row.fac_fee > 0);
       queryAttempt.has_rvu = (row.work_rvu !== null && row.work_rvu > 0) ||
                              (row.nonfac_pe_rvu !== null && row.nonfac_pe_rvu > 0) ||
+                             (row.fac_pe_rvu !== null && row.fac_pe_rvu > 0) ||
                              (row.mp_rvu !== null && row.mp_rvu > 0);
       return { row, modifierFallback: false, queryAttempt };
     }
@@ -417,10 +551,12 @@ async function fetchMpfsBenchmark(
     queryAttempt.modifier = '';
     queryAttempt.result_count = count || 1;
     queryAttempt.row_exists = true;
+    queryAttempt.status_code = row.status;
     queryAttempt.has_fee = (row.nonfac_fee !== null && row.nonfac_fee > 0) || 
                            (row.fac_fee !== null && row.fac_fee > 0);
     queryAttempt.has_rvu = (row.work_rvu !== null && row.work_rvu > 0) ||
                            (row.nonfac_pe_rvu !== null && row.nonfac_pe_rvu > 0) ||
+                           (row.fac_pe_rvu !== null && row.fac_pe_rvu > 0) ||
                            (row.mp_rvu !== null && row.mp_rvu > 0);
     return { 
       row, 
@@ -433,7 +569,7 @@ async function fetchMpfsBenchmark(
 }
 
 /**
- * Fetch MPFS benchmark data for a specific HCPCS code with year fallback
+ * Fetch MPFS benchmark data with year fallback
  */
 async function fetchMpfsBenchmarkWithFallback(
   hcpcs: string,
@@ -490,72 +626,120 @@ async function fetchMpfsBenchmarkWithFallback(
   };
 }
 
-// ============= Calculation Functions =============
+// ============= STEP 4: Fee Calculation =============
 
 /**
- * Calculate Medicare fee using RVUs and GPCI
+ * STEP 4: Calculate Medicare fee using RVUs and GPCI
  * 
  * Formula: Fee = [(Work RVU × Work GPCI) + (PE RVU × PE GPCI) + (MP RVU × MP GPCI)] × CF
  * 
- * Returns: { fee: number | null, calculated: boolean, gpciApplied: boolean }
+ * Priority:
+ * 1. If GPCI available: compute locality-adjusted fee from RVUs (rvu_calc_local)
+ * 2. If no GPCI but RVUs available: compute national fee from RVUs (rvu_calc_national)
+ * 3. Fall back to direct fee column only in national_estimate mode (direct_fee)
  */
-function calculateGpciAdjustedFee(
+function calculateMedicareFee(
   benchmark: MpfsBenchmarkRow,
   gpci: GpciLocalityRow | null,
-  isFacility: boolean = false
-): { fee: number | null; calculated: boolean; gpciApplied: boolean } {
-  // First, check for pre-calculated fee
-  const directFee = isFacility ? benchmark.fac_fee : benchmark.nonfac_fee;
-  
-  // Only use direct fee if it's a valid positive number
-  if (directFee !== null && typeof directFee === 'number' && directFee > 0) {
-    // If we have GPCI, we need to recalculate using RVUs
-    // For now, use the national fee directly - GPCI adjustment requires RVUs
-    if (!gpci) {
-      return { 
-        fee: Math.round(directFee * 100) / 100, 
-        calculated: false, 
-        gpciApplied: false 
-      };
-    }
-    // Fall through to RVU calculation for GPCI adjustment
+  isFacility: boolean = false,
+  confidence: ConfidenceLevel
+): { 
+  fee: number | null; 
+  feeSource: FeeSource; 
+  notPricedReason: NotPricedReason;
+  gpciApplied: boolean;
+} {
+  // Check for non-payable status codes
+  if (benchmark.status && NON_PAYABLE_STATUS_CODES.includes(benchmark.status.toUpperCase())) {
+    return { 
+      fee: null, 
+      feeSource: null, 
+      notPricedReason: 'status_indicator_nonpayable',
+      gpciApplied: false
+    };
   }
   
-  // Calculate from RVUs
+  // Get RVUs
   const workRvu = benchmark.work_rvu ?? 0;
   const mpRvu = benchmark.mp_rvu ?? 0;
   const peRvu = isFacility 
     ? (benchmark.fac_pe_rvu ?? 0) 
     : (benchmark.nonfac_pe_rvu ?? 0);
-
-  // If no RVUs at all, use direct fee even if it's 0
-  if (workRvu === 0 && peRvu === 0 && mpRvu === 0) {
-    // This is the "exists_not_priced" case
-    if (directFee !== null && directFee > 0) {
-      return { fee: directFee, calculated: false, gpciApplied: false };
-    }
-    return { fee: null, calculated: false, gpciApplied: false };
-  }
-
-  // Get conversion factor (use stored or default)
+  
+  const hasWorkRvu = workRvu > 0;
+  const hasPeRvu = peRvu > 0;
+  const hasMpRvu = mpRvu > 0;
+  const hasAnyRvu = hasWorkRvu || hasPeRvu || hasMpRvu;
+  
+  // Get conversion factor
   const cf = benchmark.conversion_factor ?? DEFAULT_CONVERSION_FACTOR;
-
-  // Get GPCI factors (default to 1.0 for national)
-  const workGpci = gpci?.work_gpci ?? 1.0;
-  const peGpci = gpci?.pe_gpci ?? 1.0;
-  const mpGpci = gpci?.mp_gpci ?? 1.0;
-
-  // Calculate geographically adjusted fee
-  const adjustedFee = (
-    (workRvu * workGpci) +
-    (peRvu * peGpci) +
-    (mpRvu * mpGpci)
-  ) * cf;
-
+  if (!cf) {
+    return { 
+      fee: null, 
+      feeSource: null, 
+      notPricedReason: 'conversion_factor_missing',
+      gpciApplied: false
+    };
+  }
+  
+  // If we have RVUs, prefer RVU calculation
+  if (hasAnyRvu) {
+    if (gpci && (confidence === 'local_adjusted' || confidence === 'state_estimate')) {
+      // STEP 4: Locality-adjusted calculation
+      const adjustedFee = (
+        (workRvu * gpci.work_gpci) +
+        (peRvu * gpci.pe_gpci) +
+        (mpRvu * gpci.mp_gpci)
+      ) * cf;
+      
+      return { 
+        fee: Math.round(adjustedFee * 100) / 100, 
+        feeSource: 'rvu_calc_local',
+        notPricedReason: null,
+        gpciApplied: true
+      };
+    }
+    
+    // National RVU calculation (no GPCI)
+    const nationalFee = (workRvu + peRvu + mpRvu) * cf;
+    return { 
+      fee: Math.round(nationalFee * 100) / 100, 
+      feeSource: 'rvu_calc_national',
+      notPricedReason: null,
+      gpciApplied: false
+    };
+  }
+  
+  // No RVUs - try direct fee as fallback (only in national mode)
+  const directFee = isFacility ? benchmark.fac_fee : benchmark.nonfac_fee;
+  
+  if (directFee !== null && typeof directFee === 'number' && directFee > 0) {
+    return { 
+      fee: Math.round(directFee * 100) / 100, 
+      feeSource: 'direct_fee',
+      notPricedReason: null,
+      gpciApplied: false
+    };
+  }
+  
+  // Check if fees are missing
+  const hasFee = (benchmark.nonfac_fee !== null && benchmark.nonfac_fee > 0) || 
+                 (benchmark.fac_fee !== null && benchmark.fac_fee > 0);
+  
+  if (!hasFee && !hasAnyRvu) {
+    return { 
+      fee: null, 
+      feeSource: null, 
+      notPricedReason: 'rvus_zero_or_missing',
+      gpciApplied: false
+    };
+  }
+  
   return { 
-    fee: Math.round(adjustedFee * 100) / 100, 
-    calculated: true, 
-    gpciApplied: gpci !== null 
+    fee: null, 
+    feeSource: null, 
+    notPricedReason: 'fees_missing',
+    gpciApplied: false
   };
 }
 
@@ -584,12 +768,10 @@ function extractYearFromDate(dateOfService?: string): number | null {
   try {
     const date = new Date(dateOfService);
     const year = date.getFullYear();
-    // Sanity check: year should be reasonable (1990-2030)
     if (year >= 1990 && year <= 2030) {
       return year;
     }
   } catch {
-    // Try to extract year from string patterns like "MM/DD/YYYY" or "YYYY-MM-DD"
     const yearMatch = dateOfService.match(/\b(19|20)\d{2}\b/);
     if (yearMatch) {
       return parseInt(yearMatch[0], 10);
@@ -599,38 +781,10 @@ function extractYearFromDate(dateOfService?: string): number | null {
   return null;
 }
 
-/**
- * Determine if MPFS row exists but has no priceable data
- * This handles codes like 99140 that exist in MPFS but have 0 RVUs and null fees
- */
-function isExistsNotPriced(benchmark: MpfsBenchmarkRow | null): boolean {
-  if (!benchmark) return false;
-  
-  const hasFee = (benchmark.nonfac_fee !== null && benchmark.nonfac_fee > 0) || 
-                 (benchmark.fac_fee !== null && benchmark.fac_fee > 0);
-  const hasRvu = (benchmark.work_rvu !== null && benchmark.work_rvu > 0) ||
-                 (benchmark.nonfac_pe_rvu !== null && benchmark.nonfac_pe_rvu > 0) ||
-                 (benchmark.fac_pe_rvu !== null && benchmark.fac_pe_rvu > 0) ||
-                 (benchmark.mp_rvu !== null && benchmark.mp_rvu > 0);
-  
-  // Row exists but no fee data and no meaningful RVUs
-  return !hasFee && !hasRvu;
-}
-
 // ============= Main Service Function =============
 
 /**
  * Calculate Medicare benchmarks for a list of bill line items
- * 
- * This is the main entry point for benchmark calculation.
- * It handles all the complexity of:
- * - Normalizing CPT/HCPCS codes
- * - Year fallback logic
- * - Fetching MPFS data for each code
- * - Applying GPCI geographic adjustments
- * - Multiplying by units
- * - Comparing to billed amounts
- * - Tracking edge cases with detailed debug info
  */
 export async function calculateMedicareBenchmarks(
   lineItems: BenchmarkLineItem[],
@@ -660,60 +814,28 @@ export async function calculateMedicareBenchmarks(
   // Get the latest MPFS year available
   const latestMpfsYear = await getLatestMpfsYear();
   
-  // Determine confidence level and fetch GPCI
-  let gpci: GpciLocalityRow | null = null;
-  let confidence: ConfidenceLevel = 'national_estimate';
-  let localityName: string | null = null;
-  let localityCode: string | null = null;
+  // STEP 3: Resolve locality with proper fallback chain
+  const localityResult = await resolveLocality(zipCode, state);
+  const { gpci, confidence, localityName, localityCode, lookupMethod } = localityResult;
   
   // GPCI lookup debug info
   const gpciLookup = {
-    attempted: false,
+    attempted: !!(zipCode || state),
     zipUsed: zipCode || null,
     stateUsed: state || null,
-    localityFound: false,
-    localityName: null as string | null,
-    workGpci: null as number | null,
-    peGpci: null as number | null,
-    mpGpci: null as number | null
+    localityFound: gpci !== null,
+    localityName: localityName,
+    localityCode: localityCode,
+    workGpci: gpci?.work_gpci ?? null,
+    peGpci: gpci?.pe_gpci ?? null,
+    mpGpci: gpci?.mp_gpci ?? null,
+    lookupMethod
   };
-  
-  // Try ZIP first for highest accuracy
-  if (zipCode) {
-    gpciLookup.attempted = true;
-    gpci = await fetchGpciByZip(zipCode);
-    if (gpci) {
-      confidence = 'local_adjusted';
-      localityName = gpci.locality_name;
-      localityCode = gpci.locality_num;
-      gpciLookup.localityFound = true;
-      gpciLookup.localityName = gpci.locality_name;
-      gpciLookup.workGpci = gpci.work_gpci;
-      gpciLookup.peGpci = gpci.pe_gpci;
-      gpciLookup.mpGpci = gpci.mp_gpci;
-    }
-  }
-  
-  // Fall back to state if no ZIP match
-  if (!gpci && state) {
-    gpciLookup.attempted = true;
-    gpci = await fetchGpciByState(state);
-    if (gpci) {
-      confidence = 'state_estimate';
-      localityName = gpci.locality_name;
-      localityCode = gpci.locality_num;
-      gpciLookup.localityFound = true;
-      gpciLookup.localityName = gpci.locality_name;
-      gpciLookup.workGpci = gpci.work_gpci;
-      gpciLookup.peGpci = gpci.pe_gpci;
-      gpciLookup.mpGpci = gpci.mp_gpci;
-    }
-  }
 
   // Process each line item
   for (const item of lineItems) {
     // Track billed amount (allow null)
-    if (item.billedAmount !== null && item.billedAmount !== undefined) {
+    if (item.billedAmount !== null && item.billedAmount !== undefined && item.billedAmount > 0) {
       totalBilled += item.billedAmount;
       billedTotalDetected = true;
     }
@@ -743,7 +865,9 @@ export async function calculateMedicareBenchmarks(
         benchmarkYearUsed: null,
         requestedYear: null,
         notes: [`Invalid or unrecognized code format: "${rawCode}"`],
-        exclusionReason: 'no_valid_code'
+        exclusionReason: 'no_valid_code',
+        feeSource: null,
+        notPricedReason: null
       });
       continue;
     }
@@ -774,7 +898,7 @@ export async function calculateMedicareBenchmarks(
       metadataNotes.push(fallbackReason);
     }
     
-    // CASE 1: No MPFS row found at all
+    // CASE 1: No MPFS row found at all -> missing_from_dataset
     if (!benchmark) {
       codesMissing.push(normalized.hcpcs);
       results.push({
@@ -790,46 +914,38 @@ export async function calculateMedicareBenchmarks(
         matchStatus: 'missing',
         benchmarkYearUsed: null,
         requestedYear: yearToRequest,
-        notes: ['Code not found in Medicare Physician Fee Schedule'],
-        exclusionReason: 'not_in_mpfs'
+        notes: ['We couldn\'t find this code in our Medicare dataset.'],
+        exclusionReason: 'not_in_mpfs',
+        feeSource: null,
+        notPricedReason: null
       });
       continue;
     }
 
-    // CASE 2: MPFS row exists but has no priceable data (e.g., 99140)
-    if (isExistsNotPriced(benchmark)) {
-      codesExistsNotPriced.push(normalized.hcpcs);
-      results.push({
-        hcpcs: normalized.hcpcs,
-        modifier: normalized.modifier,
-        description: benchmark.description || item.description || null,
-        billedAmount: item.billedAmount,
-        units: item.units,
-        medicareReferencePerUnit: null,
-        medicareReferenceTotal: null,
-        multiple: null,
-        status: 'unknown',
-        matchStatus: 'exists_not_priced',
-        benchmarkYearUsed: yearUsed,
-        requestedYear: yearToRequest,
-        notes: [
-          'Medicare reference amount not available for this code in our dataset',
-          'This may be an add-on code, carrier-priced, or requires special circumstances'
-        ],
-        exclusionReason: 'exists_not_priced'
-      });
-      continue;
-    }
-
-    // CASE 3: Calculate fee
-    const { fee: feePerUnit, calculated, gpciApplied } = calculateGpciAdjustedFee(
+    // CASE 2 & 3: Row exists - try to calculate fee
+    const { fee: feePerUnit, feeSource, notPricedReason, gpciApplied } = calculateMedicareFee(
       benchmark, 
       gpci, 
-      item.isFacility
+      item.isFacility,
+      confidence
     );
     
+    // If fee could not be calculated -> exists_not_priced
     if (feePerUnit === null || feePerUnit <= 0) {
       codesExistsNotPriced.push(normalized.hcpcs);
+      
+      // Build explanation based on reason
+      let explanation = 'This code appears in Medicare\'s physician fee schedule tables, but a payable Medicare reference amount isn\'t available in our dataset for it';
+      if (notPricedReason === 'rvus_zero_or_missing') {
+        explanation += ' (often because it\'s carrier-priced, bundled, or not paid under MPFS).';
+      } else if (notPricedReason === 'status_indicator_nonpayable') {
+        explanation += ' (status indicator shows this code is not separately payable).';
+      } else if (notPricedReason === 'conversion_factor_missing') {
+        explanation += ' (conversion factor not available).';
+      } else {
+        explanation += '.';
+      }
+      
       results.push({
         hcpcs: normalized.hcpcs,
         modifier: normalized.modifier,
@@ -843,13 +959,15 @@ export async function calculateMedicareBenchmarks(
         matchStatus: 'exists_not_priced',
         benchmarkYearUsed: yearUsed,
         requestedYear: yearToRequest,
-        notes: ['Medicare reference amount not available (fee calculation returned null)'],
-        exclusionReason: 'fee_calculation_null'
+        notes: [explanation],
+        exclusionReason: 'exists_not_priced',
+        feeSource,
+        notPricedReason
       });
       continue;
     }
 
-    // Mark as matched
+    // CASE 4: Successfully priced -> matched
     codesMatched.push(normalized.hcpcs);
 
     // Calculate total with units
@@ -877,8 +995,15 @@ export async function calculateMedicareBenchmarks(
     }
     
     // Note GPCI adjustment
-    if (gpciApplied) {
-      notes.push(`Adjusted for locality: ${localityName || 'regional'}`);
+    if (gpciApplied && localityName) {
+      notes.push(`Adjusted for locality: ${localityName}`);
+    }
+    
+    // Note fee source
+    if (feeSource === 'rvu_calc_local') {
+      notes.push('Computed from RVUs with geographic adjustment');
+    } else if (feeSource === 'rvu_calc_national') {
+      notes.push('Computed from RVUs (national rate)');
     }
     
     // Check for bundling
@@ -917,11 +1042,13 @@ export async function calculateMedicareBenchmarks(
       notes,
       isBundled,
       modifierFallbackUsed: modifierFallback,
-      gpciAdjusted: gpciApplied
+      gpciAdjusted: gpciApplied,
+      feeSource,
+      notPricedReason: null
     });
   }
 
-  // Calculate overall multiple (only if both billed and reference are detected)
+  // Calculate overall multiple
   const overallMultiple = (hasAnyBenchmark && totalMedicareReference > 0 && billedTotalDetected && totalBilled > 0)
     ? Math.round((totalBilled / totalMedicareReference) * 100) / 100
     : null;
@@ -942,7 +1069,7 @@ export async function calculateMedicareBenchmarks(
     status,
     
     totals: {
-      billedTotal: billedTotalDetected ? totalBilled : null,
+      billedTotal: billedTotalDetected ? Math.round(totalBilled * 100) / 100 : null,
       billedTotalDetected,
       medicareReferenceTotal: hasAnyBenchmark ? Math.round(totalMedicareReference * 100) / 100 : null,
       multipleOfMedicare: overallMultiple,
@@ -980,14 +1107,14 @@ export async function calculateMedicareBenchmarks(
     calculatedAt: new Date().toISOString(),
     
     // Legacy compatibility
-    totalBilled: billedTotalDetected ? totalBilled : 0,
+    totalBilled: billedTotalDetected ? Math.round(totalBilled * 100) / 100 : 0,
     totalMedicareReference: hasAnyBenchmark ? Math.round(totalMedicareReference * 100) / 100 : null,
     multipleOfMedicare: overallMultiple,
     confidence,
     localityName,
     state: state?.toUpperCase() || null,
-    codesNotFound: [...codesMissing, ...codesExistsNotPriced],
-    codesExcluded: [],
+    codesNotFound: codesMissing,
+    codesExcluded: codesExistsNotPriced,
     dataYear: benchmarkYearUsed
   };
 }
@@ -1019,7 +1146,6 @@ export function generateBenchmarkStatement(output: MedicareBenchmarkOutput): str
  * Generate comparison sentence
  */
 export function generateComparisonSentence(output: MedicareBenchmarkOutput): string | null {
-  // Check if billed total was detected
   if (!output.totals.billedTotalDetected) {
     return "Billed total not detected from this document.";
   }
@@ -1074,7 +1200,6 @@ export function generateOverallStatus(output: MedicareBenchmarkOutput): {
   status: 'fair' | 'high' | 'very_high' | 'mixed' | 'unknown';
   message: string;
 } {
-  // If no billed total detected, we can still show reference pricing
   if (!output.totals.billedTotalDetected) {
     return {
       status: 'unknown',
