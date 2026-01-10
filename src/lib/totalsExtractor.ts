@@ -195,7 +195,7 @@ export function classifyDocument(content: string): DocumentClassification {
 }
 
 /**
- * Extract total candidates from analysis data
+ * Extract total candidates from analysis data with enhanced detection
  */
 export function extractTotalCandidates(
   analysisData: any,
@@ -234,7 +234,12 @@ export function extractTotalCandidates(
   
   // Extract from charges array sum
   if (analysisData.charges && Array.isArray(analysisData.charges)) {
-    const chargeSum = analysisData.charges.reduce((sum: number, c: any) => {
+    const chargesWithAmounts = analysisData.charges.filter((c: any) => {
+      const amount = parseCurrency(c.amount);
+      return amount !== null && amount > 0;
+    });
+    
+    const chargeSum = chargesWithAmounts.reduce((sum: number, c: any) => {
       const amount = parseCurrency(c.amount);
       return sum + (amount || 0);
     }, 0);
@@ -244,9 +249,54 @@ export function extractTotalCandidates(
         type: 'charges',
         amount: chargeSum,
         label: 'Sum of line items',
-        confidence: 'medium',
-        evidence: `Calculated from ${analysisData.charges.length} line items`
+        confidence: chargesWithAmounts.length >= 2 ? 'medium' : 'low',
+        evidence: `Calculated from ${chargesWithAmounts.length} line items`
       });
+    }
+  }
+  
+  // NEW: Extract from direct fields that might be present
+  // Check for total fields in various locations
+  const totalFieldNames = [
+    'totalCharges', 'total_charges', 'totalBilled', 'total_billed',
+    'grandTotal', 'grand_total', 'statementTotal', 'statement_total'
+  ];
+  
+  for (const fieldName of totalFieldNames) {
+    const value = analysisData[fieldName];
+    if (value) {
+      const amount = parseCurrency(value);
+      if (amount && amount > 0) {
+        chargesCandidates.push({
+          type: 'charges',
+          amount,
+          label: `From ${fieldName}`,
+          confidence: 'high',
+          evidence: `Direct field: ${fieldName}`
+        });
+      }
+    }
+  }
+  
+  // Check for balance/owed fields
+  const balanceFieldNames = [
+    'amountDue', 'amount_due', 'balanceDue', 'balance_due',
+    'patientBalance', 'patient_balance', 'youOwe', 'you_owe'
+  ];
+  
+  for (const fieldName of balanceFieldNames) {
+    const value = analysisData[fieldName];
+    if (value) {
+      const amount = parseCurrency(value);
+      if (amount && amount > 0) {
+        patientCandidates.push({
+          type: 'patient_responsibility',
+          amount,
+          label: `From ${fieldName}`,
+          confidence: 'high',
+          evidence: `Direct field: ${fieldName}`
+        });
+      }
     }
   }
   
@@ -291,7 +341,7 @@ export function extractTotalCandidates(
     const amountMatch = text.match(/\$([0-9,]+(?:\.[0-9]{2})?)/);
     if (amountMatch) {
       const amount = parseCurrency(amountMatch[1]);
-      if (amount && amount > 0) {
+      if (amount && amount > 0 && !chargesCandidates.some(c => Math.abs(c.amount - amount) < 1)) {
         chargesCandidates.push({
           type: 'charges',
           amount,
@@ -303,15 +353,56 @@ export function extractTotalCandidates(
     }
   }
   
-  // Sort candidates by confidence
-  const sortByConfidence = (a: TotalCandidate, b: TotalCandidate) => {
+  // NEW: Extract from billingTemplates if present (often contains actual amounts)
+  if (analysisData.billingTemplates && Array.isArray(analysisData.billingTemplates)) {
+    for (const template of analysisData.billingTemplates) {
+      if (template.filledData?.billedAmount) {
+        const amount = parseCurrency(template.filledData.billedAmount);
+        if (amount && amount > 0 && !chargesCandidates.some(c => Math.abs(c.amount - amount) < 1)) {
+          chargesCandidates.push({
+            type: 'charges',
+            amount,
+            label: 'From billing template data',
+            confidence: 'high',
+            evidence: 'Extracted for template generation'
+          });
+        }
+      }
+    }
+  }
+  
+  // NEW: Look for amounts in actionSteps (often mentions bill total)
+  if (analysisData.actionSteps && Array.isArray(analysisData.actionSteps)) {
+    for (const step of analysisData.actionSteps) {
+      const text = `${step.action || ''} ${step.details || ''}`;
+      const amounts = text.match(/\$([0-9,]+(?:\.[0-9]{2})?)/g) || [];
+      for (const amountStr of amounts) {
+        const amount = parseCurrency(amountStr.replace('$', ''));
+        if (amount && amount > 100 && !chargesCandidates.some(c => Math.abs(c.amount - amount) < 1)) {
+          chargesCandidates.push({
+            type: 'charges',
+            amount,
+            label: 'From action steps text',
+            confidence: 'low',
+            evidence: text.substring(0, 80)
+          });
+        }
+      }
+    }
+  }
+  
+  // Sort candidates by confidence then by amount (higher amounts first for same confidence)
+  const sortByConfidenceAndAmount = (a: TotalCandidate, b: TotalCandidate) => {
     const order = { high: 0, medium: 1, low: 2 };
-    return order[a.confidence] - order[b.confidence];
+    if (order[a.confidence] !== order[b.confidence]) {
+      return order[a.confidence] - order[b.confidence];
+    }
+    return b.amount - a.amount; // Higher amount first
   };
   
-  chargesCandidates.sort(sortByConfidence);
-  allowedCandidates.sort(sortByConfidence);
-  patientCandidates.sort(sortByConfidence);
+  chargesCandidates.sort(sortByConfidenceAndAmount);
+  allowedCandidates.sort(sortByConfidenceAndAmount);
+  patientCandidates.sort(sortByConfidenceAndAmount);
   
   return { chargesCandidates, allowedCandidates, patientCandidates };
 }
