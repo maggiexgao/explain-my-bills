@@ -308,11 +308,15 @@ function DebugPanel({
   zipCode?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showLineDetails, setShowLineDetails] = useState(false);
   
   // Count codes by match status
   const matchedCount = output.lineItems.filter(i => i.matchStatus === 'matched').length;
   const missingCount = output.lineItems.filter(i => i.matchStatus === 'missing').length;
   const existsNotPricedCount = output.lineItems.filter(i => i.matchStatus === 'exists_not_priced').length;
+  
+  // Conversion factor for display
+  const CF = 34.6062;
   
   return (
     <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/50 text-xs font-mono">
@@ -323,9 +327,9 @@ function DebugPanel({
         <Bug className="h-3 w-3" />
         <span>Benchmark Debug Info</span>
         <div className="ml-auto flex items-center gap-2">
-          {matchedCount > 0 && <Badge variant="outline" className="text-success border-success/30 text-[10px]">{matchedCount} matched</Badge>}
-          {missingCount > 0 && <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">{missingCount} missing</Badge>}
+          {matchedCount > 0 && <Badge variant="outline" className="text-success border-success/30 text-[10px]">{matchedCount} priced</Badge>}
           {existsNotPricedCount > 0 && <Badge variant="outline" className="text-warning border-warning/30 text-[10px]">{existsNotPricedCount} exists/not priced</Badge>}
+          {missingCount > 0 && <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">{missingCount} missing</Badge>}
           {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </div>
       </button>
@@ -353,15 +357,37 @@ function DebugPanel({
             )}
           </div>
           
-          {/* Locality info */}
+          {/* Locality/GPCI info */}
           <div className="p-2 rounded bg-background/50">
-            <div><strong>Locality Mode:</strong> {output.metadata.localityUsed}</div>
-            <div><strong>Locality Name:</strong> {output.metadata.localityName || 'National (no locality)'}</div>
+            <div className="mb-1"><strong>Geo Resolution:</strong></div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><strong>Confidence:</strong> <span className={
+                output.metadata.localityUsed === 'local_adjusted' ? 'text-success' :
+                output.metadata.localityUsed === 'state_estimate' ? 'text-warning' : 'text-muted-foreground'
+              }>{output.metadata.localityUsed}</span></div>
+              <div><strong>Lookup Method:</strong> {output.debug.gpciLookup?.lookupMethod || 'N/A'}</div>
+              <div><strong>Locality Name:</strong> {output.metadata.localityName || 'National (no locality)'}</div>
+              <div><strong>Locality Code:</strong> {output.debug.gpciLookup?.localityCode || 'N/A'}</div>
+            </div>
             {output.debug.gpciLookup?.localityFound && (
-              <div className="mt-1">
-                <strong>GPCI Indices:</strong> Work: {output.debug.gpciLookup.workGpci?.toFixed(3) || 'N/A'}, 
-                PE: {output.debug.gpciLookup.peGpci?.toFixed(3) || 'N/A'}, 
-                MP: {output.debug.gpciLookup.mpGpci?.toFixed(3) || 'N/A'}
+              <div className="mt-2 p-2 rounded bg-success/5 border border-success/20">
+                <strong className="text-success">GPCI Indices Applied:</strong>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  <div>Work: <span className="text-foreground font-semibold">{output.debug.gpciLookup.workGpci?.toFixed(4) || 'N/A'}</span></div>
+                  <div>PE: <span className="text-foreground font-semibold">{output.debug.gpciLookup.peGpci?.toFixed(4) || 'N/A'}</span></div>
+                  <div>MP: <span className="text-foreground font-semibold">{output.debug.gpciLookup.mpGpci?.toFixed(4) || 'N/A'}</span></div>
+                </div>
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  Formula: Fee = [(Work RVU × Work GPCI) + (PE RVU × PE GPCI) + (MP RVU × MP GPCI)] × {CF}
+                </div>
+              </div>
+            )}
+            {!output.debug.gpciLookup?.localityFound && (
+              <div className="mt-2 p-2 rounded bg-muted/20 border border-border/30">
+                <strong>National Calculation:</strong>
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  Formula: Fee = (Work RVU + PE RVU + MP RVU) × {CF}
+                </div>
               </div>
             )}
           </div>
@@ -377,41 +403,88 @@ function DebugPanel({
             </div>
           </div>
           
-          {/* Normalized codes */}
-          <div>
-            <strong>Normalized Codes ({output.debug.normalizedCodes.length}):</strong>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {output.debug.normalizedCodes.length > 0 ? output.debug.normalizedCodes.slice(0, 20).map((c, i) => (
-                <Badge key={i} variant="outline" className={cn("text-xs", isValidBillableCode(c) ? "" : "border-destructive text-destructive")}>
-                  {c.hcpcs || '(empty)'}{c.modifier && `-${c.modifier}`}
-                </Badge>
-              )) : <span className="text-destructive">None valid</span>}
-            </div>
-          </div>
-          
-          {/* Match results */}
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <strong className="text-success">Matched ({matchedCount}):</strong>
-              <div className="text-xs">{output.debug.codesMatched.slice(0, 5).join(', ') || 'None'}</div>
-            </div>
-            <div>
-              <strong className="text-destructive">Missing ({missingCount}):</strong>
-              <div className="text-xs">{output.debug.codesMissing.slice(0, 5).join(', ') || 'None'}</div>
-            </div>
-            <div>
-              <strong className="text-warning">Exists/Not Priced ({existsNotPricedCount}):</strong>
-              <div className="text-xs">{output.lineItems.filter(i => i.matchStatus === 'exists_not_priced').map(i => i.hcpcs).slice(0, 5).join(', ') || 'None'}</div>
+          {/* Match results with classification */}
+          <div className="pt-2 border-t border-border/30">
+            <div className="mb-2"><strong>Classification Results:</strong></div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="p-2 rounded bg-success/5 border border-success/20">
+                <strong className="text-success">✓ Priced ({matchedCount})</strong>
+                <div className="text-[10px] mt-1">{output.debug.codesMatched.slice(0, 5).join(', ') || 'None'}</div>
+              </div>
+              <div className="p-2 rounded bg-warning/5 border border-warning/20">
+                <strong className="text-warning">⚠ Exists, Not Priced ({existsNotPricedCount})</strong>
+                <div className="text-[10px] mt-1">{output.debug.codesExistsNotPriced.slice(0, 5).join(', ') || 'None'}</div>
+              </div>
+              <div className="p-2 rounded bg-destructive/5 border border-destructive/20">
+                <strong className="text-destructive">✗ Missing ({missingCount})</strong>
+                <div className="text-[10px] mt-1">{output.debug.codesMissing.slice(0, 5).join(', ') || 'None'}</div>
+              </div>
             </div>
           </div>
           
           {/* Totals */}
           <div className="p-2 rounded bg-background/50">
             <div className="grid grid-cols-3 gap-2">
-              <div><strong>Billed Total:</strong> ${output.totals.billedTotal?.toFixed(2) || '0.00'}</div>
+              <div><strong>Billed Total:</strong> ${output.totals.billedTotal?.toFixed(2) || '—'}</div>
               <div><strong>Medicare Ref:</strong> ${output.totals.medicareReferenceTotal?.toFixed(2) || 'N/A'}</div>
               <div><strong>Multiple:</strong> {output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A'}</div>
             </div>
+          </div>
+          
+          {/* Per-line item details toggle */}
+          <div className="pt-2 border-t border-border/30">
+            <button
+              onClick={() => setShowLineDetails(!showLineDetails)}
+              className="flex items-center gap-2 text-primary hover:underline"
+            >
+              {showLineDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              <span>Per-Line Item Debug ({output.lineItems.length} items)</span>
+            </button>
+            
+            {showLineDetails && (
+              <div className="mt-2 max-h-80 overflow-y-auto space-y-2">
+                {output.lineItems.map((item, i) => (
+                  <div key={i} className={cn(
+                    "p-2 rounded text-[10px] border",
+                    item.matchStatus === 'matched' ? 'bg-success/5 border-success/20' :
+                    item.matchStatus === 'exists_not_priced' ? 'bg-warning/5 border-warning/20' :
+                    'bg-destructive/5 border-destructive/20'
+                  )}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <code className="font-semibold text-foreground">{item.hcpcs}</code>
+                      {item.modifier && <span className="text-muted-foreground">-{item.modifier}</span>}
+                      <Badge variant="outline" className={cn(
+                        "text-[8px]",
+                        item.matchStatus === 'matched' ? 'text-success border-success/30' :
+                        item.matchStatus === 'exists_not_priced' ? 'text-warning border-warning/30' :
+                        'text-destructive border-destructive/30'
+                      )}>
+                        {item.matchStatus === 'matched' ? 'PRICED' :
+                         item.matchStatus === 'exists_not_priced' ? 'EXISTS/NOT PRICED' :
+                         'MISSING'}
+                      </Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-1">
+                      <div><strong>Billed:</strong> ${item.billedAmount?.toFixed(2) || '—'}</div>
+                      <div><strong>Medicare Ref:</strong> ${item.medicareReferencePerUnit?.toFixed(2) || 'N/A'}</div>
+                      <div><strong>Fee Source:</strong> {item.feeSource || 'N/A'}</div>
+                      <div><strong>GPCI Applied:</strong> {item.gpciAdjusted ? 'Yes' : 'No'}</div>
+                      {item.notPricedReason && (
+                        <div className="col-span-2"><strong>Not Priced Reason:</strong> <span className="text-warning">{item.notPricedReason}</span></div>
+                      )}
+                      <div className="col-span-2"><strong>Year:</strong> {item.benchmarkYearUsed || 'N/A'}</div>
+                    </div>
+                    
+                    {item.notes.length > 0 && (
+                      <div className="mt-1 text-muted-foreground">
+                        <strong>Notes:</strong> {item.notes.join(' | ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
           {/* Query details */}
@@ -429,6 +502,7 @@ function DebugPanel({
                   {q.row_exists ? (
                     <span className={q.has_fee || q.has_rvu ? 'text-success' : 'text-warning'}>
                       {' '}✓ Row found {q.has_fee ? '(has fee)' : q.has_rvu ? '(has RVU)' : '(no fee/RVU)'}
+                      {q.status_code && <span className="text-muted-foreground"> [status: {q.status_code}]</span>}
                     </span>
                   ) : (
                     <span className="text-destructive"> ✗ Not in MPFS</span>
@@ -443,7 +517,8 @@ function DebugPanel({
             <div className="pt-2 border-t border-border/30">
               <strong>Example SQL Query:</strong>
               <pre className="mt-1 p-2 rounded bg-background/80 text-[10px] overflow-x-auto">
-{`SELECT hcpcs, modifier, nonfac_fee, fac_fee, work_rvu, nonfac_pe_rvu, fac_pe_rvu, mp_rvu, conversion_factor
+{`SELECT hcpcs, modifier, status, nonfac_fee, fac_fee, 
+       work_rvu, nonfac_pe_rvu, fac_pe_rvu, mp_rvu, conversion_factor
 FROM mpfs_benchmarks 
 WHERE hcpcs = '${output.debug.queriesAttempted[0]?.hcpcs || '99213'}' 
   AND year = ${output.metadata.benchmarkYearUsed}
@@ -683,20 +758,72 @@ function SummaryCard({ output }: { output: MedicareBenchmarkOutput }) {
   );
 }
 
-function CodesNotFoundSection({ codes }: { codes: string[] }) {
+/**
+ * Section for codes that exist in MPFS but have no payable Medicare amount
+ */
+function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }) {
+  const existsNotPricedItems = items.filter(i => i.matchStatus === 'exists_not_priced');
+  if (existsNotPricedItems.length === 0) return null;
+  
+  return (
+    <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium text-foreground mb-1">
+            Codes found, but Medicare reference price not available
+          </p>
+          <p className="text-sm text-muted-foreground mb-2">
+            These services exist in Medicare's physician fee schedule but do not have a 
+            separate payable amount. They are often bundled into other services or used for reporting purposes.
+          </p>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {existsNotPricedItems.slice(0, 8).map(item => (
+              <Badge key={item.hcpcs} variant="outline" className="text-xs bg-warning/10 border-warning/30 text-warning-foreground">
+                {item.hcpcs}
+                {item.notPricedReason && (
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    ({item.notPricedReason === 'rvus_zero_or_missing' ? 'no RVUs' : 
+                      item.notPricedReason === 'status_indicator_nonpayable' ? 'not payable' : 
+                      item.notPricedReason === 'fees_missing' ? 'no fee' : item.notPricedReason})
+                  </span>
+                )}
+              </Badge>
+            ))}
+            {existsNotPricedItems.length > 8 && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                +{existsNotPricedItems.length - 8} more
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            <strong>Note:</strong> These are NOT missing from Medicare's data — they simply 
+            don't have a separately payable Medicare rate. This is common for add-on codes, 
+            carrier-priced services, or informational codes.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Section for codes that do NOT exist in MPFS at all
+ */
+function CodesMissingSection({ codes }: { codes: string[] }) {
   if (codes.length === 0) return null;
   
   return (
     <div className="p-4 rounded-lg bg-muted/20 border border-border/30">
       <div className="flex items-start gap-3">
-        <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+        <FileQuestion className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-foreground mb-1">
-            Some codes not in Medicare dataset
+            Codes not found in our Medicare dataset
           </p>
           <p className="text-sm text-muted-foreground mb-2">
-            These specialized codes are excluded from the comparison. 
-            They may be newer codes, DME, or services not covered under the physician fee schedule.
+            We couldn't find these codes in our Medicare Physician Fee Schedule dataset. 
+            They may be newer codes, DME codes, clinical lab codes, or services outside the MPFS.
           </p>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {codes.slice(0, 8).map(code => (
@@ -1048,8 +1175,11 @@ export function HowThisCompares({
         </div>
       </div>
       
-      {/* Codes Not Found */}
-      <CodesNotFoundSection codes={output.codesNotFound} />
+      {/* Codes that exist but have no Medicare price */}
+      <CodesExistsNotPricedSection items={output.lineItems} />
+      
+      {/* Codes not found in MPFS at all */}
+      <CodesMissingSection codes={output.codesNotFound} />
       
       {/* Educational Footer */}
       <EducationalFooter />
