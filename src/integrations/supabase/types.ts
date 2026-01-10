@@ -116,6 +116,45 @@ export type Database = {
         }
         Relationships: []
       }
+      zip_to_locality: {
+        Row: {
+          carrier_num: string | null
+          county_name: string | null
+          created_at: string
+          effective_year: number | null
+          id: string
+          locality_num: string
+          source: string
+          state_abbr: string | null
+          updated_at: string
+          zip5: string
+        }
+        Insert: {
+          carrier_num?: string | null
+          county_name?: string | null
+          created_at?: string
+          effective_year?: number | null
+          id?: string
+          locality_num: string
+          source?: string
+          state_abbr?: string | null
+          updated_at?: string
+          zip5: string
+        }
+        Update: {
+          carrier_num?: string | null
+          county_name?: string | null
+          created_at?: string
+          effective_year?: number | null
+          id?: string
+          locality_num?: string
+          source?: string
+          state_abbr?: string | null
+          updated_at?: string
+          zip5?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
