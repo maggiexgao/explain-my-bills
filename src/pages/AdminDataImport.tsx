@@ -15,13 +15,12 @@ export default function AdminDataImport() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background">
       {/* Sticky Dataset Status Bar */}
       <DatasetStatusBar refreshTrigger={refreshTrigger} />
       
-      {/* Main Content - scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl space-y-6 p-4 pb-20">
+      {/* Main Content - Natural scroll without nested containers */}
+      <div className="mx-auto max-w-2xl space-y-6 p-4 pb-32">
           <div className="text-center pt-4">
             <h1 className="text-3xl font-bold">Medicare Data Import</h1>
             <p className="mt-2 text-muted-foreground">
@@ -100,15 +99,14 @@ export default function AdminDataImport() {
             onImportComplete={handleImportComplete}
           />
 
-          {/* Back Link */}
-          <div className="text-center pb-8">
-            <Link to="/">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Home
-              </Button>
-            </Link>
-          </div>
+        {/* Back Link */}
+        <div className="text-center pb-8">
+          <Link to="/">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Home
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

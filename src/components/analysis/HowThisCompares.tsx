@@ -10,6 +10,7 @@
  * - No raw jargon (RVUs, GPCI) exposed to users
  * - Three distinct empty states for clarity
  * - Debug panel for troubleshooting
+ * - Reverse search runs automatically when no valid codes found
  */
 
 import { useState, useEffect } from 'react';
@@ -35,7 +36,8 @@ import {
   ExternalLink,
   Bug,
   FileQuestion,
-  Search
+  Search,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -59,7 +61,10 @@ import {
   ValidatedCode,
   RejectedToken
 } from '@/lib/cptCodeValidator';
+import { reverseSearchCodes, batchReverseSearch, ReverseSearchResult, InferredCodeCandidate } from '@/lib/reverseCodeSearch';
 import { AnalysisResult, CareSetting } from '@/types';
+import { DebugCalculationPanel, DebugCalculationData } from './DebugCalculationPanel';
+import { reconcileTotals, TotalsReconciliation } from '@/lib/totalsExtractor';
 
 // ============= Props =============
 
@@ -930,7 +935,13 @@ function EducationalFooter() {
 
 // ============= Empty State Components =============
 
-function NoCodesEmptyState() {
+function NoCodesEmptyState({ 
+  reverseSearchTriggered, 
+  reverseSearchResults 
+}: { 
+  reverseSearchTriggered: boolean;
+  reverseSearchResults?: DebugCalculationData['reverseSearchResults'];
+}) {
   return (
     <div className="p-6 rounded-xl bg-muted/20 border border-border/30">
       <div className="flex items-start gap-4">
@@ -950,6 +961,33 @@ function NoCodesEmptyState() {
             <li>This is a summary bill without itemized procedure codes</li>
             <li>The codes are in a format we don't recognize yet</li>
           </ul>
+          
+          {/* Reverse search status */}
+          {reverseSearchTriggered && (
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-foreground">Reverse Search Attempted</span>
+              </div>
+              {reverseSearchResults && reverseSearchResults.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Inferred codes from service descriptions:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {reverseSearchResults.map((r, i) => (
+                      <Badge key={i} variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                        {r.matchedCode} <span className="text-[10px] opacity-70">({(r.score * 100).toFixed(0)}%)</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No matching codes found from service descriptions.
+                </p>
+              )}
+            </div>
+          )}
+          
           <p className="text-sm text-muted-foreground">
             <strong>Try:</strong> Uploading a clearer image or a more detailed itemized statement.
           </p>
@@ -1035,6 +1073,11 @@ export function HowThisCompares({
   const [showDebug, setShowDebug] = useState(false);
   const [rawCodes, setRawCodes] = useState<string[]>([]);
   const [serviceDate, setServiceDate] = useState<string | null>(null);
+  const [rejectedTokens, setRejectedTokens] = useState<RejectedToken[]>([]);
+  const [reverseSearchTriggered, setReverseSearchTriggered] = useState(false);
+  const [reverseSearchReason, setReverseSearchReason] = useState<string | undefined>();
+  const [reverseSearchResults, setReverseSearchResults] = useState<DebugCalculationData['reverseSearchResults']>([]);
+  const [totalsReconciliation, setTotalsReconciliation] = useState<TotalsReconciliation | null>(null);
   
   useEffect(() => {
     let cancelled = false;
@@ -1042,23 +1085,111 @@ export function HowThisCompares({
     async function fetchBenchmarks() {
       setLoading(true);
       setError(null);
+      setReverseSearchTriggered(false);
+      setReverseSearchReason(undefined);
+      setReverseSearchResults([]);
       
       try {
         // Extract service date
         const extractedDate = extractServiceDate(analysis);
         setServiceDate(extractedDate);
         
+        // Reconcile totals from analysis
+        const reconciledTotals = reconcileTotals(analysis);
+        setTotalsReconciliation(reconciledTotals);
+        
         // Extract line items with improved logic and strict validation
-        const { items: lineItems, rawCodes: extractedRawCodes, rejectedTokens } = extractLineItems(analysis);
+        const { items: lineItems, rawCodes: extractedRawCodes, rejectedTokens: rejected } = extractLineItems(analysis);
         setRawCodes(extractedRawCodes);
+        setRejectedTokens(rejected);
         
         console.log('[HowThisCompares] Extracted line items:', lineItems.length);
         console.log('[HowThisCompares] Raw codes found:', extractedRawCodes);
-        console.log('[HowThisCompares] Rejected tokens:', rejectedTokens);
+        console.log('[HowThisCompares] Rejected tokens:', rejected);
         console.log('[HowThisCompares] Service date:', extractedDate);
         
+        let finalLineItems = lineItems;
+        
+        // === REVERSE SEARCH LOGIC ===
+        // Trigger reverse search when:
+        // 1. No valid codes extracted, OR
+        // 2. Too many rejected tokens compared to valid codes, OR
+        // 3. All line items have $0 billedAmount (summary bill)
+        const needsReverseSearch = 
+          lineItems.length === 0 || 
+          (rejected.length > 0 && lineItems.length < rejected.length * 0.5) ||
+          (lineItems.length > 0 && lineItems.every(i => !i.billedAmount || i.billedAmount === 0));
+        
+        if (needsReverseSearch) {
+          console.log('[HowThisCompares] Triggering reverse search...');
+          setReverseSearchTriggered(true);
+          
+          // Determine the reason
+          if (lineItems.length === 0) {
+            setReverseSearchReason('No valid CPT/HCPCS codes detected');
+          } else if (lineItems.every(i => !i.billedAmount || i.billedAmount === 0)) {
+            setReverseSearchReason('Summary bill detected (no line item amounts)');
+          } else {
+            setReverseSearchReason('Few valid codes compared to rejected tokens');
+          }
+          
+          // Extract service descriptions from charges
+          const descriptions: string[] = [];
+          if (analysis.charges) {
+            for (const charge of analysis.charges) {
+              if (charge.description && charge.description.length > 8) {
+                descriptions.push(charge.description);
+              }
+            }
+          }
+          
+          // Also extract from chargeMeanings
+          if (analysis.chargeMeanings) {
+            for (const cm of analysis.chargeMeanings) {
+              if (cm.procedureName && cm.procedureName.length > 8) {
+                descriptions.push(cm.procedureName);
+              }
+            }
+          }
+          
+          if (descriptions.length > 0) {
+            // Perform batch reverse search
+            const reverseResults = await batchReverseSearch(descriptions.slice(0, 10));
+            
+            // Collect inferred codes
+            const inferredCodes: BenchmarkLineItem[] = [];
+            const searchResultsForDebug: DebugCalculationData['reverseSearchResults'] = [];
+            
+            for (const result of reverseResults) {
+              if (result.primaryCandidate && result.primaryCandidate.confidence !== 'low') {
+                inferredCodes.push({
+                  hcpcs: result.primaryCandidate.hcpcs,
+                  description: result.sourceText,
+                  billedAmount: 0, // Inferred codes don't have amounts
+                  units: 1
+                });
+                
+                searchResultsForDebug.push({
+                  description: result.sourceText.substring(0, 50),
+                  matchedCode: result.primaryCandidate.hcpcs,
+                  score: result.primaryCandidate.score,
+                  source: result.searchMethod
+                });
+              }
+            }
+            
+            setReverseSearchResults(searchResultsForDebug);
+            
+            // Use inferred codes if we got any
+            if (inferredCodes.length > 0) {
+              console.log('[HowThisCompares] Reverse search found:', inferredCodes.length, 'codes');
+              finalLineItems = inferredCodes;
+            }
+          }
+        }
+        
         // Apply service date to all items if not already set
-        const itemsWithDate = lineItems.map(item => ({
+        const itemsWithDate = finalLineItems.map(item => ({
           ...item,
           dateOfService: item.dateOfService || extractedDate || undefined,
           isFacility: careSetting === 'facility' ? true : item.isFacility
@@ -1143,7 +1274,7 @@ export function HowThisCompares({
   if (output.status === 'no_codes') {
     return (
       <div className="space-y-4">
-        <NoCodesEmptyState />
+        <NoCodesEmptyState reverseSearchTriggered={reverseSearchTriggered} reverseSearchResults={reverseSearchResults} />
         
         {/* Debug toggle */}
         <div className="flex items-center gap-2">
