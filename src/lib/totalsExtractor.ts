@@ -255,7 +255,41 @@ export function extractTotalCandidates(
     }
   }
   
-  // NEW: Extract from direct fields that might be present
+  // NEW: Extract from extractedTotals if present (from enhanced AI prompt)
+  if (analysisData.extractedTotals) {
+    const et = analysisData.extractedTotals;
+    
+    if (et.totalCharges && et.totalCharges > 0) {
+      chargesCandidates.push({
+        type: 'charges',
+        amount: et.totalCharges,
+        label: 'Total Charges (extracted)',
+        confidence: 'high',
+        evidence: et.totalsSource || 'From extractedTotals'
+      });
+    }
+    
+    if (et.patientBalance && et.patientBalance > 0) {
+      patientCandidates.push({
+        type: 'patient_responsibility',
+        amount: et.patientBalance,
+        label: 'Patient Balance (extracted)',
+        confidence: 'high',
+        evidence: et.totalsSource || 'From extractedTotals'
+      });
+    }
+    
+    if (et.amountDue && et.amountDue > 0) {
+      patientCandidates.push({
+        type: 'patient_responsibility',
+        amount: et.amountDue,
+        label: 'Amount Due (extracted)',
+        confidence: 'high',
+        evidence: et.totalsSource || 'From extractedTotals'
+      });
+    }
+  }
+  
   // Check for total fields in various locations
   const totalFieldNames = [
     'totalCharges', 'total_charges', 'totalBilled', 'total_billed',
@@ -266,7 +300,7 @@ export function extractTotalCandidates(
     const value = analysisData[fieldName];
     if (value) {
       const amount = parseCurrency(value);
-      if (amount && amount > 0) {
+      if (amount && amount > 0 && !chargesCandidates.some(c => Math.abs(c.amount - amount) < 1)) {
         chargesCandidates.push({
           type: 'charges',
           amount,
@@ -548,5 +582,29 @@ export function formatComparisonTotalLabel(type: TotalType): string {
       return 'TOTAL (Insurance Paid)';
     default:
       return 'TOTAL';
+  }
+}
+
+/**
+ * Convenience wrapper that extracts totals and adds flattened fields
+ * for easier consumption by UI components
+ */
+export function extractTotals(analysisData: any): TotalsReconciliation & {
+  comparisonTotalValue?: number;
+  comparisonTotalType?: string;
+  comparisonTotalExplanation?: string;
+} | null {
+  try {
+    const reconciliation = reconcileTotals(analysisData);
+    
+    return {
+      ...reconciliation,
+      comparisonTotalValue: reconciliation.comparisonTotal?.value,
+      comparisonTotalType: reconciliation.comparisonTotal?.type,
+      comparisonTotalExplanation: reconciliation.comparisonTotal?.explanation
+    };
+  } catch (error) {
+    console.error('[TotalsExtractor] Error extracting totals:', error);
+    return null;
   }
 }

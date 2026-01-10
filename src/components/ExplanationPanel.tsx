@@ -11,7 +11,9 @@ import { NegotiationLetterGenerator } from '@/components/analysis/NegotiationLet
 import { CollapsibleGroup } from '@/components/analysis/CollapsibleGroup';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { calculateMedicareBenchmarks, MedicareBenchmarkOutput } from '@/lib/medicareBenchmarkService';
-import { DollarSign, Loader2, TrendingUp } from 'lucide-react';
+import { DebugCalculationPanel, DebugCalculationData } from '@/components/analysis/DebugCalculationPanel';
+import { extractTotals } from '@/lib/totalsExtractor';
+import { DollarSign, Loader2, TrendingUp, Bug } from 'lucide-react';
 
 interface ExplanationPanelProps {
   analysis: AnalysisResult;
@@ -33,6 +35,7 @@ export function ExplanationPanel({
   const { t } = useTranslation();
   const [medicareBenchmark, setMedicareBenchmark] = useState<MedicareBenchmarkOutput | null>(null);
   const [isLoadingMedicare, setIsLoadingMedicare] = useState(false);
+  const [debugData, setDebugData] = useState<DebugCalculationData | null>(null);
   
   // Check if we have the Pond structure
   const hasPondStructure = !!analysis.atAGlance;
@@ -113,6 +116,26 @@ export function ExplanationPanel({
             zipCode
           );
           setMedicareBenchmark(result);
+          // Build debug data
+          const newDebugData: DebugCalculationData = {
+            geoDebug: result.debug?.geoDebug,
+            rawCodesExtracted: lineItems.map(l => l.hcpcs),
+            validCodes: result.debug?.validatedCodes?.map(v => v.code).filter(Boolean) as string[] || [],
+            rejectedTokens: result.debug?.rejectedTokens || [],
+            reverseSearchTriggered: false,
+            benchmarkOutput: result
+          };
+          
+          // Extract totals from analysis
+          const totalsData = extractTotals(analysis);
+          if (totalsData) {
+            newDebugData.totalsReconciliation = totalsData;
+            newDebugData.comparisonTotalType = totalsData.comparisonTotalType;
+            newDebugData.comparisonTotalValue = totalsData.comparisonTotalValue;
+            newDebugData.comparisonTotalExplanation = totalsData.comparisonTotalExplanation;
+          }
+          
+          setDebugData(newDebugData);
         } catch (error) {
           console.error('Error fetching Medicare benchmarks:', error);
         } finally {
@@ -193,6 +216,20 @@ export function ExplanationPanel({
 
         {/* ========== LAYER 3: DEEP DIVE & METHODOLOGY (Hidden by Default) ========== */}
         <DeepDiveSection chargeMeanings={chargeMeanings} />
+
+        {/* ========== DEBUG: How This Was Calculated ========== */}
+        {debugData && (
+          <CollapsibleGroup
+            title="How This Was Calculated"
+            subtitle="Debug: extraction, geo resolution, and pricing details"
+            icon={<Bug className="h-4 w-4" />}
+            iconClassName="bg-muted text-muted-foreground"
+            defaultOpen={false}
+            infoTooltip="Technical details about how the analysis was computed"
+          >
+            <DebugCalculationPanel data={debugData} />
+          </CollapsibleGroup>
+        )}
       </div>
     </div>
   );
