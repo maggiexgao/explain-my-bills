@@ -171,7 +171,7 @@ export function DatasetStatusBar({ refreshTrigger }: DatasetStatusBarProps) {
 
   if (loading) {
     return (
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border p-4">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border p-4">
         <div className="flex items-center gap-2 mb-3">
           <Database className="h-5 w-5 text-primary" />
           <span className="font-semibold">Database Upload Status</span>
@@ -189,7 +189,7 @@ export function DatasetStatusBar({ refreshTrigger }: DatasetStatusBarProps) {
   const totalCount = datasets.length;
 
   return (
-    <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border p-4 shadow-sm">
+    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Database className="h-5 w-5 text-primary" />

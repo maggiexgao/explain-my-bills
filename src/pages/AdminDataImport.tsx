@@ -198,6 +198,13 @@ export default function AdminDataImport() {
             </Button>
           </Link>
         </div>
+
+        {/* Dev debug indicator - confirms scrolling works */}
+        {import.meta.env.DEV && (
+          <div className="text-center py-4 text-xs text-muted-foreground border-t border-dashed border-border">
+            ✅ Bottom reached — scrolling works correctly
+          </div>
+        )}
       </div>
     </div>
   );
