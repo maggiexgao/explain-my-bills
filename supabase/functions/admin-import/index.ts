@@ -7,6 +7,7 @@
  * - OPPS (Outpatient Prospective Payment System)
  * - DMEPOS (Durable Medical Equipment)
  * - DMEPEN (Enteral/Parenteral Nutrition)
+ * - CLFS (Clinical Lab Fee Schedule)
  * - ZIP Crosswalk
  * 
  * Features:
@@ -102,7 +103,7 @@ async function verifyAdminAuth(req: Request): Promise<{ authorized: boolean; use
 // ============================================================================
 
 interface ImportRequest {
-  dataType: 'mpfs' | 'gpci' | 'opps' | 'dmepos' | 'dmepen' | 'zip-crosswalk' | 'self-test';
+  dataType: 'mpfs' | 'gpci' | 'opps' | 'dmepos' | 'dmepen' | 'clfs' | 'zip-crosswalk' | 'self-test';
   dryRun?: boolean;
   year?: number;
 }
@@ -566,8 +567,81 @@ function parseZipCrosswalkData(data: unknown[][]): { records: unknown[]; meta: {
 }
 
 // ============================================================================
-// Batch Upsert Helper
+// CLFS (Clinical Lab Fee Schedule) Parser
 // ============================================================================
+
+function parseClfsData(data: unknown[][], year: number = 2026): { records: unknown[]; meta: { headerRow: number; columns: string[] } } {
+  const records: unknown[] = [];
+  let headerRowIndex = -1;
+  const colMap: ColumnMap = {};
+
+  // Find header row - look for HCPCS and payment-related columns
+  const expectedHeaders = ['hcpcs', 'hcpcscode', 'code', 'payment', 'paymentamount', 'rate', 'nationalamount'];
+  
+  for (let i = 0; i < Math.min(50, data.length); i++) {
+    const row = data[i];
+    if (!Array.isArray(row)) continue;
+    
+    let matchCount = 0;
+    row.forEach((cell) => {
+      if (typeof cell === 'string') {
+        const normalized = normalizeHeader(cell);
+        if (expectedHeaders.includes(normalized) || normalized.includes('hcpcs') || normalized.includes('code')) {
+          matchCount++;
+        }
+      }
+    });
+    
+    if (matchCount >= 2) {
+      headerRowIndex = i;
+      
+      // Build column map with flexible matching
+      row.forEach((cell, idx) => {
+        if (typeof cell === 'string') {
+          const normalized = normalizeHeader(cell);
+          if (normalized.includes('hcpcs') || normalized === 'code') colMap['hcpcs'] = idx;
+          else if (normalized.includes('shortdesc') || normalized === 'shortdescriptor') colMap['short_desc'] = idx;
+          else if (normalized.includes('longdesc') || normalized === 'descriptor' || normalized === 'description') colMap['long_desc'] = idx;
+          else if (normalized.includes('payment') || normalized.includes('amount') || normalized === 'rate' || normalized.includes('national')) colMap['payment_amount'] = idx;
+        }
+      });
+      break;
+    }
+  }
+
+  if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
+    return { records: [], meta: { headerRow: -1, columns: [] } };
+  }
+
+  // Parse data rows
+  for (let i = headerRowIndex + 1; i < data.length; i++) {
+    const row = data[i];
+    if (!Array.isArray(row)) continue;
+    
+    const hcpcs = parseString(row[colMap['hcpcs']]);
+    if (!hcpcs || hcpcs.length < 4) continue;
+    
+    // Lab codes typically start with 8 (80000-89999) or certain other patterns
+    const normalizedHcpcs = hcpcs.toUpperCase().trim();
+    
+    records.push({
+      year,
+      hcpcs: normalizedHcpcs,
+      payment_amount: parseNumeric(row[colMap['payment_amount']]),
+      short_desc: parseString(row[colMap['short_desc']]),
+      long_desc: parseString(row[colMap['long_desc']]),
+      source_file: 'CLFS_' + year
+    });
+  }
+
+  return { 
+    records, 
+    meta: { 
+      headerRow: headerRowIndex, 
+      columns: Object.keys(colMap) 
+    } 
+  };
+}
 
 async function batchUpsert(
   supabase: any,
@@ -978,11 +1052,68 @@ serve(async (req) => {
         break;
       }
 
+      case "clfs": {
+        const sheetName = findBestSheet(workbook, ["CLFS", "Lab", "Clinical"]);
+        const sheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+        
+        const { records, meta } = parseClfsData(data, year || 2026);
+        
+        if (records.length === 0) {
+          response = {
+            ok: false,
+            errorCode: "CLFS_PARSE_FAILED",
+            message: "Could not detect header row or no valid HCPCS codes found",
+            details: {
+              totalRowsRead: data.length,
+              validRows: 0,
+              imported: 0,
+              skipped: 0,
+              sheetName,
+              headerRowIndex: meta.headerRow,
+              columnsDetected: meta.columns,
+              sampleRows: data.slice(0, 5)
+            }
+          };
+        } else {
+          const { imported, errors } = await batchUpsert(
+            supabase, 
+            "clfs_fee_schedule", 
+            records, 
+            "hcpcs,year",
+            dryRun
+          );
+          
+          response = {
+            ok: errors.length === 0,
+            message: dryRun 
+              ? `Dry run complete: ${records.length} valid CLFS records found`
+              : `Imported ${imported} CLFS records`,
+            details: {
+              totalRowsRead: data.length,
+              validRows: records.length,
+              imported: dryRun ? 0 : imported,
+              skipped: records.length - imported,
+              sheetName,
+              headerRowIndex: meta.headerRow,
+              columnsDetected: meta.columns,
+              sampleRows: records.slice(0, 10)
+            }
+          };
+          
+          if (errors.length > 0) {
+            response.errorCode = "PARTIAL_IMPORT";
+            response.message = errors.join("; ");
+          }
+        }
+        break;
+      }
+
       default:
         response = {
           ok: false,
           errorCode: "INVALID_DATA_TYPE",
-          message: `Unknown data type: ${dataType}. Supported: opps, dmepos, dmepen, gpci, zip-crosswalk`
+          message: `Unknown data type: ${dataType}. Supported: opps, dmepos, dmepen, clfs, gpci, zip-crosswalk`
         };
     }
 
