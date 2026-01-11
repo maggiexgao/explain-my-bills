@@ -679,7 +679,10 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
   );
 }
 
-function SummaryCard({ output }: { output: MedicareBenchmarkOutput }) {
+function SummaryCard({ output, totalsReconciliation }: { 
+  output: MedicareBenchmarkOutput; 
+  totalsReconciliation?: TotalsReconciliation | null;
+}) {
   const { status, message } = generateOverallStatus(output);
   const config = statusConfig[status];
   const StatusIcon = config.icon;
@@ -692,6 +695,16 @@ function SummaryCard({ output }: { output: MedicareBenchmarkOutput }) {
   const flaggedCount = output.lineItems.filter(
     i => i.status === 'high' || i.status === 'very_high'
   ).length;
+  
+  // Determine if we're comparing patient balance (limited comparability)
+  const isPatientBalanceComparison = totalsReconciliation?.comparisonTotal?.type === 'patient_responsibility';
+  const comparisonTotalLabel = totalsReconciliation?.comparisonTotal?.type === 'charges' 
+    ? 'Total Charges'
+    : totalsReconciliation?.comparisonTotal?.type === 'patient_responsibility'
+    ? 'Patient Balance'
+    : totalsReconciliation?.comparisonTotal?.type === 'allowed'
+    ? 'Allowed Amount'
+    : 'Matched Items Billed';
   
   return (
     <Card className={cn('p-6 border-2', config.border, config.bg)}>
@@ -746,8 +759,26 @@ function SummaryCard({ output }: { output: MedicareBenchmarkOutput }) {
         )}
       </div>
       
+      {/* Patient Balance Warning - Never compare patient balance to Medicare as "your bill is X× Medicare" */}
+      {isPatientBalanceComparison && (
+        <div className="p-4 rounded-lg bg-warning/10 border border-warning/20 mb-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-foreground mb-1">Limited Comparison</p>
+              <p className="text-xs text-muted-foreground">
+                Only a patient balance was detected on this document (not total charges). 
+                Medicare reference prices are based on full service pricing before insurance. 
+                Comparing your remaining balance to Medicare rates isn't meaningful since 
+                insurance has already adjusted and paid a portion.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Scope Warning Banner (if mismatch detected) */}
-      {output.matchedItemsComparison.scopeWarning && (
+      {output.matchedItemsComparison.scopeWarning && !isPatientBalanceComparison && (
         <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 mb-4">
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
@@ -759,58 +790,60 @@ function SummaryCard({ output }: { output: MedicareBenchmarkOutput }) {
         </div>
       )}
       
-      {/* Stats Grid - Use matched-items comparison when valid */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
-          <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-            {output.matchedItemsComparison.isValidComparison 
-              ? `Matched Items Billed (${output.matchedItemsComparison.matchedItemsCount}/${output.matchedItemsComparison.totalItemsCount})`
-              : 'Total Billed'
-            }
-          </p>
-          <p className="text-2xl font-bold text-foreground">
-            {output.matchedItemsComparison.isValidComparison 
-              ? formatCurrency(output.matchedItemsComparison.matchedBilledTotal!)
-              : (output.totals.billedTotal ? formatCurrency(output.totals.billedTotal) : '—')
-            }
-          </p>
-          {output.matchedItemsComparison.coveragePercent !== null && output.matchedItemsComparison.coveragePercent < 100 && (
+      {/* Stats Grid - Use matched-items comparison when valid, skip if patient balance only */}
+      {!isPatientBalanceComparison && (
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+              {output.matchedItemsComparison.isValidComparison 
+                ? `Matched Charges (${output.matchedItemsComparison.matchedItemsCount}/${output.matchedItemsComparison.totalItemsCount})`
+                : comparisonTotalLabel
+              }
+            </p>
+            <p className="text-2xl font-bold text-foreground">
+              {output.matchedItemsComparison.isValidComparison 
+                ? formatCurrency(output.matchedItemsComparison.matchedBilledTotal!)
+                : (output.totals.billedTotal ? formatCurrency(output.totals.billedTotal) : '—')
+              }
+            </p>
+            {output.matchedItemsComparison.coveragePercent !== null && output.matchedItemsComparison.coveragePercent < 100 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {output.matchedItemsComparison.coveragePercent}% of items matched
+              </p>
+            )}
+          </div>
+          <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+              Medicare Reference ({output.metadata.benchmarkYearUsed})
+            </p>
+            <p className="text-2xl font-bold text-foreground">
+              {output.matchedItemsComparison.matchedMedicareTotal 
+                ? formatCurrency(output.matchedItemsComparison.matchedMedicareTotal)
+                : (output.totals.medicareReferenceTotal ? formatCurrency(output.totals.medicareReferenceTotal) : 'N/A')
+              }
+            </p>
             <p className="text-[10px] text-muted-foreground mt-1">
-              {output.matchedItemsComparison.coveragePercent}% of items matched
+              For matched items only
             </p>
-          )}
-        </div>
-        <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
-          <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-            Medicare Reference ({output.metadata.benchmarkYearUsed})
-          </p>
-          <p className="text-2xl font-bold text-foreground">
-            {output.matchedItemsComparison.matchedMedicareTotal 
-              ? formatCurrency(output.matchedItemsComparison.matchedMedicareTotal)
-              : (output.totals.medicareReferenceTotal ? formatCurrency(output.totals.medicareReferenceTotal) : 'N/A')
-            }
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            For matched items only
-          </p>
-        </div>
-        <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
-          <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-            {output.matchedItemsComparison.isValidComparison ? 'Matched Items Multiple' : 'Multiple'}
-          </p>
-          <p className={cn('text-2xl font-bold', config.color)}>
-            {output.matchedItemsComparison.isValidComparison && output.matchedItemsComparison.matchedItemsMultiple
-              ? `${output.matchedItemsComparison.matchedItemsMultiple}×`
-              : (output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A')
-            }
-          </p>
-          {!output.matchedItemsComparison.isValidComparison && output.totals.multipleOfMedicare && (
-            <p className="text-[10px] text-warning mt-1">
-              ⚠ May include unmatched items
+          </div>
+          <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+              {output.matchedItemsComparison.isValidComparison ? 'Matched Items Multiple' : 'Multiple'}
             </p>
-          )}
+            <p className={cn('text-2xl font-bold', config.color)}>
+              {output.matchedItemsComparison.isValidComparison && output.matchedItemsComparison.matchedItemsMultiple
+                ? `${output.matchedItemsComparison.matchedItemsMultiple}×`
+                : (output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A')
+              }
+            </p>
+            {!output.matchedItemsComparison.isValidComparison && output.totals.multipleOfMedicare && (
+              <p className="text-[10px] text-warning mt-1">
+                ⚠ May include unmatched items
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       
       {/* Flagged Items & Potential Savings */}
       <div className="flex items-center justify-between pt-4 border-t border-border/30">
@@ -1375,7 +1408,7 @@ export function HowThisCompares({
   return (
     <div className="space-y-6">
       {/* Summary Card */}
-      <SummaryCard output={output} />
+      <SummaryCard output={output} totalsReconciliation={totalsReconciliation} />
       
       {/* Partial match notice */}
       {output.status === 'partial' && (
