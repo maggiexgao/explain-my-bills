@@ -505,18 +505,23 @@ Return valid JSON with this EXACT structure:
   "charges": [
     {
       "description": "Service description",
-      "amount": number,
+      "amount": number or null,
+      "amountConfidence": "high" | "medium" | "low",
+      "amountEvidence": "Exact text showing this charge",
       "code": "CPT/HCPCS if visible",
+      "codeType": "cpt" | "hcpcs" | "revenue" | "unknown",
+      "units": number or 1,
       "date": "date if shown"
     }
   ],
   "extractedTotals": {
-    "totalCharges": number or null,
-    "totalAdjustments": number or null,
-    "insurancePaid": number or null,
-    "patientBalance": number or null,
-    "amountDue": number or null,
-    "totalsSource": "label from document where these were found"
+    "totalCharges": { "value": number, "confidence": "high"|"medium"|"low", "evidence": "exact text", "label": "label found" } or null,
+    "totalPaymentsAndAdjustments": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "patientResponsibility": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "amountDue": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "insurancePaid": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "lineItemsSum": number or null,
+    "notes": ["Any notes about extraction"]
   },
   "medicalCodes": [],
   "faqs": [],
@@ -543,27 +548,62 @@ Return valid JSON with this EXACT structure:
   "eobData": null
 }
 
-### extractedTotals (REQUIRED - CRITICAL FOR ACCURATE COMPARISONS)
+## LINE ITEM EXTRACTION (charges array)
+For EACH line item visible on the bill, extract:
+- description: The service description text
+- amount: The billed amount for this line (or null if not visible)
+- amountConfidence: "high" if clearly visible, "medium" if inferred, "low" if uncertain
+- amountEvidence: The exact text showing this charge (e.g., "$125.00")
+- code: CPT/HCPCS/revenue code if visible
+- codeType: "cpt" (5 digits), "hcpcs" (letter + 4 digits), "revenue" (3-4 digits), "unknown"
+- units: Quantity if shown, default to 1
+- date: Date of service for this line if shown
+
+IMPORTANT for line items:
+- Extract ALL visible line items, even if you can't identify the code
+- If amount is not visible for a line, set amount to null (NOT 0)
+- Include the exact text evidence for each amount
+
+## TOTALS EXTRACTION (extractedTotals)
 You MUST populate extractedTotals by carefully reading the bill:
 
-{
-  "extractedTotals": {
-    "totalCharges": { "value": number, "confidence": "high"|"medium"|"low", "evidence": "exact text", "label": "label found" } or null,
-    "totalPaymentsAndAdjustments": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
-    "patientResponsibility": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
-    "amountDue": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
-    "insurancePaid": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
-    "lineItemsSum": number or null,
-    "notes": ["Any notes about extraction"]
-  }
-}
+TOTAL TYPE DEFINITIONS:
+1. **totalCharges** = Pre-insurance gross charges
+   - Labels: "Total Charges", "Total Billed", "Gross Charges", "Total Hospital Charges", "Total Amount Billed"
+   - This is the sum BEFORE any insurance adjustments
+   - Should match sum of line items if itemized
 
-IMPORTANT:
-- totalCharges = pre-insurance total (Total Charges, Gross Charges)
-- patientResponsibility = what patient owes for this visit
-- amountDue = current balance being billed
-- If not found, use null (NEVER use 0 as placeholder)
-- Always include exact text evidence
+2. **totalPaymentsAndAdjustments** = Insurance payments + contractual adjustments
+   - Labels: "Adjustments", "Contractual Adjustments", "Discount", "Insurance Adjustment"
+   - Sum these if multiple are present
+
+3. **patientResponsibility** = What patient owes for THIS visit
+   - Labels: "Patient Responsibility", "Your Portion", "Patient Share"
+   - Often appears on EOBs
+
+4. **amountDue** = Current balance being billed NOW
+   - Labels: "Amount Due", "Balance Due", "You Owe", "Current Balance", "Pay This Amount"
+   - This is what the bill is asking to be paid
+   - May include prior balances
+
+5. **insurancePaid** = What insurance paid
+   - Labels: "Insurance Paid", "Plan Paid", "Insurance Payment"
+
+CRITICAL RULES FOR TOTALS:
+- NEVER output 0 if a total wasn't found — use null instead
+- ALWAYS include the exact text snippet in "evidence" (e.g., "Total Charges: $4,165.00")
+- If you ONLY find a patient balance (no total charges), set totalCharges to null
+- Never put a "Balance Due" or "Amount Due" value under totalCharges
+- "lineItemsSum" = calculated sum of all line item amounts you extracted
+
+CONFIDENCE SCORING:
+- "high": Label clearly present AND number directly adjacent (e.g., "Total Charges $4,165.00")
+- "medium": Inferred from nearby context or partial label match
+- "low": Weak guess — prefer null instead if uncertain
+
+PORTAL/SUMMARY DOCUMENTS:
+- If the doc is a patient portal summary (MyChart, etc.), totals may be in a "Summary of Account" box
+- Prioritize amounts labeled specifically, don't guess from unrelated numbers
 
 ## STYLE RULES
 - Reading level: 6th-8th grade

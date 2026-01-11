@@ -6,10 +6,24 @@
  * 2. Totals candidate extraction with label anchoring
  * 3. Line item extraction and sum calculation
  * 4. Reconciliation and comparison total selection
+ * 5. Integration with normalizeTotals for structured totals
  * 
  * The goal is to reliably extract what the user actually owes and provide
  * transparent reasoning for the comparison total used.
  */
+
+import {
+  StructuredTotals,
+  DetectedTotal,
+  LineItemForTotals,
+  normalizeAndDeriveTotals,
+  selectComparisonTotal as selectStructuredComparisonTotal,
+  ComparisonTotalSelection,
+  TotalsConfidence
+} from './totals/normalizeTotals';
+
+// Re-export types for consumers
+export type { StructuredTotals, DetectedTotal, LineItemForTotals, ComparisonTotalSelection, TotalsConfidence };
 
 // ============= Type Definitions =============
 
@@ -42,9 +56,13 @@ export interface TotalCandidate {
 export interface LineItemExtraction {
   description: string;
   chargeAmount?: number;
+  chargeAmountConfidence?: TotalsConfidence;
+  chargeAmountEvidence?: string;
   allowedAmount?: number;
   patientAmount?: number;
   code?: string;
+  codeType?: 'cpt' | 'hcpcs' | 'revenue' | 'unknown';
+  units?: number;
 }
 
 export interface TotalsReconciliation {
@@ -58,6 +76,9 @@ export interface TotalsReconciliation {
   allowedCandidates: TotalCandidate[];
   patientCandidates: TotalCandidate[];
   
+  // NEW: Structured totals from normalization module
+  structuredTotals?: StructuredTotals;
+  
   // Chosen comparison total
   comparisonTotal: {
     value: number;
@@ -65,6 +86,7 @@ export interface TotalsReconciliation {
     confidence: 'high' | 'medium' | 'low';
     explanation: string;
     limitedComparability: boolean;
+    scopeWarnings?: string[];
   } | null;
   
   // Document classification
@@ -73,6 +95,9 @@ export interface TotalsReconciliation {
   // Reconciliation status
   reconciliationStatus: 'matched' | 'mismatch' | 'insufficient_data';
   reconciliationNote?: string;
+  
+  // Derivation notes
+  derivationNotes?: string[];
 }
 
 // ============= Label Patterns =============
@@ -579,19 +604,40 @@ export function reconcileTotals(
   // Classify document
   const documentType = documentContent 
     ? classifyDocument(documentContent) 
-    : 'unknown';
+    : (analysisData.atAGlance?.documentClassification || 'unknown') as DocumentClassification;
   
-  // Extract line items
+  // Extract line items with enhanced fields
   const lineItems: LineItemExtraction[] = [];
   if (analysisData.charges && Array.isArray(analysisData.charges)) {
     for (const charge of analysisData.charges) {
+      const chargeAmt = parseCurrency(charge.amount);
       lineItems.push({
         description: charge.description || '',
-        chargeAmount: parseCurrency(charge.amount) || undefined,
-        code: charge.code
+        chargeAmount: chargeAmt !== null && chargeAmt > 0 ? chargeAmt : undefined,
+        chargeAmountConfidence: charge.amountConfidence || 'medium',
+        chargeAmountEvidence: charge.amountEvidence || undefined,
+        code: charge.code,
+        codeType: charge.codeType || 'unknown',
+        units: charge.units || 1
       });
     }
   }
+  
+  // Convert to LineItemForTotals for normalization module
+  const lineItemsForNorm: LineItemForTotals[] = lineItems.map(li => ({
+    description: li.description,
+    billedAmount: li.chargeAmount ?? null,
+    billedAmountConfidence: li.chargeAmountConfidence,
+    billedEvidence: li.chargeAmountEvidence,
+    code: li.code,
+    units: li.units
+  }));
+  
+  // === Use the new normalization module ===
+  const structuredTotals = normalizeAndDeriveTotals(
+    analysisData.extractedTotals,
+    lineItemsForNorm
+  );
   
   // Calculate sums
   const sumLineCharges = lineItems.reduce((sum, item) => 
@@ -607,11 +653,28 @@ export function reconcileTotals(
     ? lineItems.reduce((sum, item) => sum + (item.patientAmount || 0), 0)
     : null;
   
-  // Extract total candidates
+  // Extract total candidates (legacy, for backward compatibility)
   const candidates = extractTotalCandidates(analysisData, documentContent);
   
-  // Select comparison total
-  const comparisonTotal = selectComparisonTotal(candidates, documentType);
+  // Select comparison total using structured approach
+  const structuredSelection = selectStructuredComparisonTotal(
+    structuredTotals,
+    sumLineCharges > 0 ? sumLineCharges : undefined,
+    lineItems.filter(li => li.code && li.chargeAmount).length
+  );
+  
+  // Convert to legacy format
+  const comparisonTotal: TotalsReconciliation['comparisonTotal'] = structuredSelection ? {
+    value: structuredSelection.value,
+    type: structuredSelection.type === 'totalCharges' ? 'charges' :
+          structuredSelection.type === 'patientResponsibility' ? 'patient_responsibility' :
+          structuredSelection.type === 'amountDue' ? 'patient_responsibility' :
+          'charges' as TotalType,
+    confidence: structuredSelection.confidence,
+    explanation: structuredSelection.explanation,
+    limitedComparability: structuredSelection.limitedComparability,
+    scopeWarnings: structuredSelection.scopeWarnings
+  } : selectComparisonTotal(candidates, documentType);
   
   // Determine reconciliation status
   let reconciliationStatus: TotalsReconciliation['reconciliationStatus'] = 'insufficient_data';
@@ -639,10 +702,12 @@ export function reconcileTotals(
     chargesCandidates: candidates.chargesCandidates,
     allowedCandidates: candidates.allowedCandidates,
     patientCandidates: candidates.patientCandidates,
+    structuredTotals,
     comparisonTotal,
     documentType,
     reconciliationStatus,
-    reconciliationNote
+    reconciliationNote,
+    derivationNotes: structuredTotals.notes
   };
 }
 
