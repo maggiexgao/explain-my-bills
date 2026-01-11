@@ -163,6 +163,18 @@ export interface MedicareBenchmarkOutput {
     difference: number | null;
   };
   
+  // === NEW: Matched-items comparison (prevents scope mismatch) ===
+  matchedItemsComparison: {
+    matchedBilledTotal: number | null; // Sum of billed amounts ONLY for matched items
+    matchedMedicareTotal: number | null; // Sum of Medicare reference for matched items
+    matchedItemsMultiple: number | null; // matchedBilled / matchedMedicare
+    matchedItemsCount: number; // How many items are in this comparison
+    totalItemsCount: number; // Total items attempted
+    coveragePercent: number | null; // matchedItemsCount / totalItemsCount
+    scopeWarning: string | null; // Warning if scope mismatch detected
+    isValidComparison: boolean; // True only if both totals exist and scope matches
+  };
+  
   // Metadata about the benchmark calculation
   metadata: BenchmarkMetadata;
   
@@ -1021,7 +1033,49 @@ export async function calculateMedicareBenchmarks(
     });
   }
 
-  // Calculate overall multiple
+  // === MATCHED-ITEMS COMPARISON (prevents scope mismatch) ===
+  // Only sum billed amounts for items that have BOTH a billed amount AND a Medicare reference
+  const matchedItems = results.filter(r => 
+    r.matchStatus === 'matched' && 
+    r.billedAmount !== null && 
+    r.billedAmount > 0 && 
+    r.medicareReferenceTotal !== null && 
+    r.medicareReferenceTotal > 0
+  );
+  
+  const matchedBilledTotal = matchedItems.length > 0
+    ? Math.round(matchedItems.reduce((sum, r) => sum + (r.billedAmount || 0), 0) * 100) / 100
+    : null;
+  
+  const matchedMedicareTotal = matchedItems.length > 0
+    ? Math.round(matchedItems.reduce((sum, r) => sum + (r.medicareReferenceTotal || 0), 0) * 100) / 100
+    : null;
+  
+  const matchedItemsMultiple = (matchedBilledTotal && matchedMedicareTotal && matchedMedicareTotal > 0)
+    ? Math.round((matchedBilledTotal / matchedMedicareTotal) * 100) / 100
+    : null;
+  
+  const totalItemsCount = lineItems.length;
+  const matchedItemsCount = matchedItems.length;
+  const coveragePercent = totalItemsCount > 0 
+    ? Math.round((matchedItemsCount / totalItemsCount) * 100) 
+    : null;
+  
+  // Generate scope warning if there's a mismatch
+  let scopeWarning: string | null = null;
+  const unmatchedCount = totalItemsCount - matchedItemsCount;
+  if (unmatchedCount > 0 && matchedItemsCount > 0) {
+    scopeWarning = `Only ${matchedItemsCount} of ${totalItemsCount} items could be matched. Totals reflect matched items only.`;
+  } else if (matchedItemsCount === 0 && totalItemsCount > 0) {
+    scopeWarning = 'No items could be matched to Medicare pricing. Comparison not available.';
+  }
+  
+  // Comparison is only valid when we have matching scope
+  const isValidComparison = matchedBilledTotal !== null && 
+                            matchedMedicareTotal !== null && 
+                            matchedItemsCount > 0;
+
+  // Calculate overall multiple (legacy - uses all billed vs matched Medicare)
   const overallMultiple = (hasAnyBenchmark && totalMedicareReference > 0 && billedTotalDetected && totalBilled > 0)
     ? Math.round((totalBilled / totalMedicareReference) * 100) / 100
     : null;
@@ -1049,6 +1103,18 @@ export async function calculateMedicareBenchmarks(
       difference: (hasAnyBenchmark && billedTotalDetected) 
         ? Math.round((totalBilled - totalMedicareReference) * 100) / 100 
         : null
+    },
+    
+    // NEW: Matched-items comparison
+    matchedItemsComparison: {
+      matchedBilledTotal,
+      matchedMedicareTotal,
+      matchedItemsMultiple,
+      matchedItemsCount,
+      totalItemsCount,
+      coveragePercent,
+      scopeWarning,
+      isValidComparison
     },
     
     metadata: {
