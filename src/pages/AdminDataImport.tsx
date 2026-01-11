@@ -3,6 +3,7 @@ import { ImportCard } from '@/components/admin/ImportCard';
 import { SelfTestCard } from '@/components/admin/SelfTestCard';
 import { CoverageMetricsCard } from '@/components/admin/CoverageMetricsCard';
 import { DatasetStatusBar } from '@/components/admin/DatasetStatusBar';
+import { CoverageGapsPanel } from '@/components/admin/CoverageGapsPanel';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -30,6 +31,9 @@ export default function AdminDataImport() {
 
           {/* Self-Test */}
           <SelfTestCard />
+
+          {/* Coverage & Gaps Panel - NEW */}
+          <CoverageGapsPanel />
 
           {/* Coverage Metrics */}
           <CoverageMetricsCard refreshTrigger={refreshTrigger} />
