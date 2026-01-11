@@ -15,6 +15,9 @@
 
 export type DocumentClassification = 
   | 'itemized_statement'
+  | 'summary_statement'
+  | 'hospital_summary_bill'
+  | 'revenue_code_only'
   | 'eob'
   | 'portal_summary'
   | 'payment_receipt'
@@ -112,7 +115,17 @@ const PORTAL_INDICATORS = [
 
 const STATEMENT_INDICATORS = [
   'statement', 'itemized bill', 'service date', 'procedure',
-  'charges', 'billing statement', 'date of service', 'quantity'
+  'charges', 'billing statement', 'date of service', 'quantity', 'cpt'
+];
+
+const HOSPITAL_SUMMARY_INDICATORS = [
+  'hospital', 'facility', 'emergency room', 'er visit', 'inpatient',
+  'outpatient', 'revenue code', 'room and board', 'pharmacy', 'laboratory'
+];
+
+const REVENUE_CODE_INDICATORS = [
+  'rev code', 'revenue code', '0100', '0110', '0120', '0250', '0260',
+  '0270', '0300', '0320', '0450', '0636', '0730', '0760'
 ];
 
 // ============= Helper Functions =============
@@ -170,6 +183,10 @@ export function classifyDocument(content: string): DocumentClassification {
     acc + (lower.includes(ind) ? 2 : 0), 0);
   const statementScore = STATEMENT_INDICATORS.reduce((acc, ind) => 
     acc + (lower.includes(ind) ? 2 : 0), 0);
+  const hospitalScore = HOSPITAL_SUMMARY_INDICATORS.reduce((acc, ind) =>
+    acc + (lower.includes(ind) ? 2 : 0), 0);
+  const revenueCodeScore = REVENUE_CODE_INDICATORS.reduce((acc, ind) =>
+    acc + (lower.includes(ind) ? 3 : 0), 0);
   
   // Check for payment receipt indicators
   const isReceipt = lower.includes('receipt') || lower.includes('payment received') ||
@@ -183,12 +200,27 @@ export function classifyDocument(content: string): DocumentClassification {
     return 'eob';
   }
   
+  // Check for revenue-code-only bills (no CPT codes visible)
+  const hasCpt = /\b\d{5}\b/.test(content) || /\b[A-Z]\d{4}\b/.test(content);
+  if (revenueCodeScore >= 6 && !hasCpt) {
+    return 'revenue_code_only';
+  }
+  
+  // Hospital summary bill (revenue codes + hospital indicators, limited CPT)
+  if (hospitalScore >= 6 && revenueCodeScore >= 3) {
+    return 'hospital_summary_bill';
+  }
+  
   if (portalScore >= 4 && !lower.includes('itemized')) {
     return 'portal_summary';
   }
   
   if (statementScore >= 4) {
-    return 'itemized_statement';
+    // Distinguish between itemized (has CPT codes) and summary
+    if (hasCpt) {
+      return 'itemized_statement';
+    }
+    return 'summary_statement';
   }
   
   return 'unknown';

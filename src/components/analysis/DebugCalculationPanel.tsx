@@ -449,9 +449,91 @@ function MedicareCalculationSection({ output }: { output?: MedicareBenchmarkOutp
   const notPricedItems = output.lineItems.filter(i => i.matchStatus === 'exists_not_priced');
   const missingItems = output.lineItems.filter(i => i.matchStatus === 'missing');
   
+  // Get matched-items comparison data
+  const matched = output.matchedItemsComparison;
+  
   return (
     <div className="p-4 space-y-4 text-sm">
-      {/* Summary totals */}
+      {/* === NEW: Matched-Items Comparison (prevents scope mismatch) === */}
+      {matched && matched.matchedItemsCount > 0 && (
+        <div className={cn(
+          'p-4 rounded-lg border-2',
+          matched.isValidComparison 
+            ? 'border-primary/40 bg-primary/5' 
+            : 'border-warning/40 bg-warning/5'
+        )}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-medium flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Matched Items Comparison
+            </div>
+            <Badge variant="outline" className={cn(
+              'text-xs',
+              matched.isValidComparison 
+                ? 'bg-primary/10 text-primary border-primary/30' 
+                : 'bg-warning/10 text-warning border-warning/30'
+            )}>
+              {matched.matchedItemsCount}/{matched.totalItemsCount} items matched
+            </Badge>
+          </div>
+          
+          {/* Visual scope coverage bar */}
+          <div className="mb-3">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>Scope coverage</span>
+              <span>{matched.coveragePercent ? `${Math.round(matched.coveragePercent * 100)}%` : '—'}</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={cn(
+                  'h-full rounded-full transition-all',
+                  matched.coveragePercent && matched.coveragePercent >= 0.8 ? 'bg-success' :
+                  matched.coveragePercent && matched.coveragePercent >= 0.5 ? 'bg-warning' :
+                  'bg-destructive'
+                )}
+                style={{ width: `${(matched.coveragePercent || 0) * 100}%` }}
+              />
+            </div>
+          </div>
+          
+          {/* Matched totals comparison */}
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="p-3 rounded-lg bg-background/80 text-center">
+              <div className="text-xs text-muted-foreground mb-1">Matched Billed</div>
+              <div className="text-lg font-bold">
+                {matched.matchedBilledTotal !== null ? formatCurrency(matched.matchedBilledTotal) : '—'}
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-primary/10 text-center">
+              <div className="text-xs text-muted-foreground mb-1">Medicare Reference</div>
+              <div className="text-lg font-bold text-primary">
+                {matched.matchedMedicareTotal !== null ? formatCurrency(matched.matchedMedicareTotal) : 'N/A'}
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-background/80 text-center">
+              <div className="text-xs text-muted-foreground mb-1">Multiple</div>
+              <div className={cn(
+                'text-lg font-bold',
+                matched.matchedItemsMultiple && matched.matchedItemsMultiple > 3 ? 'text-destructive' :
+                matched.matchedItemsMultiple && matched.matchedItemsMultiple > 2 ? 'text-warning' : ''
+              )}>
+                {matched.matchedItemsMultiple !== null 
+                  ? `${matched.matchedItemsMultiple.toFixed(2)}×` 
+                  : '—'}
+              </div>
+            </div>
+          </div>
+          
+          {/* Scope warning */}
+          {matched.scopeWarning && (
+            <div className="text-xs text-warning bg-warning/10 p-2 rounded border border-warning/30">
+              ⚠ {matched.scopeWarning}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Summary totals (legacy) */}
       <div className="grid grid-cols-3 gap-3">
         <div className="p-3 rounded-lg bg-muted/30 text-center">
           <div className="text-xs text-muted-foreground">Billed</div>

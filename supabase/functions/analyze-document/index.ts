@@ -33,15 +33,31 @@ You MUST output ALL of the following Pond sections in your JSON response:
   "amountYouMayOwe": number or null,
   "status": "looks_standard" | "worth_reviewing" | "likely_issues",
   "statusExplanation": "One sentence: Based on what's shown here...",
-  "documentClassification": "itemized_statement" | "eob" | "portal_summary" | "payment_receipt" | "unknown"
+  "documentClassification": "itemized_statement" | "summary_statement" | "eob" | "hospital_summary_bill" | "portal_summary" | "payment_receipt" | "revenue_code_only" | "unknown"
 }
 
-CRITICAL - TOTAL EXTRACTION: You MUST extract the totalBilled value accurately. Search for:
-- "Total Charges", "Total Billed", "Statement Total", "Amount Billed", "Gross Charges"
-- The largest dollar amount that represents the sum of all services
-- If there's a table of line items, totalBilled should be the sum or the "Total" row
+CRITICAL - TOTAL EXTRACTION: You MUST extract the totalBilled value accurately. Search for these EXACT labels in order of priority:
+1. "Total Charges", "Total Billed Charges", "Gross Charges", "Total Hospital Charges" → use this as totalBilled
+2. "Statement Total", "Amount Billed", "Total Due", "Balance Due" → could be totalBilled or amountYouMayOwe depending on context
+3. "Amount You Owe", "Patient Responsibility", "Patient Balance", "Your Portion" → use as amountYouMayOwe
+4. "Insurance Paid", "Plan Paid", "Insurance Payment" → store in extractedTotals.insurancePaid
+5. "Adjustments", "Contractual Adjustments", "Discount" → store in extractedTotals.totalAdjustments
+
+Rules for totalBilled:
+- LOOK for the LARGEST dollar amount that represents sum of all services BEFORE insurance
+- If there's a table of line items, totalBilled should be the sum row or "Total" row
 - NEVER return totalBilled as 0 or null if there are visible dollar amounts on the bill
-- If you can only find a patient balance/responsibility amount, put that in amountYouMayOwe AND try harder to find the original charges
+- If you ONLY find a patient balance/responsibility amount, put that in amountYouMayOwe AND set totalBilled to null (don't guess)
+- If the document shows "Total Charges: $X" and "Amount Due: $Y", use $X for totalBilled and $Y for amountYouMayOwe
+
+Document Classification Guidance:
+- "itemized_statement": Shows line-by-line CPT/HCPCS codes with individual charges
+- "summary_statement": Shows only totals or categories, no codes
+- "hospital_summary_bill": Hospital bill with revenue codes but no CPT codes
+- "revenue_code_only": Only revenue codes (3-4 digits) visible, no CPT/HCPCS
+- "eob": Explanation of Benefits from insurance
+- "portal_summary": Patient portal screenshot with limited detail
+- "payment_receipt": Payment confirmation, not a bill
 
 ### thingsWorthReviewing (REQUIRED - array, can be empty)
 [{ "whatToReview": "...", "whyItMatters": "...", "issueType": "error|negotiable|missing_info|confirmation" }]
@@ -474,13 +490,20 @@ Return valid JSON with this EXACT structure:
   "eobData": null
 }
 
-### extractedTotals (REQUIRED)
+### extractedTotals (REQUIRED - CRITICAL FOR ACCURATE COMPARISONS)
 You MUST populate extractedTotals by carefully reading the bill:
-- Look for labels like "Total Charges", "Total", "Amount Billed", "Balance Due", "Amount You Owe"
-- totalCharges = the pre-insurance total (gross charges)
-- patientBalance = what the patient currently owes
-- insurancePaid = any insurance payments shown
-- If you can only find one number, put it in the most appropriate field and explain in totalsSource
+
+EXTRACTION RULES:
+1. totalCharges: Look for "Total Charges", "Total Billed", "Gross Charges" — the pre-insurance total
+2. totalAdjustments: Look for "Adjustment", "Discount", "Contractual" — insurance reductions  
+3. insurancePaid: Look for "Insurance Paid", "Plan Paid" — what insurance paid
+4. patientBalance: Look for "Balance Due", "Amount Due" — current balance owed
+5. amountDue: Look for "Patient Responsibility", "Your Portion" — patient share for this visit
+6. totalsSource: WHERE you found these (e.g., "Summary section", "Total row")
+7. extractionConfidence: "high" | "medium" | "low"
+8. lineItemsSum: Sum of extracted line item charges (for reconciliation)
+
+If only ONE number found, determine if it's totalCharges (gross) or patientBalance (balance) from context.
 
 ## STYLE RULES
 - Reading level: 6th-8th grade
