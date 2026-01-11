@@ -279,8 +279,8 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
           records.push({
             year,
             hcpcs: normalizedHcpcs,
-            modifier,
-            modifier2,
+            modifier: modifier || '',
+            modifier2: modifier2 || '',
             jurisdiction,
             category,
             ceiling,
@@ -298,15 +298,15 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
       records.push({
         year,
         hcpcs: normalizedHcpcs,
-        modifier,
-        modifier2,
+        modifier: modifier || '',
+        modifier2: modifier2 || '',
         jurisdiction,
         category,
         ceiling,
         floor,
         fee: ceiling || floor,
         fee_rental: null,
-        state_abbr: null,
+        state_abbr: '',
         short_desc: shortDesc,
         source_file: sourceFile
       });
@@ -746,7 +746,7 @@ serve(async (req) => {
             supabase, 
             tableName, 
             records, 
-            "year,hcpcs,modifier,state_abbr",
+            "hcpcs,modifier,modifier2,state_abbr,year,source_file",
             dryRun
           );
           
