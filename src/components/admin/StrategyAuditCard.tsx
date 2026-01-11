@@ -8,6 +8,7 @@
  * - Coverage & data gaps
  * - Recommendations
  * - Misinformation guardrails
+ * - Persistence: Save & view past audit runs
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -16,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   FileText, 
   Copy, 
@@ -27,10 +29,16 @@ import {
   Loader2,
   RefreshCw,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Save,
+  History,
+  CheckCircle,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface DatasetStatus {
   name: string;
@@ -57,13 +65,30 @@ interface AuditReport {
   gapMetrics: GapMetrics | null;
   recommendations: string[];
   guardrails: string[];
+  summaryPass: number;
+  summaryWarn: number;
+  summaryFail: number;
+}
+
+interface PastAuditRun {
+  id: string;
+  created_at: string;
+  status: string;
+  summary_pass: number;
+  summary_warn: number;
+  summary_fail: number;
+  report_markdown: string | null;
 }
 
 export function StrategyAuditCard() {
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [report, setReport] = useState<AuditReport | null>(null);
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [pastRuns, setPastRuns] = useState<PastAuditRun[]>([]);
+  const [loadingPastRuns, setLoadingPastRuns] = useState(false);
+  const [selectedPastRun, setSelectedPastRun] = useState<PastAuditRun | null>(null);
 
   const generateReport = useCallback(async () => {
     setLoading(true);
@@ -77,6 +102,7 @@ export function StrategyAuditCard() {
         oppsResult,
         dmeposResult,
         dmepenResult,
+        clfsResult,
         gapEventsResult,
         missingCodesResult
       ] = await Promise.all([
@@ -87,9 +113,27 @@ export function StrategyAuditCard() {
         supabase.from('opps_addendum_b').select('hcpcs, year, created_at', { count: 'exact' }),
         supabase.from('dmepos_fee_schedule').select('hcpcs, year, created_at', { count: 'exact' }),
         supabase.from('dmepen_fee_schedule').select('hcpcs, year, created_at', { count: 'exact' }),
+        supabase.from('clfs_fee_schedule').select('hcpcs, year, created_at', { count: 'exact' }),
         supabase.from('analysis_gap_events').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('analysis_missing_codes').select('*').order('count', { ascending: false }).limit(20)
       ]);
+
+      // Track pass/warn/fail counts
+      let passCount = 0;
+      let warnCount = 0;
+      let failCount = 0;
+
+      // Dataset thresholds for validation
+      const thresholds: Record<string, number> = {
+        'mpfs_benchmarks': 10000,
+        'gpci_localities': 1000,
+        'gpci_state_avg_2026': 45,
+        'zip_to_locality': 30000,
+        'opps_addendum_b': 8000,
+        'dmepos_fee_schedule': 10000,
+        'dmepen_fee_schedule': 500,
+        'clfs_fee_schedule': 1000
+      };
 
       // Process dataset status
       const datasets: DatasetStatus[] = [
@@ -155,8 +199,29 @@ export function StrategyAuditCard() {
           years: [...new Set(dmepenResult.data?.map(r => r.year))].filter(Boolean).sort() as number[],
           lastUpdated: dmepenResult.data?.[0]?.created_at || null,
           enables: 'Enteral/parenteral nutrition fee schedule'
+        },
+        {
+          name: 'CLFS (Clinical Lab)',
+          table: 'clfs_fee_schedule',
+          rowCount: clfsResult.count || 0,
+          uniqueCodes: new Set(clfsResult.data?.map(r => r.hcpcs)).size,
+          years: [...new Set(clfsResult.data?.map(r => r.year))].filter(Boolean).sort() as number[],
+          lastUpdated: clfsResult.data?.[0]?.created_at || null,
+          enables: 'Clinical laboratory test pricing'
         }
       ];
+
+      // Count pass/fail based on thresholds
+      datasets.forEach(d => {
+        const threshold = thresholds[d.table] || 0;
+        if (d.rowCount === 0) {
+          failCount++;
+        } else if (d.rowCount < threshold) {
+          warnCount++;
+        } else {
+          passCount++;
+        }
+      });
 
       // Compute gap metrics
       let gapMetrics: GapMetrics | null = null;
@@ -187,6 +252,21 @@ export function StrategyAuditCard() {
       
       if ((gpciStateAvgResult.count || 0) === 0) {
         recommendations.push('CRITICAL: Run "Recompute GPCI State Averages" to enable state-level fallback pricing');
+      } else if ((gpciStateAvgResult.count || 0) < 45) {
+        recommendations.push(`WARNING: GPCI state averages incomplete (${gpciStateAvgResult.count} states) - expected 50+`);
+        warnCount++;
+      }
+
+      if ((dmepenResult.count || 0) === 0) {
+        recommendations.push('CRITICAL: DMEPEN fee schedule is empty - import DMEPEN file to enable nutrition equipment pricing');
+      }
+
+      if ((oppsResult.count || 0) < 8000) {
+        recommendations.push(`WARNING: OPPS rowcount is low (${oppsResult.count}) - expected 8000+ for full coverage`);
+      }
+
+      if ((clfsResult.count || 0) === 0) {
+        recommendations.push('Import CLFS (Clinical Lab Fee Schedule) to enable lab code pricing');
       }
       
       if (gapMetrics && gapMetrics.noTotalsRate > 0.3) {
@@ -203,8 +283,8 @@ export function StrategyAuditCard() {
         const num = parseInt(code.replace(/\D/g, ''), 10);
         return num >= 80000 && num <= 89999;
       });
-      if (labCodesMissing.length > 0) {
-        recommendations.push(`Add Clinical Lab Fee Schedule (CLFS) - ${labCodesMissing.length} lab codes detected but not priceable`);
+      if (labCodesMissing.length > 0 && (clfsResult.count || 0) === 0) {
+        recommendations.push(`${labCodesMissing.length} lab codes detected but not priceable - import CLFS`);
       }
 
       // Guardrails
@@ -223,29 +303,100 @@ export function StrategyAuditCard() {
         datasets,
         gapMetrics,
         recommendations,
-        guardrails
+        guardrails,
+        summaryPass: passCount,
+        summaryWarn: warnCount,
+        summaryFail: failCount
       });
 
     } catch (error) {
       console.error('Error generating audit report:', error);
+      toast.error('Failed to generate audit report');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    generateReport();
-  }, [generateReport]);
-
-  const copyToClipboard = useCallback(() => {
+  const saveAudit = useCallback(async () => {
     if (!report) return;
     
-    const text = `
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('You must be logged in to save audits');
+        return;
+      }
+
+      const markdownReport = generateMarkdown(report);
+      
+      const insertData = {
+        report_markdown: markdownReport,
+        report_json: report as unknown,
+        dataset_snapshot: {
+          datasets: report.datasets.map(d => ({
+            table: d.table,
+            rowCount: d.rowCount,
+            uniqueCodes: d.uniqueCodes
+          }))
+        } as unknown,
+        summary_pass: report.summaryPass,
+        summary_warn: report.summaryWarn,
+        summary_fail: report.summaryFail,
+        status: report.summaryFail > 0 ? 'fail' : report.summaryWarn > 0 ? 'warn' : 'pass'
+      };
+      
+      const { error } = await supabase
+        .from('strategy_audit_runs')
+        .insert(insertData as any);
+
+      if (error) throw error;
+      
+      toast.success('Audit saved successfully');
+      loadPastRuns();
+    } catch (error) {
+      console.error('Error saving audit:', error);
+      toast.error('Failed to save audit');
+    } finally {
+      setSaving(false);
+    }
+  }, [report]);
+
+  const loadPastRuns = useCallback(async () => {
+    setLoadingPastRuns(true);
+    try {
+      const { data, error } = await supabase
+        .from('strategy_audit_runs')
+        .select('id, created_at, status, summary_pass, summary_warn, summary_fail, report_markdown')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setPastRuns(data || []);
+    } catch (error) {
+      console.error('Error loading past runs:', error);
+    } finally {
+      setLoadingPastRuns(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    generateReport();
+    loadPastRuns();
+  }, [generateReport, loadPastRuns]);
+
+  const generateMarkdown = (r: AuditReport): string => {
+    return `
 # Strategy Audit Report
-Generated: ${new Date(report.generatedAt).toLocaleString()}
+Generated: ${new Date(r.generatedAt).toLocaleString()}
+
+## Summary
+- ✅ Pass: ${r.summaryPass}
+- ⚠️ Warn: ${r.summaryWarn}
+- ❌ Fail: ${r.summaryFail}
 
 ## Datasets Loaded
-${report.datasets.map(d => `
+${r.datasets.map(d => `
 ### ${d.name}
 - Table: ${d.table}
 - Rows: ${d.rowCount.toLocaleString()}
@@ -255,23 +406,26 @@ ${report.datasets.map(d => `
 `).join('')}
 
 ## Gap Metrics (Last 100 Analyses)
-${report.gapMetrics ? `
-- Total Analyses: ${report.gapMetrics.totalAnalyses}
-- No Totals Rate: ${Math.round(report.gapMetrics.noTotalsRate * 100)}%
-- Patient Balance Only Rate: ${Math.round(report.gapMetrics.onlyPatientBalanceRate * 100)}%
-- Geo Fallback Rate: ${Math.round(report.gapMetrics.geoFallbackRate * 100)}%
-- No Priced Items Rate: ${Math.round(report.gapMetrics.noPricedItemsRate * 100)}%
-- Top Missing Codes: ${report.gapMetrics.topMissingCodes.map(c => `${c.code} (${c.count}×)`).join(', ')}
+${r.gapMetrics ? `
+- Total Analyses: ${r.gapMetrics.totalAnalyses}
+- No Totals Rate: ${Math.round(r.gapMetrics.noTotalsRate * 100)}%
+- Patient Balance Only Rate: ${Math.round(r.gapMetrics.onlyPatientBalanceRate * 100)}%
+- Geo Fallback Rate: ${Math.round(r.gapMetrics.geoFallbackRate * 100)}%
+- No Priced Items Rate: ${Math.round(r.gapMetrics.noPricedItemsRate * 100)}%
+- Top Missing Codes: ${r.gapMetrics.topMissingCodes.map(c => `${c.code} (${c.count}×)`).join(', ')}
 ` : 'No telemetry data available'}
 
 ## Recommendations
-${report.recommendations.map(r => `- ${r}`).join('\n')}
+${r.recommendations.map(rec => `- ${rec}`).join('\n')}
 
 ## Misinformation Guardrails
-${report.guardrails.map(g => `- ${g}`).join('\n')}
+${r.guardrails.map(g => `- ${g}`).join('\n')}
 `.trim();
+  };
 
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = useCallback(() => {
+    if (!report) return;
+    navigator.clipboard.writeText(generateMarkdown(report));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [report]);
@@ -293,6 +447,85 @@ ${report.guardrails.map(g => `- ${g}`).join('\n')}
             <Button variant="outline" size="sm" onClick={generateReport} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
+            <Button variant="outline" size="sm" onClick={saveAudit} disabled={!report || saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            </Button>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" onClick={loadPastRuns}>
+                  <History className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Past Audit Runs</DialogTitle>
+                </DialogHeader>
+                {loadingPastRuns ? (
+                  <div className="flex justify-center p-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : pastRuns.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No saved audits yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {pastRuns.map(run => (
+                      <div
+                        key={run.id}
+                        className={cn(
+                          "p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                          selectedPastRun?.id === run.id && "ring-2 ring-primary"
+                        )}
+                        onClick={() => setSelectedPastRun(selectedPastRun?.id === run.id ? null : run)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {run.status === 'pass' && <CheckCircle className="h-4 w-4 text-success" />}
+                            {run.status === 'warn' && <AlertCircle className="h-4 w-4 text-warning" />}
+                            {run.status === 'fail' && <XCircle className="h-4 w-4 text-destructive" />}
+                            <span className="text-sm font-medium">
+                              {new Date(run.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex gap-2 text-xs">
+                            <Badge variant="outline" className="text-success border-success/30">
+                              {run.summary_pass} pass
+                            </Badge>
+                            <Badge variant="outline" className="text-warning border-warning/30">
+                              {run.summary_warn} warn
+                            </Badge>
+                            <Badge variant="outline" className="text-destructive border-destructive/30">
+                              {run.summary_fail} fail
+                            </Badge>
+                          </div>
+                        </div>
+                        {selectedPastRun?.id === run.id && run.report_markdown && (
+                          <div className="mt-3 pt-3 border-t">
+                            <ScrollArea className="h-64">
+                              <pre className="text-xs whitespace-pre-wrap font-mono">
+                                {run.report_markdown}
+                              </pre>
+                            </ScrollArea>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(run.report_markdown || '');
+                                toast.success('Copied to clipboard');
+                              }}
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copy
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
             <Button variant="outline" size="sm" onClick={copyToClipboard} disabled={!report}>
               {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
             </Button>
@@ -305,6 +538,31 @@ ${report.guardrails.map(g => `- ${g}`).join('\n')}
       
       {expanded && report && (
         <CardContent className="space-y-6">
+          {/* Summary Badges */}
+          <div className="flex gap-2">
+            <Badge variant="outline" className={cn(
+              "px-3 py-1",
+              report.summaryPass > 0 && "text-success border-success/30 bg-success/5"
+            )}>
+              <CheckCircle className="h-3 w-3 mr-1" />
+              {report.summaryPass} Pass
+            </Badge>
+            <Badge variant="outline" className={cn(
+              "px-3 py-1",
+              report.summaryWarn > 0 && "text-warning border-warning/30 bg-warning/5"
+            )}>
+              <AlertCircle className="h-3 w-3 mr-1" />
+              {report.summaryWarn} Warn
+            </Badge>
+            <Badge variant="outline" className={cn(
+              "px-3 py-1",
+              report.summaryFail > 0 && "text-destructive border-destructive/30 bg-destructive/5"
+            )}>
+              <XCircle className="h-3 w-3 mr-1" />
+              {report.summaryFail} Fail
+            </Badge>
+          </div>
+
           {/* Datasets */}
           <div>
             <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
@@ -315,13 +573,13 @@ ${report.guardrails.map(g => `- ${g}`).join('\n')}
               {report.datasets.map((d, i) => (
                 <div key={i} className={cn(
                   'p-3 rounded-lg border text-sm',
-                  d.rowCount > 0 ? 'bg-success/5 border-success/30' : 'bg-muted/30 border-border/30'
+                  d.rowCount > 0 ? 'bg-success/5 border-success/30' : 'bg-destructive/5 border-destructive/30'
                 )}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-medium">{d.name}</span>
                     <Badge variant="outline" className={cn(
                       'text-xs',
-                      d.rowCount > 0 ? 'text-success border-success/30' : 'text-muted-foreground'
+                      d.rowCount > 0 ? 'text-success border-success/30' : 'text-destructive border-destructive/30'
                     )}>
                       {d.rowCount > 0 ? `${d.rowCount.toLocaleString()} rows` : 'Empty'}
                     </Badge>
@@ -398,7 +656,12 @@ ${report.guardrails.map(g => `- ${g}`).join('\n')}
                 </h3>
                 <div className="space-y-2">
                   {report.recommendations.map((r, i) => (
-                    <div key={i} className="p-2 rounded bg-warning/5 border border-warning/30 text-sm">
+                    <div key={i} className={cn(
+                      "p-2 rounded border text-sm",
+                      r.includes('CRITICAL') 
+                        ? 'bg-destructive/5 border-destructive/30' 
+                        : 'bg-warning/5 border-warning/30'
+                    )}>
                       {r}
                     </div>
                   ))}
