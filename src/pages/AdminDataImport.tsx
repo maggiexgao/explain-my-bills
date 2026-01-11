@@ -5,15 +5,51 @@ import { CoverageMetricsCard } from '@/components/admin/CoverageMetricsCard';
 import { DatasetStatusBar } from '@/components/admin/DatasetStatusBar';
 import { CoverageGapsPanel } from '@/components/admin/CoverageGapsPanel';
 import { DataGapsDiagnosticsCard } from '@/components/admin/DataGapsDiagnosticsCard';
+import { StrategyAuditCard } from '@/components/admin/StrategyAuditCard';
+import { DatasetValidationCard } from '@/components/admin/DatasetValidationCard';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export default function AdminDataImport() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  const [recomputingGpci, setRecomputingGpci] = useState(false);
+
   const handleImportComplete = () => {
     setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleRecomputeGpciStateAvg = async () => {
+    setRecomputingGpci(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recompute-gpci-state-avg`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+          }
+        }
+      );
+      
+      const result = await response.json();
+      
+      if (result.ok) {
+        toast.success(`Computed GPCI state averages for ${result.rowsComputed} states`);
+        setRefreshTrigger(prev => prev + 1);
+      } else {
+        toast.error(result.message || 'Failed to recompute GPCI state averages');
+      }
+    } catch (error) {
+      console.error('Recompute GPCI error:', error);
+      toast.error('Failed to recompute GPCI state averages');
+    } finally {
+      setRecomputingGpci(false);
+    }
   };
 
   return (
@@ -22,7 +58,7 @@ export default function AdminDataImport() {
       <DatasetStatusBar refreshTrigger={refreshTrigger} />
       
       {/* Main Content - Scrollable container */}
-      <div className="mx-auto max-w-2xl space-y-6 p-4 pb-32">
+      <div className="mx-auto max-w-3xl space-y-6 p-4 pb-32">
           <div className="text-center pt-4">
             <h1 className="text-3xl font-bold">Medicare Data Import</h1>
             <p className="mt-2 text-muted-foreground">
@@ -30,8 +66,54 @@ export default function AdminDataImport() {
             </p>
           </div>
 
+          {/* Strategy Audit - Comprehensive Report */}
+          <StrategyAuditCard />
+
+          {/* Dataset Validation */}
+          <DatasetValidationCard />
+
           {/* Data Gap Diagnostics - Live telemetry */}
           <DataGapsDiagnosticsCard />
+
+          {/* GPCI State Averages Recompute */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5" />
+                Recompute Derived Tables
+              </CardTitle>
+              <CardDescription>
+                Regenerate computed tables from source data
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border/30">
+                <div>
+                  <p className="font-medium">GPCI State Averages</p>
+                  <p className="text-sm text-muted-foreground">
+                    Computes state-level GPCI averages from gpci_localities for fallback pricing
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleRecomputeGpciStateAvg} 
+                  disabled={recomputingGpci}
+                  variant="outline"
+                >
+                  {recomputingGpci ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Computing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Recompute
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Self-Test */}
           <SelfTestCard />
