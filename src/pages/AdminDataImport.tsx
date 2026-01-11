@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ImportCard } from '@/components/admin/ImportCard';
 import { SelfTestCard } from '@/components/admin/SelfTestCard';
 import { CoverageMetricsCard } from '@/components/admin/CoverageMetricsCard';
@@ -9,20 +10,85 @@ import { StrategyAuditCard } from '@/components/admin/StrategyAuditCard';
 import { DatasetValidationCard } from '@/components/admin/DatasetValidationCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AdminDataImport() {
+  const navigate = useNavigate();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-
   const [recomputingGpci, setRecomputingGpci] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  // Check authentication on mount
+  useEffect(() => {
+    checkAuth();
+    
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setIsAuthorized(false);
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setIsAuthorized(false);
+        setAuthChecking(false);
+        return;
+      }
+
+      // Check if user has admin role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', session.user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (roleError) {
+        // Table might not exist - allow authenticated user for initial setup
+        console.warn('Role check failed, allowing authenticated user:', roleError.message);
+        setIsAuthorized(true);
+      } else if (!roleData) {
+        // No admin role found
+        setIsAuthorized(false);
+      } else {
+        setIsAuthorized(true);
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      setIsAuthorized(false);
+    } finally {
+      setAuthChecking(false);
+    }
+  };
+
+  // Get auth token for edge function calls
+  const getAuthToken = async (): Promise<string | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  };
 
   const handleImportComplete = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
   const handleRecomputeGpciStateAvg = async () => {
+    const token = await getAuthToken();
+    if (!token) {
+      toast.error('Please sign in to perform this action');
+      return;
+    }
+
     setRecomputingGpci(true);
     try {
       const response = await fetch(
@@ -31,7 +97,7 @@ export default function AdminDataImport() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+            'Authorization': `Bearer ${token}`
           }
         }
       );
@@ -51,6 +117,45 @@ export default function AdminDataImport() {
       setRecomputingGpci(false);
     }
   };
+
+  // Show loading state while checking auth
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+          <p className="text-muted-foreground">Checking authorization...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show unauthorized message
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md mx-4">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+              <ShieldAlert className="h-6 w-6 text-destructive" />
+            </div>
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>
+              You must be signed in with an admin account to access this page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Link to="/">
+              <Button variant="outline" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Return to Home
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background overflow-y-auto">

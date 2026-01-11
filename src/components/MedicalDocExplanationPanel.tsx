@@ -80,6 +80,52 @@ function AccordionSection({
     </div>
   );
 }
+/**
+ * Safely renders markdown-style bold (**text**) and italic (*text*) formatting
+ * as React elements, preventing XSS by avoiding dangerouslySetInnerHTML
+ */
+function renderFormattedText(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let keyCounter = 0;
+  
+  // Combined regex to match **bold** and *italic* patterns
+  // We process bold first since it uses double asterisks
+  const regex = /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)/g;
+  let match;
+  
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    
+    if (match[1]) {
+      // Bold match: **text**
+      parts.push(
+        <strong key={`bold-${keyCounter++}`} className="text-foreground font-semibold">
+          {match[2]}
+        </strong>
+      );
+    } else if (match[3]) {
+      // Italic match: *text*
+      parts.push(
+        <em key={`italic-${keyCounter++}`}>
+          {match[4]}
+        </em>
+      );
+    }
+    
+    lastIndex = regex.lastIndex;
+  }
+  
+  // Add remaining text after the last match
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  
+  return parts.length > 0 ? parts : [text];
+}
 
 export function MedicalDocExplanationPanel({ analysis }: MedicalDocExplanationPanelProps) {
   const getDocTypeColor = (type: string) => {
@@ -116,30 +162,23 @@ export function MedicalDocExplanationPanel({ analysis }: MedicalDocExplanationPa
             pond's analysis
           </h2>
           
-          {/* Key Takeaways - with bold/italic rendering */}
-          {analysis.pondsAnalysis?.keyTakeaways && analysis.pondsAnalysis.keyTakeaways.length > 0 ? (
-            <ul className="text-sm text-muted-foreground space-y-2 mb-4">
-              {analysis.pondsAnalysis.keyTakeaways.map((point, idx) => (
-                <li 
-                  key={idx} 
-                  className="flex items-start gap-2"
-                  dangerouslySetInnerHTML={{
-                    __html: `<span class="text-mint font-bold">•</span> ${
-                      point
-                        .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>')
-                        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-                    }`
-                  }}
-                />
-              ))}
-            </ul>
-          ) : (
-            <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside mb-4">
-              {analysis.overview.summary.split('. ').filter(s => s.trim()).slice(0, 4).map((point, idx) => (
-                <li key={idx}>{point.trim().replace(/\.$/, '')}.</li>
-              ))}
-            </ul>
-          )}
+        {/* Key Takeaways - with safe bold/italic rendering */}
+        {analysis.pondsAnalysis?.keyTakeaways && analysis.pondsAnalysis.keyTakeaways.length > 0 ? (
+          <ul className="text-sm text-muted-foreground space-y-2 mb-4">
+            {analysis.pondsAnalysis.keyTakeaways.map((point, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-mint font-bold">•</span>
+                <span>{renderFormattedText(point)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside mb-4">
+            {analysis.overview.summary.split('. ').filter(s => s.trim()).slice(0, 4).map((point, idx) => (
+              <li key={idx}>{point.trim().replace(/\.$/, '')}.</li>
+            ))}
+          </ul>
+        )}
           
           {/* Context Paragraph */}
           {analysis.pondsAnalysis?.contextParagraph && (
