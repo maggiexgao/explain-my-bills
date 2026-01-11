@@ -9,6 +9,48 @@ export type DocumentType = 'bill' | 'eob' | 'chart' | 'denial' | 'unknown';
 
 export type AnalysisMode = 'bill' | 'medical_document';
 
+// ============= Phase 1: Structured Totals & Comparison Guardrails =============
+
+export type TotalsConfidence = 'high' | 'medium' | 'low';
+export type TotalsSource = 'ai' | 'derived_line_items' | 'user_input' | 'document_label';
+
+export interface ExtractedTotalValue {
+  value: number;
+  confidence: TotalsConfidence;
+  evidence: string; // Exact text snippet found
+  label: string; // Label found on document (e.g., "Total Charges", "Balance Due")
+  source: TotalsSource;
+}
+
+export interface ExtractedTotals {
+  totalCharges?: ExtractedTotalValue;
+  totalPaymentsAndAdjustments?: ExtractedTotalValue;
+  patientResponsibility?: ExtractedTotalValue;
+  amountDue?: ExtractedTotalValue;
+  insurancePaid?: ExtractedTotalValue;
+  lineItemsSum?: number; // Sum of extracted line item billed amounts
+  notes?: string[];
+}
+
+export type ComparisonTotalType = 
+  | 'totalCharges' 
+  | 'patientResponsibility' 
+  | 'amountDue' 
+  | 'matchedLineItemsOnly';
+
+export interface ComparisonGuardrails {
+  canComputeMultiple: boolean;
+  comparisonTotalType?: ComparisonTotalType;
+  comparisonTotalValue?: number;
+  coverage: {
+    extractedLineItems: number;
+    matchedLineItems: number;
+    matchedCoveragePct: number;
+  };
+  scopeWarnings: string[];
+  multipleIsReliable: boolean;
+}
+
 export type MedicalDocumentType = 
   | 'after_visit_summary'
   | 'test_results'

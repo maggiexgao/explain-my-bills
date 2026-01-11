@@ -288,19 +288,43 @@ export function extractTotalCandidates(
   }
   
   // NEW: Extract from extractedTotals if present (from enhanced AI prompt)
+  // Handle both old format (flat numbers) and new format (structured objects)
   if (analysisData.extractedTotals) {
     const et = analysisData.extractedTotals;
     
-    if (et.totalCharges && et.totalCharges > 0) {
+    // Handle totalCharges - can be number or {value, confidence, evidence, label}
+    const tcValue = typeof et.totalCharges === 'object' && et.totalCharges?.value 
+      ? et.totalCharges.value 
+      : (typeof et.totalCharges === 'number' ? et.totalCharges : null);
+    
+    if (tcValue && tcValue > 0) {
+      const tcObj = typeof et.totalCharges === 'object' ? et.totalCharges : null;
       chargesCandidates.push({
         type: 'charges',
-        amount: et.totalCharges,
-        label: 'Total Charges (extracted)',
-        confidence: 'high',
-        evidence: et.totalsSource || 'From extractedTotals'
+        amount: tcValue,
+        label: tcObj?.label || 'Total Charges (extracted)',
+        confidence: (tcObj?.confidence as 'high' | 'medium' | 'low') || 'high',
+        evidence: tcObj?.evidence || et.totalsSource || 'From extractedTotals'
       });
     }
     
+    // Handle patientResponsibility
+    const prValue = typeof et.patientResponsibility === 'object' && et.patientResponsibility?.value
+      ? et.patientResponsibility.value
+      : (typeof et.patientResponsibility === 'number' ? et.patientResponsibility : null);
+    
+    if (prValue && prValue > 0) {
+      const prObj = typeof et.patientResponsibility === 'object' ? et.patientResponsibility : null;
+      patientCandidates.push({
+        type: 'patient_responsibility',
+        amount: prValue,
+        label: prObj?.label || 'Patient Responsibility (extracted)',
+        confidence: (prObj?.confidence as 'high' | 'medium' | 'low') || 'high',
+        evidence: prObj?.evidence || et.totalsSource || 'From extractedTotals'
+      });
+    }
+    
+    // Handle patientBalance (legacy field)
     if (et.patientBalance && et.patientBalance > 0) {
       patientCandidates.push({
         type: 'patient_responsibility',
@@ -311,13 +335,36 @@ export function extractTotalCandidates(
       });
     }
     
-    if (et.amountDue && et.amountDue > 0) {
+    // Handle amountDue
+    const adValue = typeof et.amountDue === 'object' && et.amountDue?.value
+      ? et.amountDue.value
+      : (typeof et.amountDue === 'number' ? et.amountDue : null);
+    
+    if (adValue && adValue > 0) {
+      const adObj = typeof et.amountDue === 'object' ? et.amountDue : null;
       patientCandidates.push({
         type: 'patient_responsibility',
-        amount: et.amountDue,
-        label: 'Amount Due (extracted)',
-        confidence: 'high',
-        evidence: et.totalsSource || 'From extractedTotals'
+        amount: adValue,
+        label: adObj?.label || 'Amount Due (extracted)',
+        confidence: (adObj?.confidence as 'high' | 'medium' | 'low') || 'high',
+        evidence: adObj?.evidence || et.totalsSource || 'From extractedTotals'
+      });
+    }
+    
+    // Handle insurancePaid for allowed amount estimation
+    const ipValue = typeof et.insurancePaid === 'object' && et.insurancePaid?.value
+      ? et.insurancePaid.value
+      : (typeof et.insurancePaid === 'number' ? et.insurancePaid : null);
+    
+    if (ipValue && ipValue > 0) {
+      // Insurance paid isn't "allowed" but can inform the analysis
+      const ipObj = typeof et.insurancePaid === 'object' ? et.insurancePaid : null;
+      allowedCandidates.push({
+        type: 'insurance_paid',
+        amount: ipValue,
+        label: ipObj?.label || 'Insurance Paid (extracted)',
+        confidence: (ipObj?.confidence as 'high' | 'medium' | 'low') || 'medium',
+        evidence: ipObj?.evidence || 'From extractedTotals'
       });
     }
   }

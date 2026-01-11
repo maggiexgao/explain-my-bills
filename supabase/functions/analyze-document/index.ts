@@ -36,19 +36,72 @@ You MUST output ALL of the following Pond sections in your JSON response:
   "documentClassification": "itemized_statement" | "summary_statement" | "eob" | "hospital_summary_bill" | "portal_summary" | "payment_receipt" | "revenue_code_only" | "unknown"
 }
 
-CRITICAL - TOTAL EXTRACTION: You MUST extract the totalBilled value accurately. Search for these EXACT labels in order of priority:
-1. "Total Charges", "Total Billed Charges", "Gross Charges", "Total Hospital Charges" → use this as totalBilled
-2. "Statement Total", "Amount Billed", "Total Due", "Balance Due" → could be totalBilled or amountYouMayOwe depending on context
-3. "Amount You Owe", "Patient Responsibility", "Patient Balance", "Your Portion" → use as amountYouMayOwe
-4. "Insurance Paid", "Plan Paid", "Insurance Payment" → store in extractedTotals.insurancePaid
-5. "Adjustments", "Contractual Adjustments", "Discount" → store in extractedTotals.totalAdjustments
+### extractedTotals (REQUIRED - CRITICAL FOR ACCURATE COMPARISONS)
+You MUST populate this object by carefully reading the bill. Extract ALL THREE total types when visible:
 
-Rules for totalBilled:
-- LOOK for the LARGEST dollar amount that represents sum of all services BEFORE insurance
-- If there's a table of line items, totalBilled should be the sum row or "Total" row
-- NEVER return totalBilled as 0 or null if there are visible dollar amounts on the bill
-- If you ONLY find a patient balance/responsibility amount, put that in amountYouMayOwe AND set totalBilled to null (don't guess)
-- If the document shows "Total Charges: $X" and "Amount Due: $Y", use $X for totalBilled and $Y for amountYouMayOwe
+{
+  "extractedTotals": {
+    "totalCharges": {
+      "value": number or null,
+      "confidence": "high" | "medium" | "low",
+      "evidence": "Exact text found (e.g., 'Total Charges: $1,234.56')",
+      "label": "Label found on document"
+    },
+    "totalPaymentsAndAdjustments": {
+      "value": number or null,
+      "confidence": "high" | "medium" | "low",
+      "evidence": "Exact text found",
+      "label": "Label found on document"
+    },
+    "patientResponsibility": {
+      "value": number or null,
+      "confidence": "high" | "medium" | "low",
+      "evidence": "Exact text found",
+      "label": "Label found on document"
+    },
+    "amountDue": {
+      "value": number or null,
+      "confidence": "high" | "medium" | "low",
+      "evidence": "Exact text found",
+      "label": "Label found on document"
+    },
+    "insurancePaid": {
+      "value": number or null,
+      "confidence": "high" | "medium" | "low",
+      "evidence": "Exact text found",
+      "label": "Label found on document"
+    },
+    "lineItemsSum": number or null,
+    "notes": ["Any extraction notes or caveats"]
+  }
+}
+
+EXTRACTION PRIORITY FOR TOTALS:
+1. **totalCharges** (pre-insurance, gross charges):
+   - Look for: "Total Charges", "Total Billed", "Gross Charges", "Total Hospital Charges", "Total Amount", "Charges"
+   - This is the sum of all services BEFORE insurance
+   - If there's a line-item table, this should match the sum row
+   
+2. **totalPaymentsAndAdjustments** (insurance payments + contractual adjustments):
+   - Look for: "Adjustments", "Contractual Adjustments", "Discount", "Insurance Paid", "Plan Paid"
+   - Add these together if both are present
+
+3. **patientResponsibility** (what patient is expected to owe for this visit):
+   - Look for: "Patient Responsibility", "Your Portion", "Patient Share", "Your Responsibility"
+   - This is often shown on EOBs
+
+4. **amountDue** (current balance/amount being billed now):
+   - Look for: "Amount Due", "Balance Due", "You Owe", "Current Balance", "Pay This Amount"
+   - This is what the bill is asking to be paid
+
+5. **insurancePaid**:
+   - Look for: "Insurance Paid", "Plan Paid", "Insurance Payment"
+
+CRITICAL RULES:
+- NEVER output 0 if a total wasn't found — use null instead
+- ALWAYS include the exact text snippet in "evidence"
+- If you ONLY find a patient balance (no total charges), set totalCharges to null with a note
+- "lineItemsSum" = sum of individual line item billed amounts you extracted
 
 Document Classification Guidance:
 - "itemized_statement": Shows line-by-line CPT/HCPCS codes with individual charges
@@ -493,17 +546,24 @@ Return valid JSON with this EXACT structure:
 ### extractedTotals (REQUIRED - CRITICAL FOR ACCURATE COMPARISONS)
 You MUST populate extractedTotals by carefully reading the bill:
 
-EXTRACTION RULES:
-1. totalCharges: Look for "Total Charges", "Total Billed", "Gross Charges" — the pre-insurance total
-2. totalAdjustments: Look for "Adjustment", "Discount", "Contractual" — insurance reductions  
-3. insurancePaid: Look for "Insurance Paid", "Plan Paid" — what insurance paid
-4. patientBalance: Look for "Balance Due", "Amount Due" — current balance owed
-5. amountDue: Look for "Patient Responsibility", "Your Portion" — patient share for this visit
-6. totalsSource: WHERE you found these (e.g., "Summary section", "Total row")
-7. extractionConfidence: "high" | "medium" | "low"
-8. lineItemsSum: Sum of extracted line item charges (for reconciliation)
+{
+  "extractedTotals": {
+    "totalCharges": { "value": number, "confidence": "high"|"medium"|"low", "evidence": "exact text", "label": "label found" } or null,
+    "totalPaymentsAndAdjustments": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "patientResponsibility": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "amountDue": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "insurancePaid": { "value": number, "confidence": "...", "evidence": "...", "label": "..." } or null,
+    "lineItemsSum": number or null,
+    "notes": ["Any notes about extraction"]
+  }
+}
 
-If only ONE number found, determine if it's totalCharges (gross) or patientBalance (balance) from context.
+IMPORTANT:
+- totalCharges = pre-insurance total (Total Charges, Gross Charges)
+- patientResponsibility = what patient owes for this visit
+- amountDue = current balance being billed
+- If not found, use null (NEVER use 0 as placeholder)
+- Always include exact text evidence
 
 ## STYLE RULES
 - Reading level: 6th-8th grade
