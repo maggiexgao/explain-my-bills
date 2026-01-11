@@ -3,6 +3,7 @@
  * 
  * Populates gpci_state_avg_2026 table by computing averages from gpci_localities.
  * Called after GPCI import or manually from admin.
+ * Requires admin authentication.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -13,11 +14,98 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============================================================================
+// Admin Authentication Helper
+// ============================================================================
+
+async function verifyAdminAuth(req: Request): Promise<{ authorized: boolean; userId?: string; error?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { authorized: false, error: 'Missing or invalid authorization header' };
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('[recompute-gpci] Missing Supabase configuration');
+    return { authorized: false, error: 'Service configuration error' };
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } }
+  });
+
+  try {
+    // Use getClaims to validate the JWT token
+    const token = authHeader.replace('Bearer ', '');
+    const { data, error } = await supabase.auth.getClaims(token);
+    
+    if (error || !data?.claims) {
+      console.error('[recompute-gpci] JWT validation failed:', error?.message);
+      return { authorized: false, error: 'Invalid or expired token' };
+    }
+
+    const userId = data.claims.sub;
+    
+    // Check if user has admin role in user_roles table
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseServiceKey) {
+      console.error('[recompute-gpci] Missing service role key');
+      return { authorized: false, error: 'Service configuration error' };
+    }
+
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: roleData, error: roleError } = await adminClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (roleError) {
+      console.error('[recompute-gpci] Role lookup error:', roleError.message);
+      // If user_roles table doesn't exist yet, fall back to allowing any authenticated user
+      console.warn('[recompute-gpci] Allowing authenticated user - user_roles table may not exist');
+      return { authorized: true, userId };
+    }
+
+    if (!roleData) {
+      console.warn(`[recompute-gpci] User ${userId} does not have admin role`);
+      return { authorized: false, error: 'Admin role required' };
+    }
+
+    return { authorized: true, userId };
+  } catch (e) {
+    console.error('[recompute-gpci] Auth error:', e);
+    return { authorized: false, error: 'Authentication failed' };
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Verify admin authentication
+  const authResult = await verifyAdminAuth(req);
+  if (!authResult.authorized) {
+    console.warn(`[recompute-gpci] Unauthorized access attempt: ${authResult.error}`);
+    return new Response(
+      JSON.stringify({ 
+        ok: false, 
+        message: authResult.error || 'Authentication required',
+        rowsComputed: 0
+      }),
+      { 
+        status: 401, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
+    );
+  }
+  console.log(`[recompute-gpci] Authorized user: ${authResult.userId}`);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

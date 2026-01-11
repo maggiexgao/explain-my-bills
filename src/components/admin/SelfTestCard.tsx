@@ -4,12 +4,14 @@
  * Tests the import system connectivity:
  * - Database connection via service role
  * - Edge function availability
+ * - Authentication status
  */
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2, AlertCircle, Loader2, Zap } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TestResult {
   ok: boolean;
@@ -30,12 +32,24 @@ export function SelfTestCard() {
     setResult(null);
 
     try {
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setResult({
+          ok: false,
+          message: 'Authentication required',
+          details: { error: 'Please sign in to run self-test' }
+        });
+        setStatus('error');
+        return;
+      }
+
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       
       const response = await fetch(`${supabaseUrl}/functions/v1/admin-import`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ dataType: 'self-test' })

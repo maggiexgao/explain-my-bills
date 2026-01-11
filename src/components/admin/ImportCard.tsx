@@ -81,6 +81,19 @@ export function ImportCard({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Get auth token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setResult({
+        ok: false,
+        errorCode: 'AUTH_REQUIRED',
+        message: 'Please sign in to perform imports'
+      });
+      setStatus('error');
+      setDetailsOpen(true);
+      return;
+    }
+
     // Clear previous state
     setResult(null);
     setDetailsOpen(false);
@@ -100,12 +113,12 @@ export function ImportCard({
       // Get the Supabase URL from the client
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       
-      // Call edge function
+      // Call edge function with user's auth token
       const response = await fetch(`${supabaseUrl}/functions/v1/admin-import`, {
         method: 'POST',
         body: formData,
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+          'Authorization': `Bearer ${session.access_token}`
         }
       });
 
