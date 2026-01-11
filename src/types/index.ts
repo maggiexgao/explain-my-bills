@@ -14,22 +14,48 @@ export type AnalysisMode = 'bill' | 'medical_document';
 export type TotalsConfidence = 'high' | 'medium' | 'low';
 export type TotalsSource = 'ai' | 'derived_line_items' | 'user_input' | 'document_label';
 
-export interface ExtractedTotalValue {
+/**
+ * A detected total with evidence and confidence.
+ * Used for totalCharges, patientResponsibility, amountDue, etc.
+ */
+export interface DetectedTotal {
   value: number;
   confidence: TotalsConfidence;
-  evidence: string; // Exact text snippet found
-  label: string; // Label found on document (e.g., "Total Charges", "Balance Due")
+  evidence: string;  // Short excerpt from doc around the number
+  label: string;     // e.g., "Total Charges", "Balance Due"
   source: TotalsSource;
 }
 
-export interface ExtractedTotals {
-  totalCharges?: ExtractedTotalValue;
-  totalPaymentsAndAdjustments?: ExtractedTotalValue;
-  patientResponsibility?: ExtractedTotalValue;
-  amountDue?: ExtractedTotalValue;
-  insurancePaid?: ExtractedTotalValue;
-  lineItemsSum?: number; // Sum of extracted line item billed amounts
-  notes?: string[];
+/**
+ * Structured totals extracted from a document.
+ * Separates pre-insurance charges from patient balance/amount due.
+ */
+export interface Totals {
+  totalCharges?: DetectedTotal | null;              // Pre-insurance "Total Charges", "Total Billed Charges"
+  totalPaymentsAndAdjustments?: DetectedTotal | null; // Total payments + contractual adjustments if present
+  patientResponsibility?: DetectedTotal | null;     // "Patient Responsibility" specifically
+  amountDue?: DetectedTotal | null;                 // "Amount Due", "Balance Due", "You May Owe"
+  insurancePaid?: DetectedTotal | null;             // Insurance payment amount
+  lineItemsSum?: number | null;                     // Sum of extracted line item billed amounts
+  notes: string[];                                  // Extraction notes and caveats
+}
+
+// Legacy alias for backward compatibility
+export type ExtractedTotalValue = DetectedTotal;
+export type ExtractedTotals = Totals;
+
+/**
+ * Line item with enhanced billing information.
+ */
+export interface LineItem {
+  code?: string | null;                    // CPT/HCPCS/revenue code
+  codeType?: 'cpt' | 'hcpcs' | 'revenue' | 'unknown';
+  description?: string | null;
+  billedAmount?: number | null;
+  billedAmountConfidence?: TotalsConfidence;
+  billedEvidence?: string;                 // Excerpt containing the billed amount for this line
+  units?: number | null;
+  date?: string | null;
 }
 
 export type ComparisonTotalType = 
@@ -42,6 +68,8 @@ export interface ComparisonGuardrails {
   canComputeMultiple: boolean;
   comparisonTotalType?: ComparisonTotalType;
   comparisonTotalValue?: number;
+  comparisonTotalLabel?: string;
+  comparisonTotalExplanation?: string;
   coverage: {
     extractedLineItems: number;
     matchedLineItems: number;
@@ -49,6 +77,7 @@ export interface ComparisonGuardrails {
   };
   scopeWarnings: string[];
   multipleIsReliable: boolean;
+  limitedComparability: boolean;  // True when comparing patient balance (not charges)
 }
 
 export type MedicalDocumentType = 
