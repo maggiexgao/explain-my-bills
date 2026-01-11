@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.record-analysis-gaps]
 verify_jwt = false
+
+[functions.recompute-gpci-state-avg]
+verify_jwt = false

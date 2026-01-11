@@ -65,6 +65,8 @@ import { reverseSearchCodes, batchReverseSearch, ReverseSearchResult, InferredCo
 import { AnalysisResult, CareSetting } from '@/types';
 import { DebugCalculationPanel, DebugCalculationData } from './DebugCalculationPanel';
 import { reconcileTotals, TotalsReconciliation } from '@/lib/totalsExtractor';
+import { computeComparisonReadiness, formatReadinessForUI, ReadinessResult } from '@/lib/comparisonReadinessGate';
+import { normalizeAndDeriveTotals, StructuredTotals } from '@/lib/totals/normalizeTotals';
 
 // ============= Props =============
 
@@ -679,9 +681,10 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
   );
 }
 
-function SummaryCard({ output, totalsReconciliation }: { 
+function SummaryCard({ output, totalsReconciliation, readinessResult }: { 
   output: MedicareBenchmarkOutput; 
   totalsReconciliation?: TotalsReconciliation | null;
+  readinessResult?: ReadinessResult | null;
 }) {
   const { status, message } = generateOverallStatus(output);
   const config = statusConfig[status];
@@ -1155,7 +1158,8 @@ export function HowThisCompares({
   const [reverseSearchReason, setReverseSearchReason] = useState<string | undefined>();
   const [reverseSearchResults, setReverseSearchResults] = useState<DebugCalculationData['reverseSearchResults']>([]);
   const [totalsReconciliation, setTotalsReconciliation] = useState<TotalsReconciliation | null>(null);
-  
+  const [structuredTotals, setStructuredTotals] = useState<StructuredTotals | null>(null);
+  const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
   useEffect(() => {
     let cancelled = false;
     
@@ -1281,8 +1285,38 @@ export function HowThisCompares({
         console.log('[HowThisCompares] Benchmark result:', result.status);
         console.log('[HowThisCompares] Debug info:', result.debug);
         
+        // Compute structured totals from analysis for readiness gate
+        const lineItemsForTotals = itemsWithDate.map(item => ({
+          description: item.description,
+          billedAmount: item.billedAmount,
+          code: item.hcpcs,
+          units: item.units
+        }));
+        // Use reconciled totals as input to normalize, or empty object if not available
+        const rawTotalsFromReconciliation = reconciledTotals?.comparisonTotal ? {
+          totalCharges: reconciledTotals.comparisonTotal.type === 'charges' ? {
+            value: reconciledTotals.comparisonTotal.value,
+            confidence: reconciledTotals.comparisonTotal.confidence,
+            evidence: reconciledTotals.comparisonTotal.explanation,
+            label: 'Total Charges'
+          } : undefined,
+          patientResponsibility: reconciledTotals.comparisonTotal.type === 'patient_responsibility' ? {
+            value: reconciledTotals.comparisonTotal.value,
+            confidence: reconciledTotals.comparisonTotal.confidence,
+            evidence: reconciledTotals.comparisonTotal.explanation,
+            label: 'Patient Responsibility'
+          } : undefined
+        } : {};
+        const derivedTotals = normalizeAndDeriveTotals(rawTotalsFromReconciliation, lineItemsForTotals);
+        
+        // Compute comparison readiness using the gate
+        const readiness = computeComparisonReadiness(result, derivedTotals);
+        console.log('[HowThisCompares] Readiness result:', readiness.status, readiness.reasons);
+        
         if (!cancelled) {
           setOutput(result);
+          setStructuredTotals(derivedTotals);
+          setReadinessResult(readiness);
         }
       } catch (err) {
         console.error('[HowThisCompares] Medicare benchmark error:', err);
@@ -1408,7 +1442,7 @@ export function HowThisCompares({
   return (
     <div className="space-y-6">
       {/* Summary Card */}
-      <SummaryCard output={output} totalsReconciliation={totalsReconciliation} />
+      <SummaryCard output={output} totalsReconciliation={totalsReconciliation} readinessResult={readinessResult} />
       
       {/* Partial match notice */}
       {output.status === 'partial' && (
