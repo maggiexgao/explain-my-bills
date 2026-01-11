@@ -107,6 +107,39 @@ export type Database = {
         }
         Relationships: []
       }
+      clfs_fee_schedule: {
+        Row: {
+          created_at: string
+          hcpcs: string
+          id: string
+          long_desc: string | null
+          payment_amount: number | null
+          short_desc: string | null
+          source_file: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          hcpcs: string
+          id?: string
+          long_desc?: string | null
+          payment_amount?: number | null
+          short_desc?: string | null
+          source_file?: string
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          hcpcs?: string
+          id?: string
+          long_desc?: string | null
+          payment_amount?: number | null
+          short_desc?: string | null
+          source_file?: string
+          year?: number
+        }
+        Relationships: []
+      }
       code_metadata: {
         Row: {
           code: string
@@ -422,6 +455,42 @@ export type Database = {
           source_file?: string
           status_indicator?: string | null
           year?: number
+        }
+        Relationships: []
+      }
+      strategy_audit_runs: {
+        Row: {
+          created_at: string
+          dataset_snapshot: Json | null
+          id: string
+          report_json: Json | null
+          report_markdown: string | null
+          status: string | null
+          summary_fail: number | null
+          summary_pass: number | null
+          summary_warn: number | null
+        }
+        Insert: {
+          created_at?: string
+          dataset_snapshot?: Json | null
+          id?: string
+          report_json?: Json | null
+          report_markdown?: string | null
+          status?: string | null
+          summary_fail?: number | null
+          summary_pass?: number | null
+          summary_warn?: number | null
+        }
+        Update: {
+          created_at?: string
+          dataset_snapshot?: Json | null
+          id?: string
+          report_json?: Json | null
+          report_markdown?: string | null
+          status?: string | null
+          summary_fail?: number | null
+          summary_pass?: number | null
+          summary_warn?: number | null
         }
         Relationships: []
       }
