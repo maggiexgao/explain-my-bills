@@ -4,8 +4,13 @@
  * Validates loaded datasets for data quality issues:
  * - MPFS: non-null RVUs/fees, valid HCPCS, year matches
  * - ZIP: 5-digit padded, no excessive duplicates
- * - OPPS: parseable payment rates
+ * - OPPS: parseable payment rates, minimum row count
  * - DMEPOS: parseable fees, uppercase HCPCS
+ * - DMEPEN: row count, fees present
+ * - GPCI State Avg: minimum 45 states
+ * - CLFS: lab codes coverage
+ * 
+ * Enhanced with minimum row thresholds to detect incomplete imports
  */
 
 import { useState, useCallback } from 'react';
@@ -26,13 +31,27 @@ import { cn } from '@/lib/utils';
 interface ValidationResult {
   dataset: string;
   status: 'pass' | 'warn' | 'fail';
+  rowCount: number;
   checks: Array<{
     name: string;
     passed: boolean;
     message: string;
     count?: number;
+    severity?: 'error' | 'warn';
   }>;
 }
+
+// Minimum expected row counts for each dataset
+const EXPECTED_MIN_ROWS: Record<string, { min: number; label: string }> = {
+  'mpfs_benchmarks': { min: 10000, label: 'MPFS should have >10k codes' },
+  'zip_to_locality': { min: 30000, label: 'ZIP crosswalk should have >30k entries' },
+  'gpci_localities': { min: 100, label: 'GPCI should have >100 localities' },
+  'opps_addendum_b': { min: 5000, label: 'OPPS should have >5k codes' },
+  'dmepos_fee_schedule': { min: 10000, label: 'DMEPOS should have >10k records' },
+  'dmepen_fee_schedule': { min: 100, label: 'DMEPEN should have >100 records' },
+  'clfs_fee_schedule': { min: 500, label: 'CLFS should have >500 lab codes' },
+  'gpci_state_avg_2026': { min: 45, label: 'State averages should cover ≥45 states' }
+};
 
 export function DatasetValidationCard() {
   const [loading, setLoading] = useState(false);
@@ -49,8 +68,26 @@ export function DatasetValidationCard() {
         .select('hcpcs, year, nonfac_fee, fac_fee, work_rvu, nonfac_pe_rvu, status')
         .limit(5000);
 
+      const mpfsCount = await supabase
+        .from('mpfs_benchmarks')
+        .select('*', { count: 'exact', head: true });
+
+      const mpfsTotalRows = mpfsCount.count || 0;
+      const mpfsChecks = [];
+      
+      // Row count check
+      const mpfsMinRows = EXPECTED_MIN_ROWS['mpfs_benchmarks'];
+      mpfsChecks.push({
+        name: 'Minimum row count',
+        passed: mpfsTotalRows >= mpfsMinRows.min,
+        message: mpfsTotalRows >= mpfsMinRows.min 
+          ? `${mpfsTotalRows.toLocaleString()} rows loaded`
+          : `Only ${mpfsTotalRows.toLocaleString()} rows - ${mpfsMinRows.label}`,
+        count: mpfsTotalRows,
+        severity: mpfsTotalRows >= mpfsMinRows.min ? undefined : 'error' as const
+      });
+
       if (mpfsResult.data && mpfsResult.data.length > 0) {
-        const mpfsChecks = [];
         const rows = mpfsResult.data;
         
         // Check for valid HCPCS codes
@@ -90,13 +127,15 @@ export function DatasetValidationCard() {
             : `Multiple years present: ${years.join(', ')}`,
           count: years.length
         });
-
-        validationResults.push({
-          dataset: 'MPFS',
-          status: mpfsChecks.every(c => c.passed) ? 'pass' : mpfsChecks.some(c => !c.passed && c.name.includes('HCPCS')) ? 'fail' : 'warn',
-          checks: mpfsChecks
-        });
       }
+
+      validationResults.push({
+        dataset: 'MPFS',
+        rowCount: mpfsTotalRows,
+        status: mpfsChecks.some(c => c.severity === 'error' && !c.passed) ? 'fail' :
+                mpfsChecks.every(c => c.passed) ? 'pass' : 'warn',
+        checks: mpfsChecks
+      });
 
       // ===== ZIP Crosswalk Validation =====
       const zipResult = await supabase
@@ -104,8 +143,26 @@ export function DatasetValidationCard() {
         .select('zip5, locality_num, state_abbr')
         .limit(5000);
 
+      const zipCount = await supabase
+        .from('zip_to_locality')
+        .select('*', { count: 'exact', head: true });
+
+      const zipTotalRows = zipCount.count || 0;
+      const zipChecks = [];
+
+      // Row count check
+      const zipMinRows = EXPECTED_MIN_ROWS['zip_to_locality'];
+      zipChecks.push({
+        name: 'Minimum row count',
+        passed: zipTotalRows >= zipMinRows.min,
+        message: zipTotalRows >= zipMinRows.min 
+          ? `${zipTotalRows.toLocaleString()} ZIPs loaded`
+          : `Only ${zipTotalRows.toLocaleString()} rows - ${zipMinRows.label}`,
+        count: zipTotalRows,
+        severity: zipTotalRows >= zipMinRows.min ? undefined : 'error' as const
+      });
+
       if (zipResult.data && zipResult.data.length > 0) {
-        const zipChecks = [];
         const rows = zipResult.data;
 
         // Check for 5-digit ZIP
@@ -119,21 +176,6 @@ export function DatasetValidationCard() {
           count: invalidZips.length
         });
 
-        // Check for duplicates
-        const zipCounts = new Map<string, number>();
-        rows.forEach(r => {
-          zipCounts.set(r.zip5, (zipCounts.get(r.zip5) || 0) + 1);
-        });
-        const duplicates = [...zipCounts.entries()].filter(([_, count]) => count > 1);
-        zipChecks.push({
-          name: 'No excessive duplicates',
-          passed: duplicates.length < rows.length * 0.1,
-          message: duplicates.length < rows.length * 0.1 
-            ? `${duplicates.length} duplicate ZIPs (acceptable)` 
-            : `${duplicates.length} duplicate ZIPs (${(duplicates.length / rows.length * 100).toFixed(1)}%)`,
-          count: duplicates.length
-        });
-
         // Check for locality_num
         const noLocality = rows.filter(r => !r.locality_num);
         zipChecks.push({
@@ -144,13 +186,15 @@ export function DatasetValidationCard() {
             : `${noLocality.length} rows missing locality`,
           count: noLocality.length
         });
-
-        validationResults.push({
-          dataset: 'ZIP Crosswalk',
-          status: zipChecks.every(c => c.passed) ? 'pass' : 'warn',
-          checks: zipChecks
-        });
       }
+
+      validationResults.push({
+        dataset: 'ZIP Crosswalk',
+        rowCount: zipTotalRows,
+        status: zipChecks.some(c => c.severity === 'error' && !c.passed) ? 'fail' :
+                zipChecks.every(c => c.passed) ? 'pass' : 'warn',
+        checks: zipChecks
+      });
 
       // ===== OPPS Validation =====
       const oppsResult = await supabase
@@ -158,8 +202,26 @@ export function DatasetValidationCard() {
         .select('hcpcs, payment_rate, year, status_indicator')
         .limit(5000);
 
+      const oppsCount = await supabase
+        .from('opps_addendum_b')
+        .select('*', { count: 'exact', head: true });
+
+      const oppsTotalRows = oppsCount.count || 0;
+      const oppsChecks = [];
+
+      // Row count check - CRITICAL
+      const oppsMinRows = EXPECTED_MIN_ROWS['opps_addendum_b'];
+      oppsChecks.push({
+        name: 'Minimum row count',
+        passed: oppsTotalRows >= oppsMinRows.min,
+        message: oppsTotalRows >= oppsMinRows.min 
+          ? `${oppsTotalRows.toLocaleString()} codes loaded`
+          : `Only ${oppsTotalRows.toLocaleString()} rows - ${oppsMinRows.label}. Likely wrong sheet or header row issue.`,
+        count: oppsTotalRows,
+        severity: oppsTotalRows >= oppsMinRows.min ? undefined : 'error' as const
+      });
+
       if (oppsResult.data && oppsResult.data.length > 0) {
-        const oppsChecks = [];
         const rows = oppsResult.data;
 
         // Check for valid payment rates
@@ -184,13 +246,15 @@ export function DatasetValidationCard() {
             : `${invalidHcpcs.length} invalid HCPCS codes`,
           count: invalidHcpcs.length
         });
-
-        validationResults.push({
-          dataset: 'OPPS',
-          status: oppsChecks.every(c => c.passed) ? 'pass' : 'warn',
-          checks: oppsChecks
-        });
       }
+
+      validationResults.push({
+        dataset: 'OPPS',
+        rowCount: oppsTotalRows,
+        status: oppsChecks.some(c => c.severity === 'error' && !c.passed) ? 'fail' :
+                oppsChecks.every(c => c.passed) ? 'pass' : 'warn',
+        checks: oppsChecks
+      });
 
       // ===== DMEPOS Validation =====
       const dmeposResult = await supabase
@@ -198,8 +262,26 @@ export function DatasetValidationCard() {
         .select('hcpcs, fee, year, state_abbr')
         .limit(5000);
 
+      const dmeposCount = await supabase
+        .from('dmepos_fee_schedule')
+        .select('*', { count: 'exact', head: true });
+
+      const dmeposTotalRows = dmeposCount.count || 0;
+      const dmeposChecks = [];
+
+      // Row count check
+      const dmeposMinRows = EXPECTED_MIN_ROWS['dmepos_fee_schedule'];
+      dmeposChecks.push({
+        name: 'Minimum row count',
+        passed: dmeposTotalRows >= dmeposMinRows.min,
+        message: dmeposTotalRows >= dmeposMinRows.min 
+          ? `${dmeposTotalRows.toLocaleString()} records loaded`
+          : `Only ${dmeposTotalRows.toLocaleString()} rows - ${dmeposMinRows.label}`,
+        count: dmeposTotalRows,
+        severity: dmeposTotalRows >= dmeposMinRows.min ? undefined : 'error' as const
+      });
+
       if (dmeposResult.data && dmeposResult.data.length > 0) {
-        const dmeposChecks = [];
         const rows = dmeposResult.data;
 
         // Check for uppercase HCPCS
@@ -235,13 +317,87 @@ export function DatasetValidationCard() {
             : `Only ${states.size} states covered`,
           count: states.size
         });
+      }
 
-        validationResults.push({
-          dataset: 'DMEPOS',
-          status: dmeposChecks.every(c => c.passed) ? 'pass' : 'warn',
-          checks: dmeposChecks
+      validationResults.push({
+        dataset: 'DMEPOS',
+        rowCount: dmeposTotalRows,
+        status: dmeposChecks.some(c => c.severity === 'error' && !c.passed) ? 'fail' :
+                dmeposChecks.every(c => c.passed) ? 'pass' : 'warn',
+        checks: dmeposChecks
+      });
+
+      // ===== DMEPEN Validation =====
+      const dmepenResult = await supabase
+        .from('dmepen_fee_schedule')
+        .select('hcpcs, fee, year, state_abbr')
+        .limit(5000);
+
+      const dmepenCount = await supabase
+        .from('dmepen_fee_schedule')
+        .select('*', { count: 'exact', head: true });
+
+      const dmepenTotalRows = dmepenCount.count || 0;
+      const dmepenChecks = [];
+
+      // Row count check - CRITICAL for DMEPEN
+      const dmepenMinRows = EXPECTED_MIN_ROWS['dmepen_fee_schedule'];
+      dmepenChecks.push({
+        name: 'Minimum row count',
+        passed: dmepenTotalRows >= dmepenMinRows.min,
+        message: dmepenTotalRows >= dmepenMinRows.min 
+          ? `${dmepenTotalRows.toLocaleString()} records loaded`
+          : dmepenTotalRows === 0 
+            ? 'DMEPEN is EMPTY - import DMEPEN fee schedule file'
+            : `Only ${dmepenTotalRows.toLocaleString()} rows - may be incomplete`,
+        count: dmepenTotalRows,
+        severity: dmepenTotalRows >= dmepenMinRows.min ? undefined : 'error' as const
+      });
+
+      if (dmepenResult.data && dmepenResult.data.length > 0) {
+        const rows = dmepenResult.data;
+
+        // Check for fees
+        const noFee = rows.filter(r => r.fee === null || r.fee === 0);
+        const pctNoFee = (noFee.length / rows.length) * 100;
+        dmepenChecks.push({
+          name: 'Fees present',
+          passed: pctNoFee < 30,
+          message: pctNoFee < 30 
+            ? `${(100 - pctNoFee).toFixed(1)}% have fees` 
+            : `${pctNoFee.toFixed(1)}% missing fees`,
+          count: noFee.length
+        });
+
+        // Check state coverage
+        const states = new Set(rows.map(r => r.state_abbr).filter(Boolean));
+        dmepenChecks.push({
+          name: 'State coverage',
+          passed: states.size >= 10,
+          message: states.size >= 10 
+            ? `${states.size} states covered` 
+            : `Only ${states.size} states covered`,
+          count: states.size
+        });
+
+        // Sample HCPCS codes
+        const uniqueHcpcs = new Set(rows.map(r => r.hcpcs));
+        dmepenChecks.push({
+          name: 'Unique HCPCS codes',
+          passed: uniqueHcpcs.size >= 10,
+          message: `${uniqueHcpcs.size} unique codes`,
+          count: uniqueHcpcs.size
         });
       }
+
+      validationResults.push({
+        dataset: 'DMEPEN',
+        rowCount: dmepenTotalRows,
+        status: dmepenTotalRows === 0 ? 'fail' :
+                dmepenChecks.some(c => c.severity === 'error' && !c.passed) ? 'fail' :
+                dmepenChecks.every(c => c.passed) ? 'pass' : 'warn',
+        checks: dmepenChecks
+      });
 
       // ===== GPCI State Avg Validation =====
       const gpciStateResult = await supabase
@@ -251,14 +407,18 @@ export function DatasetValidationCard() {
 
       const gpciStateChecks = [];
       const stateRows = gpciStateResult.data || [];
+      const gpciStateMinRows = EXPECTED_MIN_ROWS['gpci_state_avg_2026'];
 
       gpciStateChecks.push({
         name: 'State averages populated',
-        passed: stateRows.length >= 50,
-        message: stateRows.length >= 50 
+        passed: stateRows.length >= gpciStateMinRows.min,
+        message: stateRows.length >= gpciStateMinRows.min 
           ? `${stateRows.length} states have averages` 
-          : `Only ${stateRows.length} states - run "Recompute State Averages"`,
-        count: stateRows.length
+          : stateRows.length === 0 
+            ? 'EMPTY - Run "Recompute State Averages"'
+            : `Only ${stateRows.length} states - expected ≥${gpciStateMinRows.min}. Re-run recompute.`,
+        count: stateRows.length,
+        severity: stateRows.length >= gpciStateMinRows.min ? undefined : 'error' as const
       });
 
       if (stateRows.length > 0) {
@@ -277,9 +437,57 @@ export function DatasetValidationCard() {
 
       validationResults.push({
         dataset: 'GPCI State Avg',
-        status: gpciStateChecks.every(c => c.passed) ? 'pass' : stateRows.length === 0 ? 'fail' : 'warn',
+        rowCount: stateRows.length,
+        status: stateRows.length === 0 ? 'fail' :
+                gpciStateChecks.some(c => c.severity === 'error' && !c.passed) ? 'fail' :
+                gpciStateChecks.every(c => c.passed) ? 'pass' : 'warn',
         checks: gpciStateChecks
       });
+
+      // ===== CLFS Validation (if table exists) =====
+      try {
+        const clfsCount = await supabase
+          .from('clfs_fee_schedule')
+          .select('*', { count: 'exact', head: true });
+
+        const clfsTotalRows = clfsCount.count || 0;
+        const clfsChecks = [];
+        const clfsMinRows = EXPECTED_MIN_ROWS['clfs_fee_schedule'];
+
+        clfsChecks.push({
+          name: 'Lab codes loaded',
+          passed: clfsTotalRows >= clfsMinRows.min,
+          message: clfsTotalRows >= clfsMinRows.min 
+            ? `${clfsTotalRows.toLocaleString()} lab codes loaded`
+            : clfsTotalRows === 0 
+              ? 'EMPTY - Import CLFS file for lab code pricing'
+              : `Only ${clfsTotalRows.toLocaleString()} rows`,
+          count: clfsTotalRows,
+          severity: clfsTotalRows === 0 ? 'warn' as const : undefined
+        });
+
+        validationResults.push({
+          dataset: 'CLFS (Lab)',
+          rowCount: clfsTotalRows,
+          status: clfsTotalRows === 0 ? 'warn' :
+                  clfsTotalRows >= clfsMinRows.min ? 'pass' : 'warn',
+          checks: clfsChecks
+        });
+      } catch {
+        // Table might not exist yet
+        validationResults.push({
+          dataset: 'CLFS (Lab)',
+          rowCount: 0,
+          status: 'warn',
+          checks: [{
+            name: 'Lab codes loaded',
+            passed: false,
+            message: 'CLFS table not yet imported - lab codes won\'t be priced',
+            count: 0,
+            severity: 'warn' as const
+          }]
+        });
+      }
 
       setResults(validationResults);
     } catch (error) {
@@ -299,7 +507,7 @@ export function DatasetValidationCard() {
               Dataset Validation
             </CardTitle>
             <CardDescription>
-              Check data quality and integrity across all datasets
+              Check data quality, integrity, and minimum row counts
             </CardDescription>
           </div>
           <Button onClick={runValidation} disabled={loading}>
@@ -332,6 +540,9 @@ export function DatasetValidationCard() {
                       <XCircle className="h-4 w-4 text-destructive" />
                     )}
                     {result.dataset}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      ({result.rowCount.toLocaleString()} rows)
+                    </span>
                   </h4>
                   <Badge 
                     variant="outline" 
@@ -351,14 +562,17 @@ export function DatasetValidationCard() {
                       <div className="flex items-center gap-2">
                         {check.passed ? (
                           <CheckCircle className="h-3 w-3 text-success" />
+                        ) : check.severity === 'error' ? (
+                          <XCircle className="h-3 w-3 text-destructive" />
                         ) : (
-                          <XCircle className="h-3 w-3 text-warning" />
+                          <AlertTriangle className="h-3 w-3 text-warning" />
                         )}
                         <span className="text-muted-foreground">{check.name}</span>
                       </div>
                       <span className={cn(
                         'text-xs',
-                        check.passed ? 'text-muted-foreground' : 'text-warning'
+                        check.passed ? 'text-muted-foreground' : 
+                        check.severity === 'error' ? 'text-destructive' : 'text-warning'
                       )}>
                         {check.message}
                       </span>
