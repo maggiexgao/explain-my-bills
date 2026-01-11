@@ -14,6 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
+      analysis_gap_events: {
+        Row: {
+          bill_hash: string | null
+          created_at: string
+          extracted_code_count: number | null
+          geo_confidence: string | null
+          id: string
+          missing_code_count: number | null
+          priced_item_count: number | null
+          totals_confidence: string | null
+          totals_detected_type: string | null
+          used_state_fallback: boolean | null
+          zip_present: boolean | null
+        }
+        Insert: {
+          bill_hash?: string | null
+          created_at?: string
+          extracted_code_count?: number | null
+          geo_confidence?: string | null
+          id?: string
+          missing_code_count?: number | null
+          priced_item_count?: number | null
+          totals_confidence?: string | null
+          totals_detected_type?: string | null
+          used_state_fallback?: boolean | null
+          zip_present?: boolean | null
+        }
+        Update: {
+          bill_hash?: string | null
+          created_at?: string
+          extracted_code_count?: number | null
+          geo_confidence?: string | null
+          id?: string
+          missing_code_count?: number | null
+          priced_item_count?: number | null
+          totals_confidence?: string | null
+          totals_detected_type?: string | null
+          used_state_fallback?: boolean | null
+          zip_present?: boolean | null
+        }
+        Relationships: []
+      }
+      analysis_missing_codes: {
+        Row: {
+          code: string
+          code_system_guess: string | null
+          context_type: string
+          count: number | null
+          first_seen_at: string
+          last_seen_at: string
+        }
+        Insert: {
+          code: string
+          code_system_guess?: string | null
+          context_type?: string
+          count?: number | null
+          first_seen_at?: string
+          last_seen_at?: string
+        }
+        Update: {
+          code?: string
+          code_system_guess?: string | null
+          context_type?: string
+          count?: number | null
+          first_seen_at?: string
+          last_seen_at?: string
+        }
+        Relationships: []
+      }
+      analysis_totals_failures: {
+        Row: {
+          count: number | null
+          doc_type: string
+          failure_reason: string
+          first_seen_at: string
+          last_seen_at: string
+        }
+        Insert: {
+          count?: number | null
+          doc_type: string
+          failure_reason: string
+          first_seen_at?: string
+          last_seen_at?: string
+        }
+        Update: {
+          count?: number | null
+          doc_type?: string
+          failure_reason?: string
+          first_seen_at?: string
+          last_seen_at?: string
+        }
+        Relationships: []
+      }
+      code_metadata: {
+        Row: {
+          code: string
+          code_system: string
+          last_updated_at: string
+          long_desc: string | null
+          short_desc: string | null
+          source: string
+          source_year: number | null
+        }
+        Insert: {
+          code: string
+          code_system?: string
+          last_updated_at?: string
+          long_desc?: string | null
+          short_desc?: string | null
+          source?: string
+          source_year?: number | null
+        }
+        Update: {
+          code?: string
+          code_system?: string
+          last_updated_at?: string
+          long_desc?: string | null
+          short_desc?: string | null
+          source?: string
+          source_year?: number | null
+        }
+        Relationships: []
+      }
       dmepen_fee_schedule: {
         Row: {
           category: string | null
