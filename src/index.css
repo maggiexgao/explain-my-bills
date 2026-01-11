@@ -201,7 +201,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    overflow: hidden;
+    /* overflow: hidden removed - was blocking page scroll */
   }
 
   h1, h2, h3, h4, h5, h6 {
