@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.recompute-gpci-state-avg]
 verify_jwt = false
+
+[functions.admin-metrics]
+verify_jwt = false

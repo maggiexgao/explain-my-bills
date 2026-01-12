@@ -17,6 +17,7 @@ import { StructuredTotals, ComparisonTotalSelection, selectComparisonTotal } fro
 // ============= Types =============
 
 export type ReadinessStatus = 'ready' | 'limited_data' | 'not_possible';
+export type ComparisonScope = 'matched_only' | 'charges_partial' | 'none';
 
 export type NumeratorType = 'matched_billed_total' | 'document_total_charges' | 'none';
 export type DenominatorType = 'medicare_reference_matched_total' | 'none';
@@ -49,6 +50,12 @@ export interface ReadinessResult {
   status: ReadinessStatus;
   reasons: string[];
   comparisonModel: ComparisonModel;
+  
+  // Enhanced fields for UI clarity
+  canShowMultiple: boolean;
+  reasonCodes: string[];
+  comparisonScope: ComparisonScope;
+  usedTotals: 'matched_billed' | 'doc_total' | 'none';
 }
 
 // ============= Constants =============
@@ -100,7 +107,11 @@ export function computeComparisonReadiness(
       scopeWarnings: [reason],
       comparisonBasis: 'none',
       explanation: reason
-    }
+    },
+    canShowMultiple: false,
+    reasonCodes: ['NOT_POSSIBLE'],
+    comparisonScope: 'none',
+    usedTotals: 'none'
   });
   
   // No benchmark output at all
@@ -154,7 +165,11 @@ export function computeComparisonReadiness(
         scopeWarnings,
         comparisonBasis: 'matched_items',
         explanation: `Comparing billed charges ($${matched.matchedBilledTotal.toLocaleString()}) to Medicare reference ($${matched.matchedMedicareTotal.toLocaleString()}) for ${coverage.pricedItems} matched line items.`
-      }
+      },
+      canShowMultiple: true,
+      reasonCodes: ['MATCHED_ITEMS_VALID'],
+      comparisonScope: 'matched_only',
+      usedTotals: 'matched_billed'
     };
   }
   
@@ -200,7 +215,11 @@ export function computeComparisonReadiness(
           scopeWarnings,
           comparisonBasis: 'document_total',
           explanation: `Comparing document total charges ($${docTotal.toLocaleString()}) to Medicare reference ($${medicareTotal.toLocaleString()}). ${structuredTotals.totalCharges.confidence} confidence.`
-        }
+        },
+        canShowMultiple: true,
+        reasonCodes: ['DOC_TOTAL_HIGH_COVERAGE'],
+        comparisonScope: 'charges_partial',
+        usedTotals: 'doc_total'
       };
     }
   }
@@ -232,7 +251,11 @@ export function computeComparisonReadiness(
         scopeWarnings,
         comparisonBasis: 'none',
         explanation: `Found "${patientTotal.label}" ($${patientTotal.value.toLocaleString()}), which is your remaining balance after insurance. This cannot be compared to Medicare reference prices.`
-      }
+      },
+      canShowMultiple: false,
+      reasonCodes: ['PATIENT_BALANCE_ONLY'],
+      comparisonScope: 'none',
+      usedTotals: 'none'
     };
   }
   
@@ -262,7 +285,11 @@ export function computeComparisonReadiness(
           scopeWarnings,
           comparisonBasis: 'none',
           explanation: 'No billed amounts could be extracted from this document. Medicare reference prices are shown for informational purposes.'
-        }
+        },
+        canShowMultiple: false,
+        reasonCodes: ['NO_BILLED_AMOUNTS'],
+        comparisonScope: 'none',
+        usedTotals: 'none'
       };
     }
     
@@ -293,7 +320,11 @@ export function computeComparisonReadiness(
         scopeWarnings,
         comparisonBasis: 'none',
         explanation: `Low coverage (${Math.round(coverage.coveragePercent * 100)}%) - comparison would not be representative.`
-      }
+      },
+      canShowMultiple: false,
+      reasonCodes: ['LOW_COVERAGE'],
+      comparisonScope: 'none',
+      usedTotals: 'none'
     };
   }
   
