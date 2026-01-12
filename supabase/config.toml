@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.admin-metrics]
 verify_jwt = false
+
+[functions.lookup-code-info]
+verify_jwt = false

@@ -67,6 +67,7 @@ import { DebugCalculationPanel, DebugCalculationData } from './DebugCalculationP
 import { reconcileTotals, TotalsReconciliation } from '@/lib/totalsExtractor';
 import { computeComparisonReadiness, formatReadinessForUI, ReadinessResult } from '@/lib/comparisonReadinessGate';
 import { normalizeAndDeriveTotals, StructuredTotals } from '@/lib/totals/normalizeTotals';
+import { UnmatchedCodesCard } from './UnmatchedCodesCard';
 
 // ============= Props =============
 
@@ -977,51 +978,13 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
 
 /**
  * Section for codes that do NOT exist in any Medicare dataset
+ * Now uses UnmatchedCodesCard with external description lookup
  */
 function CodesMissingSection({ codes }: { codes: string[] }) {
   if (codes.length === 0) return null;
   
-  return (
-    <div className="p-4 rounded-lg bg-muted/20 border border-border/30">
-      <div className="flex items-start gap-3">
-        <FileQuestion className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-foreground mb-1">
-            Codes not found in our current Medicare datasets
-          </p>
-          <p className="text-sm text-muted-foreground mb-2">
-            We couldn't find these codes in our Medicare datasets (MPFS, OPPS, or DMEPOS). 
-            They may be newer codes, clinical lab codes (CLFS), or services covered under other schedules.
-          </p>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {codes.slice(0, 8).map(code => (
-              <Badge key={code} variant="outline" className="text-xs">
-                {code}
-              </Badge>
-            ))}
-            {codes.length > 8 && (
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                +{codes.length - 8} more
-              </Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mb-2">
-            <strong>Note:</strong> Some specialized services may be billed under other fee schedules 
-            (Clinical Lab Fee Schedule, ASC Fee Schedule, etc.) that we don't currently cover.
-          </p>
-          <a 
-            href="https://www.cms.gov/medicare/payment/fee-schedules/physician"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-          >
-            Look up on CMS.gov
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      </div>
-    </div>
-  );
+  // Use the new UnmatchedCodesCard which fetches descriptions from NLM
+  return <UnmatchedCodesCard unmatchedCodes={codes} />;
 }
 
 function EducationalFooter() {
@@ -1115,51 +1078,43 @@ function NoMatchesEmptyState({
     .slice(0, 8)
     .map(c => c.hcpcs);
   
+  const allUnmatchedCodes = output.debug.normalizedCodes
+    .filter(c => isValidBillableCode(c))
+    .map(c => c.hcpcs);
+  
   return (
-    <div className="p-6 rounded-xl bg-muted/20 border border-border/30">
-      <div className="flex items-start gap-4">
-        <div className="p-3 rounded-xl bg-warning/10">
-          <Search className="h-6 w-6 text-warning" />
-        </div>
-        <div>
-          <p className="text-base font-medium text-foreground mb-2">
-            Codes detected, but no Medicare matches found
-          </p>
-          <p className="text-sm text-muted-foreground mb-3">
-            CPT/HCPCS codes were detected, but we couldn't find Medicare reference pricing 
-            for them in our current dataset.
-          </p>
-          
-          <div className="mb-4">
-            <p className="text-sm text-muted-foreground mb-2">
-              <strong>Codes found:</strong>
+    <div className="space-y-4">
+      <div className="p-6 rounded-xl bg-muted/20 border border-border/30">
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-xl bg-warning/10">
+            <Search className="h-6 w-6 text-warning" />
+          </div>
+          <div>
+            <p className="text-base font-medium text-foreground mb-2">
+              Codes detected, but no Medicare matches found
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {sampleCodes.map(code => (
-                <Badge key={code} variant="outline" className="text-xs">
-                  {code}
-                </Badge>
-              ))}
-              {output.debug.normalizedCodes.length > 8 && (
-                <Badge variant="outline" className="text-xs text-muted-foreground">
-                  +{output.debug.normalizedCodes.length - 8} more
-                </Badge>
-              )}
+            <p className="text-sm text-muted-foreground mb-3">
+              CPT/HCPCS codes were detected, but we couldn't find Medicare reference pricing 
+              for them in our current dataset.
+            </p>
+            
+            <div className="text-sm text-muted-foreground space-y-1 mb-4">
+              <p><strong>Year requested:</strong> {output.metadata.requestedYears.join(', ') || 'Unknown'}</p>
+              <p><strong>Year searched:</strong> {output.metadata.benchmarkYearUsed}</p>
             </div>
+            
+            <p className="text-sm text-muted-foreground">
+              <strong>Possible reasons:</strong> These may be newer codes, DME codes, 
+              private payer codes (S-codes), or services outside the Medicare Physician Fee Schedule.
+            </p>
           </div>
-          
-          <div className="text-sm text-muted-foreground space-y-1 mb-4">
-            <p><strong>Year requested:</strong> {output.metadata.requestedYears.join(', ') || 'Unknown'}</p>
-            <p><strong>Year searched:</strong> {output.metadata.benchmarkYearUsed}</p>
-          </div>
-          
-          <p className="text-sm text-muted-foreground">
-            <strong>Possible reasons:</strong> These may be newer codes, DME codes, 
-            or services outside the Medicare Physician Fee Schedule. You can still 
-            use other sections of this analysis to understand your bill.
-          </p>
         </div>
       </div>
+      
+      {/* Show unmatched codes with descriptions fetched from NLM */}
+      {allUnmatchedCodes.length > 0 && (
+        <UnmatchedCodesCard unmatchedCodes={allUnmatchedCodes} />
+      )}
     </div>
   );
 }
