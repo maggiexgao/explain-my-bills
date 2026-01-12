@@ -659,15 +659,13 @@ export function reconcileTotals(analysisData: any, documentContent?: string): To
     ? {
         value: structuredSelection.value,
         type:
-          structuredSelection.type === "allowedAmount"
-            ? "allowed"
-            : structuredSelection.type === "totalCharges"
-              ? "charges"
-              : structuredSelection.type === "patientResponsibility"
+          structuredSelection.type === "totalCharges"
+            ? "charges"
+            : structuredSelection.type === "patientResponsibility"
+              ? "patient_responsibility"
+              : structuredSelection.type === "amountDue"
                 ? "patient_responsibility"
-                : structuredSelection.type === "amountDue"
-                  ? "patient_responsibility"
-                  : "charges",
+                : "charges", // matchedLineItemsOnly defaults to charges
         confidence: structuredSelection.confidence,
         explanation: structuredSelection.explanation,
         limitedComparability: structuredSelection.limitedComparability,
