@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { ImportCard } from '@/components/admin/ImportCard';
 import { SelfTestCard } from '@/components/admin/SelfTestCard';
 import { CoverageMetricsCard } from '@/components/admin/CoverageMetricsCard';
@@ -8,56 +7,19 @@ import { CoverageGapsPanel } from '@/components/admin/CoverageGapsPanel';
 import { DataGapsDiagnosticsCard } from '@/components/admin/DataGapsDiagnosticsCard';
 import { StrategyAuditCard } from '@/components/admin/StrategyAuditCard';
 import { DatasetValidationCard } from '@/components/admin/DatasetValidationCard';
+import { AdminGateDebug } from '@/components/admin/AdminGateDebug';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { isAdmin, getAuthToken, checkAdminWithFeedback } from '@/lib/isAdmin';
+import { useAdminGate } from '@/hooks/useAdminGate';
+import { getAuthToken } from '@/lib/isAdmin';
 
 export default function AdminDataImport() {
-  const navigate = useNavigate();
+  const adminGate = useAdminGate();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [recomputingGpci, setRecomputingGpci] = useState(false);
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const [authChecking, setAuthChecking] = useState(true);
-  const [authMessage, setAuthMessage] = useState<string>('');
-  const [authSuggestion, setAuthSuggestion] = useState<string>('');
-
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuth();
-    
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        setIsAuthorized(false);
-        setAuthMessage('You must be signed in to access this page.');
-      } else {
-        // Re-check admin status on auth change
-        checkAuth();
-      }
-    });
-    
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkAuth = async () => {
-    setAuthChecking(true);
-    try {
-      const result = await checkAdminWithFeedback();
-      setIsAuthorized(result.isAuthorized);
-      setAuthMessage(result.reason);
-      setAuthSuggestion(result.suggestion || '');
-    } catch (error) {
-      console.error('Auth check error:', error);
-      setIsAuthorized(false);
-      setAuthMessage('Failed to verify admin access.');
-    } finally {
-      setAuthChecking(false);
-    }
-  };
 
   const handleImportComplete = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -100,7 +62,7 @@ export default function AdminDataImport() {
   };
 
   // Show loading state while checking auth
-  if (authChecking) {
+  if (adminGate.loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -112,35 +74,40 @@ export default function AdminDataImport() {
   }
 
   // Show unauthorized message with detailed feedback
-  if (!isAuthorized) {
+  if (!adminGate.isAdmin) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md mx-4">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-              <ShieldAlert className="h-6 w-6 text-destructive" />
-            </div>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>
-              {authMessage || 'You must be signed in with an admin account to access this page.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {authSuggestion && (
-              <p className="text-sm text-muted-foreground text-center bg-muted/50 p-3 rounded-lg">
-                💡 {authSuggestion}
-              </p>
-            )}
-            <div className="text-center">
-              <Link to="/">
-                <Button variant="outline" className="gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  Return to Home
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-4">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+                <ShieldAlert className="h-6 w-6 text-destructive" />
+              </div>
+              <CardTitle>Access Denied</CardTitle>
+              <CardDescription>
+                {adminGate.reason || 'You must be signed in with an admin account to access this page.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {adminGate.suggestion && (
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
+                  💡 {adminGate.suggestion}
+                </div>
+              )}
+              <div className="text-center">
+                <Link to="/">
+                  <Button variant="outline" className="gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Return to Home
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Debug panel - shows in dev or with ?debug=1 */}
+          <AdminGateDebug gate={adminGate} />
+        </div>
       </div>
     );
   }
@@ -152,6 +119,9 @@ export default function AdminDataImport() {
       
       {/* Main Content - Scrollable container */}
       <div className="mx-auto max-w-3xl space-y-6 p-4 pb-32">
+          {/* Admin Gate Debug - shows in dev or with ?debug=1 */}
+          <AdminGateDebug gate={adminGate} />
+          
           <div className="text-center pt-4">
             <h1 className="text-3xl font-bold">Medicare Data Import</h1>
             <p className="mt-2 text-muted-foreground">
