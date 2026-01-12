@@ -344,6 +344,36 @@ export type Database = {
         }
         Relationships: []
       }
+      hcpcs_code_info_cache: {
+        Row: {
+          code: string
+          data_version: string | null
+          description: string | null
+          raw: Json | null
+          retrieved_at: string
+          short_description: string | null
+          source: string
+        }
+        Insert: {
+          code: string
+          data_version?: string | null
+          description?: string | null
+          raw?: Json | null
+          retrieved_at?: string
+          short_description?: string | null
+          source?: string
+        }
+        Update: {
+          code?: string
+          data_version?: string | null
+          description?: string | null
+          raw?: Json | null
+          retrieved_at?: string
+          short_description?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
       mpfs_benchmarks: {
         Row: {
           conversion_factor: number | null
