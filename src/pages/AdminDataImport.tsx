@@ -14,6 +14,7 @@ import { ArrowLeft, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { isAdmin, getAuthToken, checkAdminWithFeedback } from '@/lib/isAdmin';
 
 export default function AdminDataImport() {
   const navigate = useNavigate();
@@ -21,6 +22,8 @@ export default function AdminDataImport() {
   const [recomputingGpci, setRecomputingGpci] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const [authMessage, setAuthMessage] = useState<string>('');
+  const [authSuggestion, setAuthSuggestion] = useState<string>('');
 
   // Check authentication on mount
   useEffect(() => {
@@ -30,6 +33,10 @@ export default function AdminDataImport() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setIsAuthorized(false);
+        setAuthMessage('You must be signed in to access this page.');
+      } else {
+        // Re-check admin status on auth change
+        checkAuth();
       }
     });
     
@@ -37,45 +44,19 @@ export default function AdminDataImport() {
   }, []);
 
   const checkAuth = async () => {
+    setAuthChecking(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        setIsAuthorized(false);
-        setAuthChecking(false);
-        return;
-      }
-
-      // Check if user has admin role
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', session.user.id)
-        .eq('role', 'admin')
-        .maybeSingle();
-
-      if (roleError) {
-        // Table might not exist - allow authenticated user for initial setup
-        console.warn('Role check failed, allowing authenticated user:', roleError.message);
-        setIsAuthorized(true);
-      } else if (!roleData) {
-        // No admin role found
-        setIsAuthorized(false);
-      } else {
-        setIsAuthorized(true);
-      }
+      const result = await checkAdminWithFeedback();
+      setIsAuthorized(result.isAuthorized);
+      setAuthMessage(result.reason);
+      setAuthSuggestion(result.suggestion || '');
     } catch (error) {
       console.error('Auth check error:', error);
       setIsAuthorized(false);
+      setAuthMessage('Failed to verify admin access.');
     } finally {
       setAuthChecking(false);
     }
-  };
-
-  // Get auth token for edge function calls
-  const getAuthToken = async (): Promise<string | null> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
   };
 
   const handleImportComplete = () => {
@@ -130,7 +111,7 @@ export default function AdminDataImport() {
     );
   }
 
-  // Show unauthorized message
+  // Show unauthorized message with detailed feedback
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -141,16 +122,23 @@ export default function AdminDataImport() {
             </div>
             <CardTitle>Access Denied</CardTitle>
             <CardDescription>
-              You must be signed in with an admin account to access this page.
+              {authMessage || 'You must be signed in with an admin account to access this page.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-center">
-            <Link to="/">
-              <Button variant="outline" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Return to Home
-              </Button>
-            </Link>
+          <CardContent className="space-y-4">
+            {authSuggestion && (
+              <p className="text-sm text-muted-foreground text-center bg-muted/50 p-3 rounded-lg">
+                💡 {authSuggestion}
+              </p>
+            )}
+            <div className="text-center">
+              <Link to="/">
+                <Button variant="outline" className="gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Return to Home
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
