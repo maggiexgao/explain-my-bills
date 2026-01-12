@@ -176,6 +176,18 @@ export function DatasetValidationCard() {
           count: invalidZips.length
         });
 
+        // NEW: Check for leading zeros (ZIPs starting with 0 should be preserved)
+        const leadingZeroZips = rows.filter(r => r.zip5 && r.zip5.startsWith('0'));
+        zipChecks.push({
+          name: 'Leading zeros preserved',
+          passed: leadingZeroZips.length > 0,
+          message: leadingZeroZips.length > 0
+            ? `${leadingZeroZips.length} ZIPs with leading zeros present (e.g., ${leadingZeroZips[0]?.zip5})`
+            : 'No leading-zero ZIPs found - check import normalization',
+          count: leadingZeroZips.length,
+          severity: leadingZeroZips.length === 0 ? 'warn' as const : undefined
+        });
+
         // Check for locality_num
         const noLocality = rows.filter(r => !r.locality_num);
         zipChecks.push({
