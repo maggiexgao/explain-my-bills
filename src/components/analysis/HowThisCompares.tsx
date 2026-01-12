@@ -795,55 +795,81 @@ function SummaryCard({ output, totalsReconciliation, readinessResult }: {
       
       {/* Stats Grid - Use matched-items comparison when valid, skip if patient balance only */}
       {!isPatientBalanceComparison && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
-            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+        <div className="space-y-4 mb-6">
+          {/* NEW: Clear "What We Compared" explanation */}
+          <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
+            <div className="flex items-center gap-2 mb-2">
+              <Info className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">What We Compared</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
               {output.matchedItemsComparison.isValidComparison 
-                ? `Matched Charges (${output.matchedItemsComparison.matchedItemsCount}/${output.matchedItemsComparison.totalItemsCount})`
-                : comparisonTotalLabel
+                ? `We compared the billed amounts for ${output.matchedItemsComparison.matchedItemsCount} items that we could match to Medicare pricing (${output.matchedItemsComparison.coveragePercent}% of detected items). This ensures an apples-to-apples comparison.`
+                : output.totals.billedTotal && output.totals.billedTotal > 0
+                  ? `Total charges detected (${formatCurrency(output.totals.billedTotal)}) include items we couldn't match to Medicare pricing, so the multiple may not be fully accurate.`
+                  : 'We couldn\'t detect enough billed amounts to compute a meaningful comparison.'
               }
             </p>
-            <p className="text-2xl font-bold text-foreground">
-              {output.matchedItemsComparison.isValidComparison 
-                ? formatCurrency(output.matchedItemsComparison.matchedBilledTotal!)
-                : (output.totals.billedTotal ? formatCurrency(output.totals.billedTotal) : '—')
-              }
-            </p>
-            {output.matchedItemsComparison.coveragePercent !== null && output.matchedItemsComparison.coveragePercent < 100 && (
+          </div>
+          
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+                {output.matchedItemsComparison.isValidComparison 
+                  ? `Matched Charges`
+                  : comparisonTotalLabel
+                }
+              </p>
+              <p className="text-2xl font-bold text-foreground">
+                {output.matchedItemsComparison.isValidComparison 
+                  ? formatCurrency(output.matchedItemsComparison.matchedBilledTotal!)
+                  : (output.totals.billedTotal ? formatCurrency(output.totals.billedTotal) : '—')
+                }
+              </p>
+              {output.matchedItemsComparison.isValidComparison && (
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {output.matchedItemsComparison.matchedItemsCount}/{output.matchedItemsComparison.totalItemsCount} items
+                </p>
+              )}
+            </div>
+            <div className="text-center p-4 rounded-xl bg-primary/5 border border-primary/20">
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+                Medicare Reference
+              </p>
+              <p className="text-2xl font-bold text-primary">
+                {output.matchedItemsComparison.matchedMedicareTotal 
+                  ? formatCurrency(output.matchedItemsComparison.matchedMedicareTotal)
+                  : (output.totals.medicareReferenceTotal ? formatCurrency(output.totals.medicareReferenceTotal) : 'N/A')
+                }
+              </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {output.matchedItemsComparison.coveragePercent}% of items matched
+                {output.metadata.benchmarkYearUsed} rates
               </p>
-            )}
-          </div>
-          <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
-            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-              Medicare Reference ({output.metadata.benchmarkYearUsed})
-            </p>
-            <p className="text-2xl font-bold text-foreground">
-              {output.matchedItemsComparison.matchedMedicareTotal 
-                ? formatCurrency(output.matchedItemsComparison.matchedMedicareTotal)
-                : (output.totals.medicareReferenceTotal ? formatCurrency(output.totals.medicareReferenceTotal) : 'N/A')
-              }
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              For matched items only
-            </p>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
-            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-              {output.matchedItemsComparison.isValidComparison ? 'Matched Items Multiple' : 'Multiple'}
-            </p>
-            <p className={cn('text-2xl font-bold', config.color)}>
-              {output.matchedItemsComparison.isValidComparison && output.matchedItemsComparison.matchedItemsMultiple
-                ? `${output.matchedItemsComparison.matchedItemsMultiple}×`
-                : (output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A')
-              }
-            </p>
-            {!output.matchedItemsComparison.isValidComparison && output.totals.multipleOfMedicare && (
-              <p className="text-[10px] text-warning mt-1">
-                ⚠ May include unmatched items
+            </div>
+            <div className={cn(
+              'text-center p-4 rounded-xl border',
+              output.matchedItemsComparison.isValidComparison 
+                ? 'bg-background/60 border-border/30' 
+                : 'bg-warning/5 border-warning/20'
+            )}>
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+                {output.matchedItemsComparison.isValidComparison ? 'Multiple' : 'Estimated'}
               </p>
-            )}
+              <p className={cn(
+                'text-2xl font-bold',
+                output.matchedItemsComparison.isValidComparison ? config.color : 'text-warning'
+              )}>
+                {output.matchedItemsComparison.isValidComparison && output.matchedItemsComparison.matchedItemsMultiple
+                  ? `${output.matchedItemsComparison.matchedItemsMultiple}×`
+                  : (output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A')
+                }
+              </p>
+              {!output.matchedItemsComparison.isValidComparison && output.totals.multipleOfMedicare && (
+                <p className="text-[10px] text-warning mt-1">
+                  ⚠ Scope mismatch
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}

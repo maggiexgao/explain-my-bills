@@ -276,37 +276,80 @@ interface DmeposRow {
   year: number;
 }
 
+/**
+ * DMEPOS lookup with cascading fallbacks:
+ * 1. Exact: (hcpcs, modifier, state_abbr)
+ * 2. (hcpcs, modifier, null state) - national
+ * 3. (hcpcs, null modifier, state_abbr)
+ * 4. (hcpcs, null modifier, null state) - national no modifier
+ * 
+ * This ensures we find a price even if state-specific pricing isn't available.
+ */
 async function lookupDmepos(
   hcpcs: string, 
   modifier: string | null, 
   year: number,
   stateAbbr: string | null
-): Promise<{ row: DmeposRow | null; modifierLogic: string }> {
+): Promise<{ row: DmeposRow | null; modifierLogic: string; fallbackType: string }> {
   const normalizedCode = hcpcs.trim().toUpperCase();
   const normalizedMod = modifier ? modifier.trim().toUpperCase() : null;
+  const normalizedState = stateAbbr ? stateAbbr.toUpperCase() : null;
   
-  let query = supabase
+  // Fallback 1: Exact match (hcpcs, modifier, state)
+  if (normalizedMod && normalizedState) {
+    const { data } = await supabase
+      .from('dmepos_fee_schedule')
+      .select('*')
+      .eq('hcpcs', normalizedCode)
+      .eq('year', year)
+      .eq('modifier', normalizedMod)
+      .eq('state_abbr', normalizedState)
+      .limit(1)
+      .maybeSingle();
+    if (data) return { row: data as DmeposRow, modifierLogic: 'exact_match', fallbackType: 'exact_state_modifier' };
+  }
+  
+  // Fallback 2: (hcpcs, modifier, null state) - national with modifier
+  if (normalizedMod) {
+    const { data } = await supabase
+      .from('dmepos_fee_schedule')
+      .select('*')
+      .eq('hcpcs', normalizedCode)
+      .eq('year', year)
+      .eq('modifier', normalizedMod)
+      .or('state_abbr.is.null,state_abbr.eq.')
+      .limit(1)
+      .maybeSingle();
+    if (data) return { row: data as DmeposRow, modifierLogic: 'exact_modifier', fallbackType: 'national_with_modifier' };
+  }
+  
+  // Fallback 3: (hcpcs, null modifier, state_abbr) - state without modifier
+  if (normalizedState) {
+    const { data } = await supabase
+      .from('dmepos_fee_schedule')
+      .select('*')
+      .eq('hcpcs', normalizedCode)
+      .eq('year', year)
+      .eq('state_abbr', normalizedState)
+      .or('modifier.is.null,modifier.eq.')
+      .limit(1)
+      .maybeSingle();
+    if (data) return { row: data as DmeposRow, modifierLogic: 'no_modifier_fallback', fallbackType: 'state_no_modifier' };
+  }
+  
+  // Fallback 4: (hcpcs, null modifier, null state) - national no modifier
+  const { data: nationalNoMod } = await supabase
     .from('dmepos_fee_schedule')
     .select('*')
     .eq('hcpcs', normalizedCode)
-    .eq('year', year);
+    .eq('year', year)
+    .or('modifier.is.null,modifier.eq.')
+    .or('state_abbr.is.null,state_abbr.eq.')
+    .limit(1)
+    .maybeSingle();
+  if (nationalNoMod) return { row: nationalNoMod as DmeposRow, modifierLogic: 'no_modifier_fallback', fallbackType: 'national_no_modifier' };
   
-  // If state is provided, filter by state
-  if (stateAbbr) {
-    query = query.eq('state_abbr', stateAbbr.toUpperCase());
-  }
-  
-  // Try exact modifier match first
-  if (normalizedMod) {
-    const { data } = await query.eq('modifier', normalizedMod).limit(1).maybeSingle();
-    if (data) return { row: data as DmeposRow, modifierLogic: 'exact_match' };
-  }
-  
-  // Try no-modifier row
-  const { data: noModData } = await query.or('modifier.is.null,modifier.eq.').limit(1).maybeSingle();
-  if (noModData) return { row: noModData as DmeposRow, modifierLogic: 'no_modifier_fallback' };
-  
-  // Get any available row for this code
+  // Fallback 5: Any available row for this code (last resort)
   const { data: anyData } = await supabase
     .from('dmepos_fee_schedule')
     .select('*')
@@ -315,9 +358,9 @@ async function lookupDmepos(
     .limit(1)
     .maybeSingle();
   
-  if (anyData) return { row: anyData as DmeposRow, modifierLogic: 'first_available' };
+  if (anyData) return { row: anyData as DmeposRow, modifierLogic: 'first_available', fallbackType: 'first_available' };
   
-  return { row: null, modifierLogic: 'not_found' };
+  return { row: null, modifierLogic: 'not_found', fallbackType: 'not_found' };
 }
 
 async function lookupDmepen(

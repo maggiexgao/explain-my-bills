@@ -33,6 +33,14 @@ import { TotalsReconciliation, TotalCandidate } from '@/lib/totalsExtractor';
 
 // ============= Types =============
 
+export interface CalculationChainStep {
+  step: number;
+  label: string;
+  status: 'success' | 'warning' | 'error' | 'info';
+  value?: string;
+  details?: string;
+}
+
 export interface DebugCalculationData {
   // Location resolution
   geoDebug?: GeoDebugInfo;
@@ -58,6 +66,9 @@ export interface DebugCalculationData {
   
   // Medicare calculation
   benchmarkOutput?: MedicareBenchmarkOutput;
+  
+  // Calculation chain (NEW - compact summary)
+  calculationChain?: CalculationChainStep[];
 }
 
 interface DebugCalculationPanelProps {
@@ -625,6 +636,148 @@ function MedicareCalculationSection({ output }: { output?: MedicareBenchmarkOutp
   );
 }
 
+// ============= Calculation Chain Section (NEW) =============
+
+function CalculationChainSection({ data }: { data: DebugCalculationData }) {
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  
+  // Build calculation chain from available data
+  const chain: CalculationChainStep[] = [];
+  
+  // Step 1: Geo resolution
+  if (data.geoDebug) {
+    chain.push({
+      step: 1,
+      label: 'Location',
+      status: data.geoDebug.confidence === 'high' ? 'success' : 
+              data.geoDebug.confidence === 'medium' ? 'warning' : 'info',
+      value: data.geoDebug.localityName || data.geoDebug.stateInput || 'National',
+      details: `Method: ${data.geoDebug.method}`
+    });
+  }
+  
+  // Step 2: Codes detected
+  chain.push({
+    step: 2,
+    label: 'Codes',
+    status: data.validCodes.length > 0 ? 'success' : 'error',
+    value: `${data.validCodes.length} valid`,
+    details: data.rejectedTokens.length > 0 ? `${data.rejectedTokens.length} rejected` : undefined
+  });
+  
+  // Step 3: Billed amount
+  chain.push({
+    step: 3,
+    label: 'Billed',
+    status: data.comparisonTotalValue && data.comparisonTotalValue > 0 ? 'success' : 'warning',
+    value: data.comparisonTotalValue ? formatCurrency(data.comparisonTotalValue) : 'Not detected',
+    details: data.comparisonTotalType || undefined
+  });
+  
+  // Step 4: Medicare sources
+  if (data.benchmarkOutput) {
+    const sources = new Set<string>();
+    data.benchmarkOutput.lineItems.forEach(item => {
+      if (item.matchStatus === 'matched') {
+        if (item.feeSource === 'rvu_calc_local') sources.add('MPFS+GPCI');
+        else if (item.feeSource === 'rvu_calc_national') sources.add('MPFS');
+        else if (item.feeSource === 'direct_fee') sources.add('Direct');
+      }
+    });
+    
+    chain.push({
+      step: 4,
+      label: 'Sources',
+      status: sources.size > 0 ? 'success' : 'warning',
+      value: sources.size > 0 ? Array.from(sources).join(', ') : 'None',
+      details: `${data.benchmarkOutput.debug.codesMatched.length} priced`
+    });
+  }
+  
+  // Step 5: Coverage & multiple
+  if (data.benchmarkOutput?.matchedItemsComparison) {
+    const mc = data.benchmarkOutput.matchedItemsComparison;
+    const coveragePct = mc.coveragePercent || 0;
+    
+    chain.push({
+      step: 5,
+      label: 'Coverage',
+      status: coveragePct >= 80 ? 'success' : coveragePct >= 50 ? 'warning' : 'error',
+      value: `${coveragePct}%`,
+      details: `${mc.matchedItemsCount}/${mc.totalItemsCount} items`
+    });
+    
+    if (mc.isValidComparison && mc.matchedItemsMultiple !== null) {
+      chain.push({
+        step: 6,
+        label: 'Multiple',
+        status: mc.matchedItemsMultiple <= 2 ? 'success' : 
+                mc.matchedItemsMultiple <= 3 ? 'warning' : 'error',
+        value: `${mc.matchedItemsMultiple.toFixed(2)}×`,
+        details: mc.matchedBilledTotal && mc.matchedMedicareTotal 
+          ? `${formatCurrency(mc.matchedBilledTotal)} ÷ ${formatCurrency(mc.matchedMedicareTotal)}`
+          : undefined
+      });
+    }
+  }
+  
+  const statusIcons = {
+    success: <CheckCircle className="h-3 w-3 text-success" />,
+    warning: <AlertTriangle className="h-3 w-3 text-warning" />,
+    error: <AlertCircle className="h-3 w-3 text-destructive" />,
+    info: <HelpCircle className="h-3 w-3 text-muted-foreground" />
+  };
+  
+  return (
+    <div className="p-4 space-y-3">
+      {/* Compact chain visualization */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {chain.map((step, i) => (
+          <div key={step.step} className="flex items-center gap-1">
+            <div className={cn(
+              'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs',
+              step.status === 'success' && 'bg-success/10 text-success',
+              step.status === 'warning' && 'bg-warning/10 text-warning',
+              step.status === 'error' && 'bg-destructive/10 text-destructive',
+              step.status === 'info' && 'bg-muted text-muted-foreground'
+            )}>
+              {statusIcons[step.status]}
+              <span className="font-medium">{step.label}:</span>
+              <span>{step.value}</span>
+            </div>
+            {i < chain.length - 1 && (
+              <span className="text-muted-foreground">→</span>
+            )}
+          </div>
+        ))}
+      </div>
+      
+      {/* Final equation if valid */}
+      {data.benchmarkOutput?.matchedItemsComparison?.isValidComparison && (
+        <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <div className="text-xs font-medium text-primary mb-1">Final Calculation:</div>
+          <code className="text-xs text-foreground">
+            Multiple = Matched Billed ({formatCurrency(data.benchmarkOutput.matchedItemsComparison.matchedBilledTotal!)}) 
+            ÷ Medicare Reference ({formatCurrency(data.benchmarkOutput.matchedItemsComparison.matchedMedicareTotal!)}) 
+            = <span className="font-bold text-primary">{data.benchmarkOutput.matchedItemsComparison.matchedItemsMultiple?.toFixed(2)}×</span>
+          </code>
+        </div>
+      )}
+      
+      {/* Warnings if not valid */}
+      {data.benchmarkOutput?.matchedItemsComparison && !data.benchmarkOutput.matchedItemsComparison.isValidComparison && (
+        <div className="p-3 rounded-lg bg-warning/5 border border-warning/20">
+          <div className="text-xs text-warning flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            {data.benchmarkOutput.matchedItemsComparison.scopeWarning || 'Multiple calculation not available due to scope mismatch'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============= Main Component =============
 
 export function DebugCalculationPanel({ data }: DebugCalculationPanelProps) {
@@ -677,6 +830,11 @@ export function DebugCalculationPanel({ data }: DebugCalculationPanelProps) {
         <p className="text-xs text-muted-foreground mt-1">
           Step-by-step breakdown of the Medicare benchmark calculation
         </p>
+      </div>
+      
+      {/* NEW: Compact Calculation Chain Summary */}
+      <div className="border-b border-border/30">
+        <CalculationChainSection data={data} />
       </div>
       
       <div className="divide-y divide-border/30">
