@@ -5,13 +5,14 @@
  * 1. Parsing/cleaning currency values from AI output
  * 2. Validating totals (rejecting invalid 0s, negative values, etc.)
  * 3. Deriving totals from line items when not extracted
- * 4. Guardrails: never output $0 unless explicitly stated with high confidence
- * 5. Guardrails: never let "Amount Due / Balance Due" be treated as totalCharges
- * 6. Units-aware line-item summation
+ * 4. Prefer AI "lineItemsSum" when present (it often captures charge-column sums better than per-line extraction)
+ * 5. Never outputting $0 unless explicitly stated with high confidence
  */
 
+// ============= Types =============
+
 export type TotalsConfidence = "high" | "medium" | "low";
-export type TotalsSource = "ai" | "derived_line_items" | "user_input" | "document_label" | "normalized_guardrail";
+export type TotalsSource = "ai" | "derived_line_items" | "user_input" | "document_label";
 
 export interface DetectedTotal {
   value: number;
@@ -27,7 +28,13 @@ export interface StructuredTotals {
   patientResponsibility?: DetectedTotal | null;
   amountDue?: DetectedTotal | null;
   insurancePaid?: DetectedTotal | null;
+
+  /**
+   * Sum of billed amounts across extracted line items (best-effort).
+   * This is NOT always the full bill, but can be.
+   */
   lineItemsSum?: number | null;
+
   notes: string[];
 }
 
@@ -53,7 +60,6 @@ export function parseCurrencyValue(value: unknown): number | null {
   let isNegative = false;
   let cleaned = str;
 
-  // Parentheses negative: (123.45)
   if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
     isNegative = true;
     cleaned = cleaned.slice(1, -1);
@@ -71,116 +77,34 @@ export function parseCurrencyValue(value: unknown): number | null {
   return isNegative ? -num : num;
 }
 
-// ============= Label Guardrails =============
-
-const CHARGES_LABEL_HINTS = [
-  "total charges",
-  "total billed",
-  "gross charges",
-  "charges",
-  "amount billed",
-  "total amount billed",
-  "statement total",
-  "hospital charges",
-];
-
-const AMOUNT_DUE_LABEL_HINTS = [
-  "amount due",
-  "balance due",
-  "current balance",
-  "you owe",
-  "payment due",
-  "pay this amount",
-  "your balance",
-];
-
-const INSURANCE_PAID_LABEL_HINTS = [
-  "insurance paid",
-  "plan paid",
-  "paid by insurance",
-  "paid by plan",
-  "insurance payment",
-  "plan payment",
-];
-
-function normalizeLabel(s: unknown): string {
-  return String(s || "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function labelLooksLikeCharges(label: string): boolean {
-  const l = normalizeLabel(label);
-  return CHARGES_LABEL_HINTS.some((h) => l.includes(h));
-}
-
-function labelLooksLikeAmountDue(label: string): boolean {
-  const l = normalizeLabel(label);
-  return AMOUNT_DUE_LABEL_HINTS.some((h) => l.includes(h));
-}
-
-function labelLooksLikeInsurancePaid(label: string): boolean {
-  const l = normalizeLabel(label);
-  return INSURANCE_PAID_LABEL_HINTS.some((h) => l.includes(h));
-}
-
 // ============= Validation =============
 
 export function validateDetectedTotal(
   total: DetectedTotal | null | undefined,
-  opts?: {
-    allowNegative?: boolean;
-    fieldName?: string;
-    // If true, enforce that this field’s label MUST resemble charges labels.
-    requireChargesLikeLabel?: boolean;
-    // If true, explicitly reject "amount due" style labels for this field.
-    rejectAmountDueLikeLabel?: boolean;
-  },
+  allowNegative: boolean = false,
+  fieldName: string = "total",
 ): { valid: DetectedTotal | null; notes: string[] } {
   const notes: string[] = [];
-  const fieldName = opts?.fieldName || "total";
-  const allowNegative = !!opts?.allowNegative;
-
   if (!total) return { valid: null, notes };
 
   const value = total.value;
-  const label = normalizeLabel(total.label);
-  const evidence = String(total.evidence || "");
-
-  // Guardrail: block wrong-label totals (critical for totalCharges)
-  if (opts?.requireChargesLikeLabel && total.label) {
-    if (!labelLooksLikeCharges(label)) {
-      notes.push(
-        `${fieldName}: Rejected because label "${total.label}" does not look like a charges/total-billed label`,
-      );
-      return { valid: null, notes };
-    }
-  }
-
-  if (opts?.rejectAmountDueLikeLabel && total.label) {
-    if (labelLooksLikeAmountDue(label)) {
-      notes.push(`${fieldName}: Rejected because label "${total.label}" looks like an amount due/balance label`);
-      return { valid: null, notes };
-    }
-  }
 
   // Reject 0 unless explicitly stated with high confidence
   if (value === 0) {
-    const evidenceHasZero = /\$0\b|0\.00\b|\bzero\b/i.test(evidence);
+    const evidenceHasZero = total.evidence?.match(/\$0\b|0\.00\b|\bzero\b/i);
     if (total.confidence !== "high" || !evidenceHasZero) {
       notes.push(`${fieldName}: Rejected $0 (not explicitly stated with high confidence)`);
       return { valid: null, notes };
     }
   }
 
-  // Reject negative values unless allowed
+  // Reject negative unless allowed
   if (value < 0 && !allowNegative) {
     notes.push(`${fieldName}: Rejected negative value $${value.toFixed(2)}`);
     return { valid: null, notes };
   }
 
-  // Reject suspiciously tiny values unless high confidence
+  // Reject tiny values unless high confidence
   if (value > 0 && value < 1) {
     if (total.confidence !== "high") {
       notes.push(`${fieldName}: Rejected tiny value $${value.toFixed(2)} (confidence not high)`);
@@ -212,19 +136,16 @@ export function normalizeExtractedTotals(raw: unknown): StructuredTotals {
       const value = parseCurrencyValue(obj.value);
       if (value === null) return null;
 
-      const label = String(obj.label || defaultLabel);
-      const evidence = String(obj.evidence || "");
-
       return {
         value,
         confidence: (obj.confidence as TotalsConfidence) || "medium",
-        evidence,
-        label,
+        evidence: String(obj.evidence || ""),
+        label: String(obj.label || defaultLabel),
         source,
       };
     }
 
-    // Old flat format: number/string
+    // Old flat format
     if (typeof field === "number" || typeof field === "string") {
       const value = parseCurrencyValue(field);
       if (value === null) return null;
@@ -241,113 +162,68 @@ export function normalizeExtractedTotals(raw: unknown): StructuredTotals {
     return null;
   };
 
-  // ---- totalCharges (STRICT) ----
-  const tcRaw = parseTotal(data.totalCharges, "Total Charges");
-
-  // Guardrail: totalCharges cannot be "Amount Due"/"Balance Due"
-  // If the AI accidentally put a balance under totalCharges, we reject it.
-  const { valid: totalCharges, notes: tcNotes } = validateDetectedTotal(tcRaw, {
-    allowNegative: false,
-    fieldName: "totalCharges",
-    requireChargesLikeLabel: true, // MUST look like charges label
-    rejectAmountDueLikeLabel: true, // and MUST NOT look like amount due label
-  });
-  result.totalCharges = totalCharges;
-  result.notes.push(...tcNotes);
-
-  // ---- payments/adjustments (allow negative) ----
-  const paRaw = parseTotal(data.totalPaymentsAndAdjustments, "Payments/Adjustments");
-  const { valid: totalPaymentsAndAdjustments, notes: paNotes } = validateDetectedTotal(paRaw, {
-    allowNegative: true,
-    fieldName: "totalPaymentsAndAdjustments",
-  });
-  result.totalPaymentsAndAdjustments = totalPaymentsAndAdjustments;
-  result.notes.push(...paNotes);
-
-  // ---- patient responsibility ----
-  const prRaw = parseTotal(data.patientResponsibility, "Patient Responsibility");
-  const { valid: patientResponsibility, notes: prNotes } = validateDetectedTotal(prRaw, {
-    allowNegative: false,
-    fieldName: "patientResponsibility",
-  });
-  result.patientResponsibility = patientResponsibility;
-  result.notes.push(...prNotes);
-
-  // ---- amount due ----
-  const adRaw = parseTotal(data.amountDue, "Amount Due");
-  const { valid: amountDue, notes: adNotes } = validateDetectedTotal(adRaw, {
-    allowNegative: false,
-    fieldName: "amountDue",
-  });
-  result.amountDue = amountDue;
-  result.notes.push(...adNotes);
-
-  // ---- insurance paid (NOT allowed) ----
-  const ipRaw = parseTotal(data.insurancePaid, "Insurance Paid");
-  // Still validate, but do not allow negative (payments shown as positive on most docs)
-  const { valid: insurancePaid, notes: ipNotes } = validateDetectedTotal(ipRaw, {
-    allowNegative: false,
-    fieldName: "insurancePaid",
-  });
-  result.insurancePaid = insurancePaid;
-  result.notes.push(...ipNotes);
-
-  // ---- lineItemsSum ----
+  // Parse AI-provided lineItemsSum first (very important fallback)
   const lis = parseCurrencyValue(data.lineItemsSum);
   result.lineItemsSum = lis && lis > 0 ? lis : null;
 
-  // AI notes
+  // Totals
+  const tcRaw = parseTotal(data.totalCharges, "Total Charges");
+  const { valid: totalCharges, notes: tcNotes } = validateDetectedTotal(tcRaw, false, "totalCharges");
+  result.totalCharges = totalCharges;
+  result.notes.push(...tcNotes);
+
+  const paRaw = parseTotal(data.totalPaymentsAndAdjustments, "Payments/Adjustments");
+  const { valid: totalPaymentsAndAdjustments, notes: paNotes } = validateDetectedTotal(
+    paRaw,
+    true,
+    "totalPaymentsAndAdjustments",
+  );
+  result.totalPaymentsAndAdjustments = totalPaymentsAndAdjustments;
+  result.notes.push(...paNotes);
+
+  const prRaw = parseTotal(data.patientResponsibility, "Patient Responsibility");
+  const { valid: patientResponsibility, notes: prNotes } = validateDetectedTotal(prRaw, false, "patientResponsibility");
+  result.patientResponsibility = patientResponsibility;
+  result.notes.push(...prNotes);
+
+  const adRaw = parseTotal(data.amountDue, "Amount Due");
+  const { valid: amountDue, notes: adNotes } = validateDetectedTotal(adRaw, false, "amountDue");
+  result.amountDue = amountDue;
+  result.notes.push(...adNotes);
+
+  const ipRaw = parseTotal(data.insurancePaid, "Insurance Paid");
+  const { valid: insurancePaid, notes: ipNotes } = validateDetectedTotal(ipRaw, false, "insurancePaid");
+  result.insurancePaid = insurancePaid;
+  result.notes.push(...ipNotes);
+
+  // Include any notes from AI
   if (Array.isArray(data.notes)) {
     result.notes.push(...data.notes.filter((n): n is string => typeof n === "string"));
   }
 
-  // Additional sanity notes
-  if (result.totalCharges && labelLooksLikeAmountDue(result.totalCharges.label)) {
-    // Should be impossible due to guardrail, but keep defensive note
-    result.notes.push(`Guardrail: totalCharges label resembled amount due. totalCharges may be unreliable.`);
-  }
-  if (result.insurancePaid && labelLooksLikeCharges(result.insurancePaid.label)) {
-    result.notes.push(`Note: insurancePaid label resembled charges. Verify extraction.`);
+  /**
+   * CRITICAL FALLBACK:
+   * If the AI computed lineItemsSum and we do NOT have a reliable labeled totalCharges,
+   * use lineItemsSum as derived totalCharges.
+   *
+   * This prevents the system from mistakenly using "Amount Due" (e.g., $118) as "Total Charges".
+   */
+  if (result.lineItemsSum && result.lineItemsSum > 0) {
+    const shouldPromoteLineItemsSum = !result.totalCharges || result.totalCharges.confidence === "low";
+
+    if (shouldPromoteLineItemsSum) {
+      result.totalCharges = {
+        value: result.lineItemsSum,
+        confidence: "medium",
+        evidence: "Derived from extractedTotals.lineItemsSum (sum of charge-column line items)",
+        label: "Sum of line-item charges",
+        source: "derived_line_items",
+      };
+      result.notes.push(`Promoted lineItemsSum ($${result.lineItemsSum.toFixed(2)}) to totalCharges fallback.`);
+    }
   }
 
   return result;
-}
-
-// ============= Line Item Summation (UNITS-AWARE) =============
-
-function safeUnits(u: unknown): number {
-  if (typeof u !== "number") return 1;
-  if (!isFinite(u) || u <= 0) return 1;
-  return u;
-}
-
-export function computeLineItemsSum(lineItems: LineItemForTotals[]): {
-  sum: number | null;
-  counted: number;
-  notes: string[];
-} {
-  const notes: string[] = [];
-
-  const itemsWithBilled = lineItems.filter((item) => {
-    const amt = item.billedAmount;
-    return amt !== null && amt !== undefined && typeof amt === "number" && isFinite(amt) && amt > 0;
-  });
-
-  if (itemsWithBilled.length < 1) {
-    return { sum: null, counted: 0, notes };
-  }
-
-  const sum = itemsWithBilled.reduce((acc, item) => {
-    const units = safeUnits(item.units);
-    return acc + (item.billedAmount || 0) * units;
-  }, 0);
-
-  const anyUnitsNotOne = itemsWithBilled.some((i) => safeUnits(i.units) !== 1);
-  if (anyUnitsNotOne) {
-    notes.push(`Line-items sum is units-aware (amount × units).`);
-  }
-
-  return { sum, counted: itemsWithBilled.length, notes };
 }
 
 // ============= Derivation from Line Items =============
@@ -356,95 +232,44 @@ export function deriveTotalsFromLineItems(
   lineItems: LineItemForTotals[],
   existingTotals: StructuredTotals,
 ): StructuredTotals {
-  const result: StructuredTotals = {
-    ...existingTotals,
-    notes: [...(existingTotals.notes || [])],
-  };
+  const result: StructuredTotals = { ...existingTotals, notes: [...existingTotals.notes] };
 
-  // If we have high-confidence totalCharges from the doc, don't override
-  if (existingTotals.totalCharges?.confidence === "high") {
-    // Still compute lineItemsSum for debugging + mismatch notes later
-    const computed = computeLineItemsSum(lineItems);
-    if (computed.sum !== null) {
-      result.lineItemsSum = computed.sum;
-      result.notes.push(...computed.notes);
+  // Don't overwrite a high-confidence labeled totalCharges
+  if (existingTotals.totalCharges?.confidence === "high") return result;
+
+  const itemsWithBilled = lineItems.filter((item) => {
+    const amt = item.billedAmount;
+    return amt !== null && amt !== undefined && amt > 0;
+  });
+
+  // Need at least 2 items to derive
+  if (itemsWithBilled.length < 2) {
+    if (itemsWithBilled.length === 1 && !existingTotals.totalCharges) {
+      result.notes.push("Only 1 line item with billed amount - not enough to derive totals");
     }
     return result;
   }
 
-  const computed = computeLineItemsSum(lineItems);
-  if (computed.sum === null) {
-    if (!existingTotals.totalCharges && lineItems.length > 0) {
-      result.notes.push("No usable billed amounts found in line items to compute a sum.");
-    }
-    return result;
-  }
+  const sum = itemsWithBilled.reduce((acc, item) => acc + (item.billedAmount || 0), 0);
 
-  result.lineItemsSum = computed.sum;
-  result.notes.push(...computed.notes);
+  // Update lineItemsSum
+  result.lineItemsSum = sum;
 
-  // Need at least 2 line items to derive a totalCharges candidate
-  if (computed.counted < 2) {
-    if (!existingTotals.totalCharges) {
-      result.notes.push("Only 1 line item with a billed amount — not enough to derive total charges.");
-    }
-    return result;
-  }
-
-  // Only derive if missing or low confidence
+  // Only derive if we don't have totalCharges OR it's low confidence
   if (!existingTotals.totalCharges || existingTotals.totalCharges.confidence === "low") {
-    const confidence: TotalsConfidence = computed.counted >= 3 ? "medium" : "low";
+    const confidence: TotalsConfidence = itemsWithBilled.length >= 3 ? "medium" : "low";
 
     result.totalCharges = {
-      value: computed.sum,
+      value: sum,
       confidence,
-      evidence: `Derived by summing ${computed.counted} line items (units-aware)`,
+      evidence: `Derived by summing ${itemsWithBilled.length} extracted line items`,
       label: "Sum of line-item charges",
       source: "derived_line_items",
     };
 
     result.notes.push(
-      `Derived totalCharges ($${computed.sum.toFixed(2)}) from ${computed.counted} line items (confidence: ${confidence}).`,
+      `Derived totalCharges ($${sum.toFixed(2)}) from ${itemsWithBilled.length} extracted line items (confidence: ${confidence}).`,
     );
-  }
-
-  return result;
-}
-
-// ============= Cross-check Notes (Totals vs Line Items) =============
-
-function pctDiff(a: number, b: number): number {
-  if (a === 0 || b === 0) return 1;
-  return Math.abs(a - b) / Math.max(a, b);
-}
-
-function addMismatchNotes(totals: StructuredTotals): StructuredTotals {
-  const result: StructuredTotals = { ...totals, notes: [...(totals.notes || [])] };
-
-  const lineSum = totals.lineItemsSum ?? null;
-  const tc = totals.totalCharges?.value ?? null;
-
-  if (lineSum && tc) {
-    const diff = pctDiff(lineSum, tc);
-    if (diff <= 0.03) {
-      result.notes.push(`Line-item sum matches Total Charges within ~3%.`);
-    } else {
-      result.notes.push(
-        `Line-item sum ($${lineSum.toFixed(2)}) does not match Total Charges ($${tc.toFixed(
-          2,
-        )}). Difference ~${(diff * 100).toFixed(1)}%.`,
-      );
-      result.notes.push(
-        `Possible reasons: missing lines in the image, page cut off, separate professional/facility bills, or the bill shows partial charges.`,
-      );
-
-      // If AI said high but mismatch is large, downgrade in notes (we won’t mutate confidence silently)
-      if (totals.totalCharges?.confidence === "high" && diff > 0.08) {
-        result.notes.push(
-          `Note: Total Charges was marked high confidence, but mismatch is large. Consider treating it as less reliable.`,
-        );
-      }
-    }
   }
 
   return result;
@@ -453,15 +278,14 @@ function addMismatchNotes(totals: StructuredTotals): StructuredTotals {
 // ============= Full Normalization Pipeline =============
 
 export function normalizeAndDeriveTotals(aiExtractedTotals: unknown, lineItems: LineItemForTotals[]): StructuredTotals {
+  // Step 1: Normalize AI-extracted totals
   let totals = normalizeExtractedTotals(aiExtractedTotals);
 
-  // Always compute/refresh lineItemsSum from the actual line items we have
+  // Step 2: Derive from extracted line items if needed
   totals = deriveTotalsFromLineItems(lineItems, totals);
 
-  // Cross-check and add mismatch notes (if both exist)
-  totals = addMismatchNotes(totals);
-
-  const finalNotes: string[] = [...(totals.notes || [])];
+  // Step 3: Final sanity notes
+  const finalNotes: string[] = [...totals.notes];
 
   const hasAnyTotal = !!(
     totals.totalCharges ||
@@ -471,7 +295,7 @@ export function normalizeAndDeriveTotals(aiExtractedTotals: unknown, lineItems: 
   );
 
   if (!hasAnyTotal && lineItems.length > 0) {
-    finalNotes.push("Warning: No valid totals extracted or derived from document.");
+    finalNotes.push("Warning: No valid totals extracted or derived from document");
   }
 
   return { ...totals, notes: finalNotes };
@@ -479,7 +303,7 @@ export function normalizeAndDeriveTotals(aiExtractedTotals: unknown, lineItems: 
 
 // ============= Comparison Total Selection =============
 
-export type ComparisonTotalType = "totalCharges" | "matchedLineItemsOnly" | "patientResponsibility" | "amountDue";
+export type ComparisonTotalType = "totalCharges" | "patientResponsibility" | "amountDue" | "matchedLineItemsOnly";
 
 export interface ComparisonTotalSelection {
   type: ComparisonTotalType;
@@ -492,73 +316,58 @@ export interface ComparisonTotalSelection {
 }
 
 /**
- * Select the best total for benchmark comparison.
+ * Select the best total for pricing benchmark comparison.
  *
  * Priority:
- * 1) totalCharges (best: full pre-insurance charges)
- * 2) matchedLineItemsOnly (if we can price only some items)
- * 3) patientResponsibility / amountDue (limited: post-insurance / may include older balance)
- *
- * IMPORTANT:
- * - insurancePaid is NEVER used as a comparison total.
+ * 1. totalCharges (pre-insurance, best for comparison)
+ * 2. matchedLineItemsOnly (if no total charges but we have priced items)
+ * 3. patientResponsibility / amountDue (limited comparability - post insurance)
  */
 export function selectComparisonTotal(
   totals: StructuredTotals,
   matchedBilledTotal?: number,
   matchedItemsCount?: number,
 ): ComparisonTotalSelection | null {
-  const scopeWarnings: string[] = [];
-
-  // 1) Total Charges
+  // Priority 1: Total Charges
   if (totals.totalCharges && totals.totalCharges.value > 0) {
-    // Add warning if it differs from lineItemsSum significantly
-    if (totals.lineItemsSum && pctDiff(totals.lineItemsSum, totals.totalCharges.value) > 0.08) {
-      scopeWarnings.push(
-        "The line-item sum does not closely match the document’s Total Charges. Some lines may be missing or the bill may be incomplete.",
-      );
-    }
-
     return {
       type: "totalCharges",
       value: totals.totalCharges.value,
       label: totals.totalCharges.label,
       confidence: totals.totalCharges.confidence,
-      explanation: `Using "${totals.totalCharges.label}" as the total to compare.`,
+      explanation: `Using "${totals.totalCharges.label}" as the sticker price (the provider’s total charges before insurance).`,
       limitedComparability: false,
-      scopeWarnings,
+      scopeWarnings: [],
     };
   }
 
-  // 2) Matched line items only
+  // Priority 2: Matched/ priced line items only
   if (matchedBilledTotal && matchedBilledTotal > 0 && matchedItemsCount && matchedItemsCount > 0) {
+    const confidence: TotalsConfidence = matchedItemsCount >= 3 ? "medium" : "low";
     return {
       type: "matchedLineItemsOnly",
       value: matchedBilledTotal,
-      label: `Matched line items (${matchedItemsCount} priced)`,
-      confidence: matchedItemsCount >= 3 ? "medium" : "low",
-      explanation: `Using the sum of the line items we could price (${matchedItemsCount} items).`,
+      label: `Priced line items only (${matchedItemsCount})`,
+      confidence,
+      explanation: `Using the sum of ${matchedItemsCount} line items that could be priced (not necessarily the full bill).`,
       limitedComparability: false,
-      scopeWarnings: ["This total includes only the items we could match and price, not the full bill total."],
+      scopeWarnings: ["Comparison is based only on the line items we could price, not the full bill."],
     };
   }
 
-  // 3) Patient totals (limited)
+  // Priority 3: Patient balance (limited)
   const patientTotal = totals.patientResponsibility || totals.amountDue;
   if (patientTotal && patientTotal.value > 0) {
-    const label =
-      patientTotal.label || (patientTotal === totals.patientResponsibility ? "Patient Responsibility" : "Amount Due");
-
     return {
       type: patientTotal === totals.patientResponsibility ? "patientResponsibility" : "amountDue",
       value: patientTotal.value,
-      label,
+      label: patientTotal.label,
       confidence: patientTotal.confidence,
-      explanation: `Only a balance/amount-you-owe number was found ("${label}"). This is what you may owe after insurance, not the full charges.`,
+      explanation: `Only an amount-you-may-owe number was detected ("${patientTotal.label}"). This is what you may owe after insurance, not the total charges.`,
       limitedComparability: true,
       scopeWarnings: [
-        "A balance/amount-due number was found instead of total charges.",
-        "Balances can include insurance adjustments, partial billing, or older amounts.",
-        "A benchmark comparison may be less direct for this type of total.",
+        "Only a balance due / amount owed was detected.",
+        "This is not the full price of services, so pricing comparisons may be misleading.",
       ],
     };
   }
