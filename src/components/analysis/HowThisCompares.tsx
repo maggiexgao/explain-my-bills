@@ -1525,6 +1525,52 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
       {/* Line Item Details */}
       <div>
         <div className="flex items-center justify-between mb-3">
+          {/* Check if codes were inferred - add RIGHT BEFORE Service-by-Service Breakdown */}
+          {(() => {
+            // Check if codes were inferred vs directly extracted
+            const hasInferredCodes = output?.lineItems?.some((item) =>
+              item.notes?.some(
+                (note) =>
+                  note.toLowerCase().includes("inferred") ||
+                  note.toLowerCase().includes("reverse search") ||
+                  note.toLowerCase().includes("estimated"),
+              ),
+            );
+
+            // Check if descriptions are generic
+            const hasGenericDescriptions = output?.lineItems?.some((item) => {
+              const desc = item.description?.toLowerCase() || "";
+              return (
+                desc.includes("pharmacy") ||
+                desc.includes("supplies") ||
+                desc.includes("emergency room") ||
+                desc.includes("emergency dept") ||
+                desc.includes("laboratory") ||
+                desc.includes("radiology") ||
+                desc === "services"
+              );
+            });
+
+            const showReverseSearchWarning = hasInferredCodes || hasGenericDescriptions;
+
+            return showReverseSearchWarning ? (
+              <Alert className="mb-4 border-yellow-200 bg-yellow-50">
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertTitle className="text-yellow-900 font-semibold">Approximate Medicare Comparison</AlertTitle>
+                <AlertDescription className="text-yellow-800 text-sm">
+                  Some service descriptions on this bill are generic (like "Pharmacy", "Supplies", "Emergency Room").
+                  We've matched them to the closest comparable Medicare codes, but these may not be exact matches. The
+                  actual services provided could have different Medicare rates depending on the specific procedures
+                  performed.
+                </AlertDescription>
+              </Alert>
+            ) : null;
+          })()}
+
+          {/* NOW the Service-by-Service Breakdown heading */}
+          <h4 className="text-sm font-semibold text-foreground">
+            Service-by-Service Breakdown ({output.lineItems.length} items)
+          </h4>
           <h4 className="text-sm font-semibold text-foreground">
             Service-by-Service Breakdown ({output.lineItems.length} items)
           </h4>
