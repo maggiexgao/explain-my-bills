@@ -499,10 +499,10 @@ serve(async (req) => {
       mimeType = "image/png";
     }
 
-    console.log("[analyze-document] Calling Gemini API...");
+    console.log("[analyze-document] Calling Lovable AI gateway...");
 
-    // Call OpenRouter API with Gemini model
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    // Call Lovable AI gateway
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
