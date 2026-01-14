@@ -44,7 +44,7 @@ export function AtAGlanceSection({ atAGlance }: AtAGlanceSectionProps) {
         <div className="flex-1 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-foreground mb-1">
+              <h2 className="text-base font-semibold text-foreground mb-1">
                 {atAGlance.visitSummary}
               </h2>
               <div className="flex flex-wrap gap-3 text-sm">
