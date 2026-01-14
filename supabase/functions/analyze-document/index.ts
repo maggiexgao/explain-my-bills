@@ -209,24 +209,123 @@ If any of these checks fail, STOP and re-read the document to find the missing i
 
 ### STEP 1A — IDENTIFY COLUMN TYPES (CRITICAL FOR LINE ITEMS)
 
-Before extracting line item amounts, you MUST identify what each column represents:
+⚠️ CRITICAL: Before extracting line item amounts, you MUST identify what each column represents.
+
+**HOW TO IDENTIFY COLUMNS:**
+
+Look at the table header row. Common header patterns:
 
 **CHARGES COLUMNS (original billed amounts):**
-- Headers like: "Charges", "Billed", "Amount", "Gross Charges", "Total"
-- These are the original prices BEFORE insurance
+Headers: "Charges", "Billed", "Amount", "Total", "Gross Charges", "Price", "Extended Price"
+→ These are the original prices BEFORE insurance
+→ Extract as **amount** field
 
 **BALANCE COLUMNS (what patient owes now):**
-- Headers like: "Balance", "You Owe", "Patient Resp", "Amount Due", "Your Responsibility"
-- These are AFTER insurance has been applied
+Headers: "Balance", "You Owe", "Patient Resp", "Amount Due", "Your Responsibility"
+→ These are AFTER insurance has been applied
+→ Do NOT use these as amount field
 
 **INSURANCE COLUMNS:**
-- Headers like: "Insurance Paid", "Allowed", "Covered", "Plan Paid", "Adjustment"
+Headers: "Insurance Paid", "Allowed", "Covered", "Plan Paid", "Adjustment"
+→ These show insurance activity
+→ Do NOT use these as amount field
 
-**EXTRACTION RULES:**
-- If column is labeled "Charges" / "Billed" / "Amount" → extract as **amount** (charge amount)
-- If column is labeled "Balance" / "You Owe" → extract as **patientAmount** (NOT as amount)
-- If you only see balance columns (no charges column) → set amount to null, extract balances separately
-- Note in extractedTotals.notes if only balance amounts are visible
+### EXTRACTION PROCESS:
+
+**STEP 1: Locate the table**
+Find the section with line items (usually has multiple rows with services/codes)
+
+**STEP 2: Read the header row**
+Example header: `Service | Quantity | Unit Price | Amount`
+→ Identify that "Amount" is the charges column
+
+**STEP 3: For EACH data row, extract values that align with the headers**
+
+Example table:
+```
+#  | Service                  | Quantity | Unit Price  | Amount
+1  | Pharmacy                 | 1        | $53,458.65  | $53,458.65
+2  | Special care unit        | 1        | $3,908.00   | $3,908.00
+3  | Supplies                 | 1        | $3,798.00   | $3,798.00
+4  | Emergency Room           | 1        | $7,849.00   | $7,849.00
+```
+
+**CORRECT EXTRACTION:**
+```json
+"charges": [
+  {
+    "description": "Pharmacy",
+    "amount": 53458.65,
+    "amountConfidence": "high",
+    "amountEvidence": "$53,458.65 in Amount column",
+    "units": 1,
+    "code": null
+  },
+  {
+    "description": "Special care unit",
+    "amount": 3908.00,
+    "amountConfidence": "high",
+    "amountEvidence": "$3,908.00 in Amount column",
+    "units": 1,
+    "code": null
+  },
+  {
+    "description": "Supplies",
+    "amount": 3798.00,
+    "amountConfidence": "high",
+    "amountEvidence": "$3,798.00 in Amount column",
+    "units": 1,
+    "code": null
+  }
+]
+```
+
+### SPECIAL CASES:
+
+**Case 1: "Unit Price" vs "Amount" columns**
+If table has BOTH columns, use "Amount" (the total, not unit price)
+
+**Case 2: Multiple dollar amounts per row**
+```
+Service: Pharmacy | $53,458.65 | $53,458.65
+```
+Use the LAST amount in the row (usually the total)
+
+**Case 3: Amounts without clear column headers**
+Look for patterns:
+- Dollar signs ($) before numbers
+- Numbers with 2 decimal places (.00)
+- Numbers aligned in a column on the right side
+
+**Case 4: Table spans multiple pages**
+Extract line items from ALL pages, not just the first page
+
+### CRITICAL VALIDATION:
+
+Before returning your JSON, check:
+
+✅ Does EVERY item in charges[] have an amount?
+   - If NO: Go back and re-extract amounts using row alignment
+
+✅ Do the amounts make sense? (positive numbers, 2 decimals)
+   - If NO: You may have extracted the wrong column
+
+✅ Does extractedTotals.lineItemsSum equal the sum of all amounts?
+   - Calculate: amount[0] + amount[1] + amount[2] + ...
+   - This should match or be close to the "Sub Total" on the bill
+
+### COMMON MISTAKES TO AVOID:
+
+❌ Extracting service description but leaving amount null
+❌ Only extracting amounts from the first 2-3 rows
+❌ Using "Balance Due" instead of "Charges" column
+❌ Failing to extract amounts because OCR made text slightly unclear
+❌ Not checking if your extracted amounts add up correctly
+
+✅ Extract amount for EVERY row in the table
+✅ Use the rightmost dollar amount if multiple amounts per row
+✅ Set amountConfidence to "medium" if unsure, but ALWAYS extract something
+✅ Sum all amounts and put in extractedTotals.lineItemsSum
 
 ### CRITICAL: TABLES WHERE AMOUNTS APPEAR UNDER A "CHARGES" COLUMN
 Many hospital statements list multiple dollar amounts stacked under a "CHARGES" header (even if descriptions are hard to read).
