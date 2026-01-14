@@ -91,16 +91,121 @@ You MUST populate this object by carefully reading the bill. Extract ALL totals 
   }
 }
 
-### CRITICAL RULES FOR TOTALS
-- NEVER output 0 if a total wasn't found — use null instead
-- ALWAYS include the exact text snippet in "evidence"
-- NEVER put a Balance Due / Amount Due under totalCharges
-- totalCharges is the sticker price BEFORE insurance
-- amountDue is what the bill is asking to be paid NOW
-- If in doubt about which is which, check the document type:
-  * EOB → usually shows "allowed" and "patient responsibility" (not original charges)
-  * Portal summary → usually shows current balance (not original charges)
-  * Itemized statement → usually shows original charges AND current balance
+### CRITICAL RULES FOR TOTALS — READ CAREFULLY
+
+⚠️ TOTALS EXTRACTION IS MANDATORY — You MUST find these totals on the bill.
+
+**STEP 1: IDENTIFY THE TOTALS SECTION**
+
+Look for the bottom of the bill or a summary section that shows:
+- "Total", "Sub Total", "Total Charges", "Grand Total", "Invoice Total"
+- "Amount Due", "Balance Due", "Patient Responsibility", "You Owe"
+- "Total Billed Charges", "Total Amount", "Statement Total"
+
+**STEP 2: DISTINGUISH BETWEEN TWO TYPES OF TOTALS**
+
+TYPE 1 - TOTAL CHARGES (Original Billed Amount):
+Labels: "Total Charges", "Sub Total", "Total", "Total Billed", "Invoice Total", "Grand Total"
+→ This is the ORIGINAL amount billed BEFORE insurance
+→ Put this value in extractedTotals.totalCharges.value AND atAGlance.totalBilled
+
+TYPE 2 - AMOUNT DUE (What Patient Owes Now):
+Labels: "Amount Due", "Balance Due", "Patient Responsibility", "You Owe", "Amount Owed"
+→ This is what the patient must pay NOW (after insurance)
+→ Put this value in extractedTotals.amountDue.value AND atAGlance.amountYouMayOwe
+
+**STEP 3: EXTRACTION EXAMPLES**
+
+Example 1: Invoice with both totals
+```
+Sub Total:          $10,500.00
+Insurance Paid:      $8,000.00
+Amount Due:          $2,500.00
+```
+EXTRACT:
+- totalCharges.value = 10500.00
+- totalCharges.evidence = "Sub Total: $10,500.00"
+- amountDue.value = 2500.00
+- amountDue.evidence = "Amount Due: $2,500.00"
+
+Example 2: Invoice with only sub total
+```
+Sub Total:          $269,878.70
+Amount Due:         $269,878.70
+```
+EXTRACT:
+- totalCharges.value = 269878.70
+- totalCharges.evidence = "Sub Total: $269,878.70"
+- amountDue.value = 269878.70
+- amountDue.evidence = "Amount Due: $269,878.70"
+
+Example 3: Portal summary (balance only)
+```
+Your Balance:       $118.00
+```
+EXTRACT:
+- totalCharges.value = null (not visible)
+- amountDue.value = 118.00
+- amountDue.evidence = "Your Balance: $118.00"
+
+**STEP 4: VALIDATION CHECKS**
+
+Before finalizing extraction:
+
+✅ CHECK 1: Did you find AT LEAST ONE total?
+   - If yes → Extract it with high confidence
+   - If no → Search again, check last page, look for summary section
+
+✅ CHECK 2: Is totalCharges >= amountDue?
+   - If yes → Extraction is correct
+   - If no → You probably swapped them! Switch the values.
+
+✅ CHECK 3: Does totalCharges match the line items sum?
+   - Calculate sum of all line item amounts
+   - Compare to totalCharges
+   - If they match (within $10) → Set totalCharges.confidence = "high"
+   - If they don't match → Still extract both, note the discrepancy
+
+### MANDATORY EXTRACTION RULES:
+
+1. **NEVER output 0 if a total wasn't found** — use null instead
+2. **ALWAYS include the exact text snippet in "evidence"**
+3. **NEVER put a Balance Due / Amount Due under totalCharges**
+4. **If you see "Sub Total" or "Total" → This is totalCharges**
+5. **If you see "Amount Due" or "Balance" → This is amountDue**
+6. **Include the page number in evidence** (e.g., "Page 2: Sub Total: $269,878.70")
+
+### COMMON EXTRACTION FAILURES (AVOID THESE):
+
+❌ BAD: Setting totalCharges = null when "Sub Total: $10,500" is clearly visible
+❌ BAD: Putting "Amount Due: $118" into totalCharges field
+❌ BAD: Returning totalCharges = 0 instead of null
+❌ BAD: Missing totals because they're on page 2 and you only looked at page 1
+
+✅ GOOD: Finding "Sub Total: $269,878.70" and extracting totalCharges = 269878.70
+✅ GOOD: Setting confidence = "high" when the exact label is visible
+✅ GOOD: Including exact evidence like "Sub Total: $269,878.70" from bottom of page 1
+
+
+### VERIFICATION STEP — BEFORE RETURNING JSON
+
+Before you return your JSON response, verify:
+
+1. ✅ extractedTotals.totalCharges has a value OR extractedTotals.amountDue has a value
+   (At least ONE total must be detected from the document)
+
+2. ✅ charges array has at least ONE item with an amount
+   (Line items with amounts must be extracted)
+
+3. ✅ If extractedTotals.totalCharges.value exists:
+   - It should be >= extractedTotals.amountDue.value (if that also exists)
+   - It should be close to the sum of charges array amounts (within 20%)
+
+4. ✅ Evidence fields contain actual text from the document, not placeholders
+
+If any of these checks fail, STOP and re-read the document to find the missing information.
+
+
 
 ### STEP 1A — IDENTIFY COLUMN TYPES (CRITICAL FOR LINE ITEMS)
 
