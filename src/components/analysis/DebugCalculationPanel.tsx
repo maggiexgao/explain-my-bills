@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatAmount, formatMultiple } from '@/lib/utils';
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -431,7 +432,7 @@ function CandidateList({ title, candidates }: { title: string; candidates: Total
         <div key={i} className="flex items-center justify-between py-1">
           <span className="text-muted-foreground">{c.label}</span>
           <div className="flex items-center gap-2">
-            <span className="font-mono">${c.amount.toFixed(2)}</span>
+            <span className="font-mono">{formatAmount(c.amount)}</span>
             <Badge variant="outline" className={cn(
               'text-[10px]',
               c.confidence === 'high' ? 'text-success border-success/30' :
@@ -529,7 +530,7 @@ function MedicareCalculationSection({ output }: { output?: MedicareBenchmarkOutp
                 matched.matchedItemsMultiple && matched.matchedItemsMultiple > 2 ? 'text-warning' : ''
               )}>
                 {matched.matchedItemsMultiple !== null 
-                  ? `${matched.matchedItemsMultiple.toFixed(2)}×` 
+                  ? {formatMultiple(matched.matchedBilledTotal, matched.matchedMedicareTotal)} 
                   : '—'}
               </div>
             </div>
@@ -607,7 +608,7 @@ function MedicareCalculationSection({ output }: { output?: MedicareBenchmarkOutp
                   ${item.medicareReferencePerUnit?.toFixed(2) || '—'}
                 </div>
                 <div className="text-right text-muted-foreground">
-                  {item.billedAmount ? `$${item.billedAmount.toFixed(2)}` : '—'} billed
+                  {formatAmount(item.billedAmount, { placeholder: '—' })} billed
                 </div>
               </div>
             ))}
