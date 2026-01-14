@@ -137,10 +137,13 @@ If you see amounts under a "BALANCE" or "YOU OWE" column:
 2) Note in extractedTotals.notes: "Only balance amounts visible, not original charges"
 3) Set amount to null for these line items
 
-### LINE ITEM EXTRACTION (charges array) — REQUIRED
-For EACH line item visible on the bill, extract:
+### LINE ITEM EXTRACTION (charges array) — REQUIRED — CRITICAL
+
+⚠️ CRITICAL: You MUST extract amounts for EVERY line item, even from messy tables.
+
+For EACH line item visible on the bill, you MUST extract:
 - description: service description text (if unreadable, use "Line item (description unclear)")
-- amount: the billed CHARGE amount for that line (or null if not visible or if only balance shown)
+- amount: the billed CHARGE amount for that line (REQUIRED - extract this!)
 - amountConfidence: "high" if clearly visible, "medium" if aligned by row/column, "low" if uncertain
 - amountEvidence: exact text showing this charge (e.g., "$975.00" or "975.00")
 - code: CPT/HCPCS/revenue code if visible (must match valid formats)
@@ -148,11 +151,92 @@ For EACH line item visible on the bill, extract:
 - units: quantity if shown, default 1
 - date: date of service if shown
 
-IMPORTANT:
-- Extract ALL visible line items, even if you can't read the description
-- If you see a CPT/HCPCS code AND an amount in the same row/line, you MUST pair them
-- Do not leave amount null if the charge amount is clearly visible for that code
-- If only balance is visible (not charges), set amount to null and note this
+### CRITICAL TABLE EXTRACTION RULES:
+
+**When you see a table with codes and amounts:**
+
+Example table:
+```
+Service                          Code    Charges
+Radiology - Chemotherapy Admin   77336   $3,848.00
+HC Del Inxt W/Guid Cmplx         77336   $3,848.00
+HC Cont Rad Physics Support      77336   $781.00
+```
+
+You MUST:
+1. **Identify which column has the amounts** - look for "Charges", "Amount", "Billed"
+2. **For EACH row:**
+   - Extract the code (77336)
+   - Extract the amount from the SAME ROW ($3,848.00)
+   - Pair them together in the charges array
+3. **Use positional alignment:**
+   - If code is in column 2 and amount is in column 3, match them by row
+   - Even if text is unclear, match the row position
+
+**Example of CORRECT extraction from the table above:**
+```json
+"charges": [
+  {
+    "code": "77336",
+    "description": "Radiology - Chemotherapy Admin",
+    "amount": 3848.00,
+    "amountConfidence": "high",
+    "amountEvidence": "$3,848.00"
+  },
+  {
+    "code": "77336", 
+    "description": "HC Del Inxt W/Guid Cmplx",
+    "amount": 3848.00,
+    "amountConfidence": "high",
+    "amountEvidence": "$3,848.00"
+  },
+  {
+    "code": "77336",
+    "description": "HC Cont Rad Physics Support", 
+    "amount": 781.00,
+    "amountConfidence": "high",
+    "amountEvidence": "$781.00"
+  }
+]
+```
+
+### COMMON TABLE PATTERNS:
+
+**Pattern 1: Code in one column, Amount in another**
+```
+Code    Description              Charges
+99213   Office Visit            $150.00
+99000   Handling                 $25.00
+```
+→ Extract: code=99213, amount=150.00 | code=99000, amount=25.00
+
+**Pattern 2: Amounts aligned under header**
+```
+                    CHARGES
+Service 1           $2,200.00
+Service 2           $975.00
+```
+→ Extract each amount as separate line item
+
+**Pattern 3: Multiple columns with amounts**
+```
+Service    Charges    Insurance    You Owe
+ER Visit   $2,200     $2,082       $118
+```
+→ Use "Charges" column ($2,200), NOT "You Owe" column
+
+### EXTRACTION FAILURES TO AVOID:
+
+❌ BAD: Extracting code but leaving amount null when amount is clearly visible
+❌ BAD: Only extracting the first line item and ignoring others
+❌ BAD: Extracting "You Owe" column instead of "Charges" column
+❌ BAD: Failing to extract amounts because text is slightly unclear
+
+✅ GOOD: Extract EVERY visible line item with its amount, even if OCR is imperfect
+✅ GOOD: Use row alignment to match codes with amounts
+✅ GOOD: Set amountConfidence to "medium" if unsure, but still extract it
+
+REMEMBER: It's better to extract with "medium" confidence than to leave amount as null!
 
 ### MULTI-PAGE BILLS
 - Check EVERY page for totals, especially the last page
