@@ -362,6 +362,12 @@ export function selectComparisonTotal(
  * Inject atAGlance totals into structuredTotals when AI missed totalCharges.
  * This is the critical fix that prevents "amount due" ($118) from becoming "total charges".
  */
+/**
+ * Inject atAGlance totals into structuredTotals when AI missed totalCharges.
+ *
+ * CRITICAL FIX: This version adds document type validation to prevent
+ * patient balances from being misinterpreted as total charges.
+ */
 function injectAtAGlanceFallbacks(structured: StructuredTotals, analysisData: any): StructuredTotals {
   const result: StructuredTotals = {
     ...structured,
@@ -370,9 +376,34 @@ function injectAtAGlanceFallbacks(structured: StructuredTotals, analysisData: an
 
   const totalBilled = analysisData?.atAGlance?.totalBilled;
   const amountYouMayOwe = analysisData?.atAGlance?.amountYouMayOwe;
+  const documentType = analysisData?.atAGlance?.documentClassification;
 
-  // If we have a strong summary total billed, prefer it as totalCharges when totalCharges is missing/weak.
-  if (typeof totalBilled === "number" && totalBilled > 0) {
+  // ✅ NEW: Identify document types that likely show balance only (not charges)
+  const isBalanceOnlyDoc =
+    documentType === "eob" || documentType === "portal_summary" || documentType === "payment_receipt";
+
+  // ✅ NEW: Additional validation - if totalBilled <= amountYouMayOwe, they're likely swapped
+  const likelySwapped =
+    typeof totalBilled === "number" &&
+    typeof amountYouMayOwe === "number" &&
+    totalBilled > 0 &&
+    amountYouMayOwe > 0 &&
+    totalBilled <= amountYouMayOwe;
+
+  if (likelySwapped) {
+    result.notes.push(
+      "⚠️ WARNING: atAGlance.totalBilled ($" +
+        totalBilled +
+        ") is less than or equal to amountYouMayOwe ($" +
+        amountYouMayOwe +
+        "). These values may be swapped. Using amountYouMayOwe for comparisons.",
+    );
+  }
+
+  // Only use totalBilled as charges fallback if:
+  // 1. NOT a balance-only document type, AND
+  // 2. Values aren't likely swapped
+  if (!isBalanceOnlyDoc && !likelySwapped && typeof totalBilled === "number" && totalBilled > 0) {
     const existing = result.totalCharges;
     const shouldOverride =
       !existing ||
@@ -391,22 +422,34 @@ function injectAtAGlanceFallbacks(structured: StructuredTotals, analysisData: an
       };
       result.notes.push("Used atAGlance.totalBilled as totalCharges fallback (AI totalCharges missing/weak).");
     }
+  } else if (isBalanceOnlyDoc && typeof totalBilled === "number" && totalBilled > 0) {
+    // ✅ NEW: If balance-only doc, warn that totalBilled likely represents balance
+    result.notes.push(
+      `Document type '${documentType}' typically shows balance, not original charges. ` +
+        `The value labeled as 'totalBilled' ($${totalBilled}) may actually be the current balance. ` +
+        `Using amountYouMayOwe for comparisons instead.`,
+    );
   }
 
   // If AI missed amountDue but atAGlance has it, inject it.
-  if (
-    (!result.amountDue || result.amountDue.value <= 0) &&
-    typeof amountYouMayOwe === "number" &&
-    amountYouMayOwe > 0
-  ) {
-    result.amountDue = {
-      value: amountYouMayOwe,
-      confidence: "high",
-      evidence: `atAGlance.amountYouMayOwe = ${amountYouMayOwe}`,
-      label: "Amount due / you may owe (summary)",
-      source: "document_label" as TotalsSource,
-    };
-    result.notes.push("Used atAGlance.amountYouMayOwe as amountDue fallback.");
+  // ✅ ENHANCED: Handle zero-dollar bills correctly
+  if (!result.amountDue || result.amountDue.value === undefined || result.amountDue.value === null) {
+    if (typeof amountYouMayOwe === "number" && amountYouMayOwe >= 0) {
+      // Note: We allow 0 here because $0.00 balance is valid (fully covered)
+      result.amountDue = {
+        value: amountYouMayOwe,
+        confidence: "high",
+        evidence: `atAGlance.amountYouMayOwe = ${amountYouMayOwe}`,
+        label: amountYouMayOwe === 0 ? "Amount due (fully covered)" : "Amount due / you may owe (summary)",
+        source: "document_label" as TotalsSource,
+      };
+
+      if (amountYouMayOwe === 0) {
+        result.notes.push("Used atAGlance.amountYouMayOwe as amountDue fallback. Balance is $0 (fully covered).");
+      } else {
+        result.notes.push("Used atAGlance.amountYouMayOwe as amountDue fallback.");
+      }
+    }
   }
 
   return result;
