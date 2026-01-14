@@ -565,7 +565,7 @@ serve(async (req) => {
     const chargesWithAmounts = chargesArray?.filter((charge) => charge.amount != null).length || 0;
     console.log("[analyze-document] Line items with amounts:", chargesWithAmounts);
 
-    return new Response(JSON.stringify(parsedResult), {
+   return new Response(JSON.stringify({ analysis: parsedResult }), {...}); {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
