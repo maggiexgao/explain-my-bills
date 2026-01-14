@@ -558,18 +558,20 @@ serve(async (req) => {
 
     console.log("[analyze-document] Successfully extracted data");
     console.log("[analyze-document] Total charges:", parsedResult.extractedTotals?.totalCharges?.value);
-    console.log("[analyze-document] Line items count:", parsedResult.charges?.length);
-    console.log(
-      "[analyze-document] Line items with amounts:",
-      parsedResult.charges?.filter((c) => c.amount != null).length,
-    );
+    console.log("[analyze-document] Line items count:", parsedResult.charges?.length || 0);
+
+    // Use type assertion to avoid TypeScript errors
+    const chargesArray = parsedResult.charges as Array<{ amount?: number | null }> | undefined;
+    const chargesWithAmounts = chargesArray?.filter((charge) => charge.amount != null).length || 0;
+    console.log("[analyze-document] Line items with amounts:", chargesWithAmounts);
 
     return new Response(JSON.stringify(parsedResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
-    console.error("[analyze-document] Error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Internal server error" }), {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    console.error("[analyze-document] Error:", errorMessage);
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
