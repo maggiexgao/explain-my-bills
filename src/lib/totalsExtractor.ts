@@ -153,6 +153,16 @@ const REVENUE_CODE_INDICATORS = [
   "0760",
 ];
 
+const POST_INSURANCE_INDICATORS = [
+  "after insurance",
+  "patient responsibility",
+  "your share",
+  "amount you owe",
+  "balance after insurance",
+  "insurance paid",
+  "adjustments",
+];
+
 // ============= Helper Functions =============
 
 /**
