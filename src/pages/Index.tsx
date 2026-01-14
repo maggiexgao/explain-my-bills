@@ -9,7 +9,15 @@ import { PondIntroScreen } from "@/components/PondIntroScreen";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { ZoomProvider } from "@/contexts/ZoomContext";
 import { supabase } from "@/integrations/supabase/client";
-import { AppState, UploadedFile, Language, AnalysisResult, AnalysisMode, MedicalDocumentResult, CareSetting } from "@/types";
+import {
+  AppState,
+  UploadedFile,
+  Language,
+  AnalysisResult,
+  AnalysisMode,
+  MedicalDocumentResult,
+  CareSetting,
+} from "@/types";
 import { toast } from "sonner";
 import { usePreScanLocation, LocationSource } from "@/hooks/usePreScanLocation";
 
@@ -50,8 +58,8 @@ const Index = () => {
     analysisMode: state.analysisMode,
     currentZip: state.zipCode,
     currentState: state.selectedState,
-    onZipDetected: (zip) => setState(prev => ({ ...prev, zipCode: zip })),
-    onStateDetected: (stateAbbr) => setState(prev => ({ ...prev, selectedState: stateAbbr })),
+    onZipDetected: (zip) => setState((prev) => ({ ...prev, zipCode: zip })),
+    onStateDetected: (stateAbbr) => setState((prev) => ({ ...prev, selectedState: stateAbbr })),
   });
 
   const handleFileSelect = useCallback((file: UploadedFile) => {
@@ -76,10 +84,13 @@ const Index = () => {
     setState((prev) => ({ ...prev, eobFile: null }));
   }, [state.eobFile]);
 
-  const handleStateChange = useCallback((selectedState: string) => {
-    preScan.markStateAsUserEdited();
-    setState((prev) => ({ ...prev, selectedState }));
-  }, [preScan]);
+  const handleStateChange = useCallback(
+    (selectedState: string) => {
+      preScan.markStateAsUserEdited();
+      setState((prev) => ({ ...prev, selectedState }));
+    },
+    [preScan],
+  );
 
   const handleLanguageChange = useCallback((selectedLanguage: Language) => {
     setState((prev) => ({ ...prev, selectedLanguage }));
@@ -89,10 +100,13 @@ const Index = () => {
     setState((prev) => ({ ...prev, analysisMode }));
   }, []);
 
-  const handleZipCodeChange = useCallback((zipCode: string) => {
-    preScan.markZipAsUserEdited();
-    setState((prev) => ({ ...prev, zipCode }));
-  }, [preScan]);
+  const handleZipCodeChange = useCallback(
+    (zipCode: string) => {
+      preScan.markZipAsUserEdited();
+      setState((prev) => ({ ...prev, zipCode }));
+    },
+    [preScan],
+  );
 
   const handleCareSettingChange = useCallback((careSetting: CareSetting) => {
     setState((prev) => ({ ...prev, careSetting }));
@@ -154,7 +168,7 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke("analyze-document", {
         body: {
           documentContent,
-          documentType: state.uploadedFile.file.type,
+          documentType: state.uploadedFile?.file?.type || "image/jpeg",
           eobContent,
           state: state.selectedState,
           language: state.selectedLanguage,
@@ -406,13 +420,16 @@ const Index = () => {
         priceContext: ai.priceContext || {
           hasBenchmarks: false,
           comparisons: [],
-          fallbackMessage: "Price comparison data isn't available yet, but this category is commonly reviewed or negotiated.",
+          fallbackMessage:
+            "Price comparison data isn't available yet, but this category is commonly reviewed or negotiated.",
         },
         pondNextSteps: ensureArray(ai.pondNextSteps || ai.nextSteps).map((s: any) => ({
-          step: typeof s === "string" ? s : (s.step || ""),
+          step: typeof s === "string" ? s : s.step || "",
           isUrgent: s.isUrgent,
         })),
-        closingReassurance: ai.closingReassurance || "Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful.",
+        closingReassurance:
+          ai.closingReassurance ||
+          "Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful.",
 
         // Calculate billTotal from charges if not provided by API
         billTotal:
