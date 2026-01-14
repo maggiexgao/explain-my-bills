@@ -1,17 +1,11 @@
 /**
  * Totals Extraction and Reconciliation
  *
- * This module handles:
- * 1. Document type classification
- * 2. Totals candidate extraction with label anchoring
- * 3. Line item extraction and sum calculation
- * 4. Reconciliation and comparison total selection
- * 5. Integration with normalizeTotals for structured totals
- *
- * Goal:
- * - Reliably extract pre-insurance total charges (when available)
- * - Never confuse "Amount Due / Balance Due" with total charges
- * - Provide transparent reasoning for the comparison total used
+ * Handles:
+ * - Document classification
+ * - Total candidate extraction
+ * - Line item extraction
+ * - Totals normalization + comparison total selection
  */
 
 import {
@@ -21,35 +15,32 @@ import {
   normalizeAndDeriveTotals,
   selectComparisonTotal as selectStructuredComparisonTotal,
   ComparisonTotalSelection,
-  TotalsConfidence
-} from './totals/normalizeTotals';
+  TotalsConfidence,
+  TotalsSource,
+} from "./totals/normalizeTotals";
 
+// Re-export types for consumers
 export type { StructuredTotals, DetectedTotal, LineItemForTotals, ComparisonTotalSelection, TotalsConfidence };
 
 // ============= Type Definitions =============
 
 export type DocumentClassification =
-  | 'itemized_statement'
-  | 'summary_statement'
-  | 'hospital_summary_bill'
-  | 'revenue_code_only'
-  | 'eob'
-  | 'portal_summary'
-  | 'payment_receipt'
-  | 'unknown';
+  | "itemized_statement"
+  | "summary_statement"
+  | "hospital_summary_bill"
+  | "revenue_code_only"
+  | "eob"
+  | "portal_summary"
+  | "payment_receipt"
+  | "unknown";
 
-export type TotalType =
-  | 'charges'
-  | 'allowed'
-  | 'patient_responsibility'
-  | 'insurance_paid'
-  | 'unknown';
+export type TotalType = "charges" | "allowed" | "patient_responsibility" | "insurance_paid" | "unknown";
 
 export interface TotalCandidate {
   type: TotalType;
   amount: number;
   label: string;
-  confidence: 'high' | 'medium' | 'low';
+  confidence: "high" | "medium" | "low";
   evidence: string;
   nearbyContext?: string;
 }
@@ -59,12 +50,10 @@ export interface LineItemExtraction {
   chargeAmount?: number;
   chargeAmountConfidence?: TotalsConfidence;
   chargeAmountEvidence?: string;
-
   allowedAmount?: number;
   patientAmount?: number;
-
   code?: string;
-  codeType?: 'cpt' | 'hcpcs' | 'revenue' | 'unknown';
+  codeType?: "cpt" | "hcpcs" | "revenue" | "unknown";
   units?: number;
 }
 
@@ -83,7 +72,7 @@ export interface TotalsReconciliation {
   comparisonTotal: {
     value: number;
     type: TotalType;
-    confidence: 'high' | 'medium' | 'low';
+    confidence: "high" | "medium" | "low";
     explanation: string;
     limitedComparability: boolean;
     scopeWarnings?: string[];
@@ -91,81 +80,101 @@ export interface TotalsReconciliation {
 
   documentType: DocumentClassification;
 
-  reconciliationStatus: 'matched' | 'mismatch' | 'insufficient_data';
+  reconciliationStatus: "matched" | "mismatch" | "insufficient_data";
   reconciliationNote?: string;
 
   derivationNotes?: string[];
 }
 
-// ============= Helper Functions =============
-
-export function parseCurrency(value: string | number | null | undefined): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'number') return isNaN(value) ? null : value;
-
-  const raw = String(value).trim();
-  if (!raw) return null;
-
-  // Handle parentheses negatives: ($123.45) -> -123.45
-  const isParenNegative = raw.startsWith('(') && raw.endsWith(')');
-  const cleaned = raw
-    .replace(/[()]/g, '')
-    .replace(/[$,\s]/g, '')
-    .trim();
-
-  const num = parseFloat(cleaned);
-  if (isNaN(num)) return null;
-
-  return isParenNegative ? -num : num;
-}
-
-function isLikelyBalanceLabel(label: string): boolean {
-  const l = (label || '').toLowerCase();
-  return (
-    l.includes('balance') ||
-    l.includes('amount due') ||
-    l.includes('payment due') ||
-    l.includes('current balance') ||
-    l.includes('you owe') ||
-    l.includes('patient responsibility') ||
-    l.includes('your responsibility')
-  );
-}
-
-function roughlyEqual(a: number, b: number, tolerancePct = 0.02): boolean {
-  if (!isFinite(a) || !isFinite(b) || a <= 0 || b <= 0) return false;
-  const diff = Math.abs(a - b);
-  return diff / Math.max(a, b) <= tolerancePct;
-}
-
-// ============= Document Classification =============
+// ============= Document type indicators =============
 
 const EOB_INDICATORS = [
-  'explanation of benefits', 'eob', 'allowed amount', 'plan paid',
-  'member responsibility', 'claim number', 'processed date',
-  'coinsurance', 'copay', 'deductible applied'
+  "explanation of benefits",
+  "eob",
+  "allowed amount",
+  "plan paid",
+  "member responsibility",
+  "claim number",
+  "processed date",
+  "coinsurance",
+  "copay",
+  "deductible applied",
 ];
 
 const PORTAL_INDICATORS = [
-  'mychart', 'patient portal', 'online balance', 'your balance',
-  'quick pay', 'make a payment', 'payment options'
+  "mychart",
+  "patient portal",
+  "online balance",
+  "your balance",
+  "quick pay",
+  "make a payment",
+  "payment options",
 ];
 
 const STATEMENT_INDICATORS = [
-  'statement', 'itemized bill', 'service date', 'procedure',
-  'charges', 'billing statement', 'date of service', 'quantity', 'cpt'
+  "statement",
+  "itemized bill",
+  "service date",
+  "procedure",
+  "charges",
+  "billing statement",
+  "date of service",
+  "quantity",
+  "cpt",
 ];
 
 const HOSPITAL_SUMMARY_INDICATORS = [
-  'hospital', 'facility', 'emergency room', 'er visit', 'inpatient',
-  'outpatient', 'revenue code', 'room and board', 'pharmacy', 'laboratory'
+  "hospital",
+  "facility",
+  "emergency room",
+  "er visit",
+  "inpatient",
+  "outpatient",
+  "revenue code",
+  "room and board",
+  "pharmacy",
+  "laboratory",
 ];
 
 const REVENUE_CODE_INDICATORS = [
-  'rev code', 'revenue code', '0100', '0110', '0120', '0250', '0260',
-  '0270', '0300', '0320', '0450', '0636', '0730', '0760'
+  "rev code",
+  "revenue code",
+  "0100",
+  "0110",
+  "0120",
+  "0250",
+  "0260",
+  "0270",
+  "0300",
+  "0320",
+  "0450",
+  "0636",
+  "0730",
+  "0760",
 ];
 
+// ============= Helper Functions =============
+
+/**
+ * Clean and parse a currency string to number.
+ * Supports: $1,234.56 and (1,234.56) negatives.
+ */
+export function parseCurrency(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return isNaN(value) ? null : value;
+
+  const cleaned = String(value)
+    .replace(/[$,\s]/g, "")
+    .replace(/[()]/g, (match) => (match === "(" ? "-" : ""))
+    .trim();
+
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+/**
+ * Classify document type based on content indicators.
+ */
 export function classifyDocument(content: string): DocumentClassification {
   const lower = content.toLowerCase();
 
@@ -176,12 +185,381 @@ export function classifyDocument(content: string): DocumentClassification {
   const revenueCodeScore = REVENUE_CODE_INDICATORS.reduce((acc, ind) => acc + (lower.includes(ind) ? 3 : 0), 0);
 
   const isReceipt =
-    lower.includes('receipt') ||
-    lower.includes('payment received') ||
-    (lower.includes('paid') && lower.includes('thank you'));
+    lower.includes("receipt") ||
+    lower.includes("payment received") ||
+    (lower.includes("paid") && lower.includes("thank you"));
 
-  if (isReceipt && !lower.includes('charges')) return 'payment_receipt';
+  if (isReceipt && !lower.includes("charges")) {
+    return "payment_receipt";
+  }
 
-  if (eobScore >= 6 && eobScore > statementScore) return 'eob';
+  if (eobScore >= 6 && eobScore > statementScore) {
+    return "eob";
+  }
 
-  const hasCpt = /\b\d{5}\b/.test(content) || /\b[A-Z]\d{4}\b/.t
+  // CPT: 5 digits; HCPCS: 1 letter + 4 digits
+  const hasCpt = /\b\d{5}\b/.test(content) || /\b[A-Z]\d{4}\b/.test(content);
+
+  if (revenueCodeScore >= 6 && !hasCpt) {
+    return "revenue_code_only";
+  }
+
+  if (hospitalScore >= 6 && revenueCodeScore >= 3) {
+    return "hospital_summary_bill";
+  }
+
+  if (portalScore >= 4 && !lower.includes("itemized")) {
+    return "portal_summary";
+  }
+
+  if (statementScore >= 4) {
+    return hasCpt ? "itemized_statement" : "summary_statement";
+  }
+
+  return "unknown";
+}
+
+/**
+ * Legacy: Extract total candidates from analysisData.
+ * (Kept for backward compatibility; structuredTotals is now preferred.)
+ */
+export function extractTotalCandidates(analysisData: any): {
+  chargesCandidates: TotalCandidate[];
+  allowedCandidates: TotalCandidate[];
+  patientCandidates: TotalCandidate[];
+} {
+  const chargesCandidates: TotalCandidate[] = [];
+  const allowedCandidates: TotalCandidate[] = [];
+  const patientCandidates: TotalCandidate[] = [];
+
+  // atAGlance totals
+  if (analysisData.atAGlance) {
+    if (analysisData.atAGlance.totalBilled && analysisData.atAGlance.totalBilled > 0) {
+      chargesCandidates.push({
+        type: "charges",
+        amount: analysisData.atAGlance.totalBilled,
+        label: "Total Billed (at a glance)",
+        confidence: "high",
+        evidence: "Extracted from document summary",
+      });
+    }
+    if (analysisData.atAGlance.amountYouMayOwe && analysisData.atAGlance.amountYouMayOwe > 0) {
+      patientCandidates.push({
+        type: "patient_responsibility",
+        amount: analysisData.atAGlance.amountYouMayOwe,
+        label: "Amount You May Owe (at a glance)",
+        confidence: "high",
+        evidence: "Extracted from document summary",
+      });
+    }
+  }
+
+  // sum charges array
+  if (analysisData.charges && Array.isArray(analysisData.charges)) {
+    const chargesWithAmounts = analysisData.charges
+      .map((c: any) => ({ ...c, parsed: parseCurrency(c.amount) }))
+      .filter((c: any) => c.parsed !== null && c.parsed > 0);
+
+    const chargeSum = chargesWithAmounts.reduce((sum: number, c: any) => sum + (c.parsed || 0), 0);
+
+    if (chargeSum > 0) {
+      chargesCandidates.push({
+        type: "charges",
+        amount: chargeSum,
+        label: "Sum of line items",
+        confidence: chargesWithAmounts.length >= 2 ? "medium" : "low",
+        evidence: `Calculated from ${chargesWithAmounts.length} line items`,
+      });
+    }
+  }
+
+  // extractedTotals (AI)
+  if (analysisData.extractedTotals) {
+    const et = analysisData.extractedTotals;
+
+    const tc =
+      typeof et.totalCharges === "object" && et.totalCharges?.value != null ? et.totalCharges.value : et.totalCharges;
+    if (typeof tc === "number" && tc > 0) {
+      chargesCandidates.push({
+        type: "charges",
+        amount: tc,
+        label: et.totalCharges?.label || "Total Charges (extracted)",
+        confidence: et.totalCharges?.confidence || "high",
+        evidence: et.totalCharges?.evidence || "From extractedTotals",
+      });
+    }
+
+    const ad = typeof et.amountDue === "object" && et.amountDue?.value != null ? et.amountDue.value : et.amountDue;
+    if (typeof ad === "number" && ad > 0) {
+      patientCandidates.push({
+        type: "patient_responsibility",
+        amount: ad,
+        label: et.amountDue?.label || "Amount Due (extracted)",
+        confidence: et.amountDue?.confidence || "high",
+        evidence: et.amountDue?.evidence || "From extractedTotals",
+      });
+    }
+  }
+
+  const sortByConfidence = (a: TotalCandidate, b: TotalCandidate) => {
+    const order = { high: 0, medium: 1, low: 2 };
+    if (order[a.confidence] !== order[b.confidence]) return order[a.confidence] - order[b.confidence];
+    return b.amount - a.amount;
+  };
+
+  chargesCandidates.sort(sortByConfidence);
+  allowedCandidates.sort(sortByConfidence);
+  patientCandidates.sort(sortByConfidence);
+
+  return { chargesCandidates, allowedCandidates, patientCandidates };
+}
+
+/**
+ * Legacy fallback selection.
+ */
+export function selectComparisonTotal(
+  candidates: ReturnType<typeof extractTotalCandidates>,
+): TotalsReconciliation["comparisonTotal"] {
+  const { allowedCandidates, chargesCandidates, patientCandidates } = candidates;
+
+  if (allowedCandidates.length > 0 && allowedCandidates[0].confidence !== "low") {
+    const best = allowedCandidates[0];
+    return {
+      value: best.amount,
+      type: "allowed",
+      confidence: best.confidence,
+      explanation: `Using the allowed amount (${best.label}) as this represents what insurance agreed to pay.`,
+      limitedComparability: false,
+    };
+  }
+
+  if (chargesCandidates.length > 0 && chargesCandidates[0].confidence !== "low") {
+    const best = chargesCandidates[0];
+    return {
+      value: best.amount,
+      type: "charges",
+      confidence: best.confidence,
+      explanation: `Using total charges (${best.label}) as the comparison basis.`,
+      limitedComparability: false,
+    };
+  }
+
+  if (patientCandidates.length > 0) {
+    const best = patientCandidates[0];
+    return {
+      value: best.amount,
+      type: "patient_responsibility",
+      confidence: best.confidence,
+      explanation: `Only a patient balance was available. This may already include insurance adjustments.`,
+      limitedComparability: true,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Inject atAGlance totals into structuredTotals when AI missed totalCharges.
+ * This is the critical fix that prevents "amount due" ($118) from becoming "total charges".
+ */
+function injectAtAGlanceFallbacks(structured: StructuredTotals, analysisData: any): StructuredTotals {
+  const result: StructuredTotals = {
+    ...structured,
+    notes: [...(structured.notes || [])],
+  };
+
+  const totalBilled = analysisData?.atAGlance?.totalBilled;
+  const amountYouMayOwe = analysisData?.atAGlance?.amountYouMayOwe;
+
+  // If we have a strong summary total billed, prefer it as totalCharges when totalCharges is missing/weak.
+  if (typeof totalBilled === "number" && totalBilled > 0) {
+    const existing = result.totalCharges;
+    const shouldOverride =
+      !existing ||
+      existing.confidence === "low" ||
+      existing.value <= 0 ||
+      // If existing is tiny compared to summary total, it's almost certainly wrong (e.g., amount due misread)
+      existing.value < totalBilled * 0.5;
+
+    if (shouldOverride) {
+      result.totalCharges = {
+        value: totalBilled,
+        confidence: "high",
+        evidence: `atAGlance.totalBilled = ${totalBilled}`,
+        label: "Total billed (summary)",
+        source: "document_label" as TotalsSource,
+      };
+      result.notes.push("Used atAGlance.totalBilled as totalCharges fallback (AI totalCharges missing/weak).");
+    }
+  }
+
+  // If AI missed amountDue but atAGlance has it, inject it.
+  if (
+    (!result.amountDue || result.amountDue.value <= 0) &&
+    typeof amountYouMayOwe === "number" &&
+    amountYouMayOwe > 0
+  ) {
+    result.amountDue = {
+      value: amountYouMayOwe,
+      confidence: "high",
+      evidence: `atAGlance.amountYouMayOwe = ${amountYouMayOwe}`,
+      label: "Amount due / you may owe (summary)",
+      source: "document_label" as TotalsSource,
+    };
+    result.notes.push("Used atAGlance.amountYouMayOwe as amountDue fallback.");
+  }
+
+  return result;
+}
+
+/**
+ * Full reconciliation pipeline.
+ */
+export function reconcileTotals(analysisData: any, documentContent?: string): TotalsReconciliation {
+  const documentType = documentContent
+    ? classifyDocument(documentContent)
+    : ((analysisData.atAGlance?.documentClassification || "unknown") as DocumentClassification);
+
+  // Extract line items
+  const lineItems: LineItemExtraction[] = [];
+  if (analysisData.charges && Array.isArray(analysisData.charges)) {
+    for (const charge of analysisData.charges) {
+      const chargeAmt = parseCurrency(charge.amount);
+      lineItems.push({
+        description: charge.description || "",
+        chargeAmount: chargeAmt !== null && chargeAmt > 0 ? chargeAmt : undefined,
+        chargeAmountConfidence: (charge.amountConfidence as TotalsConfidence) || "medium",
+        chargeAmountEvidence: charge.amountEvidence || undefined,
+        code: charge.code,
+        codeType: charge.codeType || "unknown",
+        units: charge.units || 1,
+      });
+    }
+  }
+
+  // Convert to LineItemForTotals
+  const lineItemsForNorm: LineItemForTotals[] = lineItems.map((li) => ({
+    description: li.description,
+    billedAmount: li.chargeAmount ?? null,
+    billedAmountConfidence: li.chargeAmountConfidence,
+    billedEvidence: li.chargeAmountEvidence,
+    code: li.code,
+    units: li.units,
+  }));
+
+  // Normalize totals from AI + line items
+  let structuredTotals = normalizeAndDeriveTotals(analysisData.extractedTotals, lineItemsForNorm);
+
+  // ✅ CRITICAL: inject atAGlance fallback so we don't treat $118 as total charges
+  structuredTotals = injectAtAGlanceFallbacks(structuredTotals, analysisData);
+
+  // Sums
+  const sumLineCharges = lineItems.reduce((sum, item) => sum + (item.chargeAmount || 0), 0);
+
+  const hasAllowed = lineItems.some((i) => i.allowedAmount !== undefined);
+  const sumLineAllowed = hasAllowed ? lineItems.reduce((sum, item) => sum + (item.allowedAmount || 0), 0) : null;
+
+  const hasPatient = lineItems.some((i) => i.patientAmount !== undefined);
+  const sumLinePatient = hasPatient ? lineItems.reduce((sum, item) => sum + (item.patientAmount || 0), 0) : null;
+
+  // Legacy candidates (backward compatibility)
+  const candidates = extractTotalCandidates(analysisData);
+
+  // Select comparison total (structured)
+  const structuredSelection = selectStructuredComparisonTotal(
+    structuredTotals,
+    sumLineCharges > 0 ? sumLineCharges : undefined,
+    lineItems.filter((li) => li.code && li.chargeAmount).length,
+  );
+
+  const comparisonTotal: TotalsReconciliation["comparisonTotal"] = structuredSelection
+    ? {
+        value: structuredSelection.value,
+        type:
+          structuredSelection.type === "totalCharges"
+            ? "charges"
+            : structuredSelection.type === "patientResponsibility"
+              ? "patient_responsibility"
+              : structuredSelection.type === "amountDue"
+                ? "patient_responsibility"
+                : "charges",
+        confidence: structuredSelection.confidence,
+        explanation: structuredSelection.explanation,
+        limitedComparability: structuredSelection.limitedComparability,
+        scopeWarnings: structuredSelection.scopeWarnings,
+      }
+    : selectComparisonTotal(candidates);
+
+  // Reconciliation status
+  let reconciliationStatus: TotalsReconciliation["reconciliationStatus"] = "insufficient_data";
+  let reconciliationNote: string | undefined;
+
+  if (comparisonTotal && lineItems.length > 0 && sumLineCharges > 0) {
+    const tolerance = 0.03;
+    const diff = Math.abs(comparisonTotal.value - sumLineCharges);
+    const percentDiff = diff / sumLineCharges;
+
+    if (percentDiff <= tolerance) {
+      reconciliationStatus = "matched";
+      reconciliationNote = "Line item sum matches the total within 3% tolerance.";
+    } else {
+      reconciliationStatus = "mismatch";
+      reconciliationNote = `Line item sum ($${sumLineCharges.toFixed(2)}) differs from total ($${comparisonTotal.value.toFixed(
+        2,
+      )}) by ${(percentDiff * 100).toFixed(1)}%.`;
+    }
+  }
+
+  return {
+    lineItems,
+    sumLineCharges,
+    sumLineAllowed,
+    sumLinePatient,
+    chargesCandidates: candidates.chargesCandidates,
+    allowedCandidates: candidates.allowedCandidates,
+    patientCandidates: candidates.patientCandidates,
+    structuredTotals,
+    comparisonTotal,
+    documentType,
+    reconciliationStatus,
+    reconciliationNote,
+    derivationNotes: structuredTotals.notes,
+  };
+}
+
+export function formatComparisonTotalLabel(type: TotalType): string {
+  switch (type) {
+    case "charges":
+      return "TOTAL (Charges)";
+    case "allowed":
+      return "TOTAL (Allowed)";
+    case "patient_responsibility":
+      return "TOTAL (Patient Responsibility)";
+    case "insurance_paid":
+      return "TOTAL (Insurance Paid)";
+    default:
+      return "TOTAL";
+  }
+}
+
+export function extractTotals(analysisData: any):
+  | (TotalsReconciliation & {
+      comparisonTotalValue?: number;
+      comparisonTotalType?: string;
+      comparisonTotalExplanation?: string;
+    })
+  | null {
+  try {
+    const reconciliation = reconcileTotals(analysisData);
+
+    return {
+      ...reconciliation,
+      comparisonTotalValue: reconciliation.comparisonTotal?.value,
+      comparisonTotalType: reconciliation.comparisonTotal?.type,
+      comparisonTotalExplanation: reconciliation.comparisonTotal?.explanation,
+    };
+  } catch (error) {
+    console.error("[TotalsExtractor] Error extracting totals:", error);
+    return null;
+  }
+}
