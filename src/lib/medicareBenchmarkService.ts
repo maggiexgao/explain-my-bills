@@ -17,6 +17,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeAndValidateCode, ValidatedCode, RejectedToken } from './cptCodeValidator';
 import { resolveGeo, GeoResolution, GeoMethod, GpciIndices } from './geoResolver';
+import { formatBillVsReferenceSentence } from './formatComparisonText';
 
 // ============= Types =============
 
@@ -1197,13 +1198,10 @@ export function generateComparisonSentence(output: MedicareBenchmarkOutput): str
     return null;
   }
 
-  const formatter = new Intl.NumberFormat('en-US', { 
-    style: 'currency', 
-    currency: 'USD',
-    maximumFractionDigits: 0
-  });
-
-  return `Your bill of ${formatter.format(output.totals.billedTotal || 0)} is about ${output.totals.multipleOfMedicare}× higher than this reference price.`;
+  return formatBillVsReferenceSentence(
+    output.totals.billedTotal || 0,
+    output.totals.medicareReferenceTotal
+  );
 }
 
 /**
