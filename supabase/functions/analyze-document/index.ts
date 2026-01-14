@@ -117,11 +117,11 @@ Labels: "Amount Due", "Balance Due", "Patient Responsibility", "You Owe", "Amoun
 **STEP 3: EXTRACTION EXAMPLES**
 
 Example 1: Invoice with both totals
-```
+\`\`\`
 Sub Total:          $10,500.00
 Insurance Paid:      $8,000.00
 Amount Due:          $2,500.00
-```
+\`\`\`
 EXTRACT:
 - totalCharges.value = 10500.00
 - totalCharges.evidence = "Sub Total: $10,500.00"
@@ -129,10 +129,10 @@ EXTRACT:
 - amountDue.evidence = "Amount Due: $2,500.00"
 
 Example 2: Invoice with only sub total
-```
+\`\`\`
 Sub Total:          $269,878.70
 Amount Due:         $269,878.70
-```
+\`\`\`
 EXTRACT:
 - totalCharges.value = 269878.70
 - totalCharges.evidence = "Sub Total: $269,878.70"
@@ -140,9 +140,9 @@ EXTRACT:
 - amountDue.evidence = "Amount Due: $269,878.70"
 
 Example 3: Portal summary (balance only)
-```
+\`\`\`
 Your Balance:       $118.00
-```
+\`\`\`
 EXTRACT:
 - totalCharges.value = null (not visible)
 - amountDue.value = 118.00
@@ -168,12 +168,12 @@ Before finalizing extraction:
 
 ### MANDATORY EXTRACTION RULES:
 
-1. **NEVER output 0 if a total wasn't found** — use null instead
-2. **ALWAYS include the exact text snippet in "evidence"**
-3. **NEVER put a Balance Due / Amount Due under totalCharges**
-4. **If you see "Sub Total" or "Total" → This is totalCharges**
-5. **If you see "Amount Due" or "Balance" → This is amountDue**
-6. **Include the page number in evidence** (e.g., "Page 2: Sub Total: $269,878.70")
+1. NEVER output 0 if a total wasn't found — use null instead
+2. ALWAYS include the exact text snippet in "evidence"
+3. NEVER put a Balance Due / Amount Due under totalCharges
+4. If you see "Sub Total" or "Total" → This is totalCharges
+5. If you see "Amount Due" or "Balance" → This is amountDue
+6. Include the page number in evidence (e.g., "Page 2: Sub Total: $269,878.70")
 
 ### COMMON EXTRACTION FAILURES (AVOID THESE):
 
@@ -185,7 +185,6 @@ Before finalizing extraction:
 ✅ GOOD: Finding "Sub Total: $269,878.70" and extracting totalCharges = 269878.70
 ✅ GOOD: Setting confidence = "high" when the exact label is visible
 ✅ GOOD: Including exact evidence like "Sub Total: $269,878.70" from bottom of page 1
-
 
 ### VERIFICATION STEP — BEFORE RETURNING JSON
 
@@ -205,8 +204,6 @@ Before you return your JSON response, verify:
 
 If any of these checks fail, STOP and re-read the document to find the missing information.
 
-
-
 ### STEP 1A — IDENTIFY COLUMN TYPES (CRITICAL FOR LINE ITEMS)
 
 ⚠️ CRITICAL: Before extracting line item amounts, you MUST identify what each column represents.
@@ -216,7 +213,7 @@ If any of these checks fail, STOP and re-read the document to find the missing i
 Look at the table header row. Common header patterns:
 
 **CHARGES COLUMNS (original billed amounts):**
-Headers: "Charges", "Billed", "Amount", "Total", "Gross Charges", "Price", "Extended Price"
+Headers: "Charges", "Billed", "Amount", "Total", "Gross Charges", "Price", "Extended Price", "Total Amount"
 → These are the original prices BEFORE insurance
 → Extract as **amount** field
 
@@ -229,119 +226,6 @@ Headers: "Balance", "You Owe", "Patient Resp", "Amount Due", "Your Responsibilit
 Headers: "Insurance Paid", "Allowed", "Covered", "Plan Paid", "Adjustment"
 → These show insurance activity
 → Do NOT use these as amount field
-
-### EXTRACTION PROCESS:
-
-**STEP 1: Locate the table**
-Find the section with line items (usually has multiple rows with services/codes)
-
-**STEP 2: Read the header row**
-Example header: `Service | Quantity | Unit Price | Amount`
-→ Identify that "Amount" is the charges column
-
-**STEP 3: For EACH data row, extract values that align with the headers**
-
-Example table:
-```
-#  | Service                  | Quantity | Unit Price  | Amount
-1  | Pharmacy                 | 1        | $53,458.65  | $53,458.65
-2  | Special care unit        | 1        | $3,908.00   | $3,908.00
-3  | Supplies                 | 1        | $3,798.00   | $3,798.00
-4  | Emergency Room           | 1        | $7,849.00   | $7,849.00
-```
-
-**CORRECT EXTRACTION:**
-```json
-"charges": [
-  {
-    "description": "Pharmacy",
-    "amount": 53458.65,
-    "amountConfidence": "high",
-    "amountEvidence": "$53,458.65 in Amount column",
-    "units": 1,
-    "code": null
-  },
-  {
-    "description": "Special care unit",
-    "amount": 3908.00,
-    "amountConfidence": "high",
-    "amountEvidence": "$3,908.00 in Amount column",
-    "units": 1,
-    "code": null
-  },
-  {
-    "description": "Supplies",
-    "amount": 3798.00,
-    "amountConfidence": "high",
-    "amountEvidence": "$3,798.00 in Amount column",
-    "units": 1,
-    "code": null
-  }
-]
-```
-
-### SPECIAL CASES:
-
-**Case 1: "Unit Price" vs "Amount" columns**
-If table has BOTH columns, use "Amount" (the total, not unit price)
-
-**Case 2: Multiple dollar amounts per row**
-```
-Service: Pharmacy | $53,458.65 | $53,458.65
-```
-Use the LAST amount in the row (usually the total)
-
-**Case 3: Amounts without clear column headers**
-Look for patterns:
-- Dollar signs ($) before numbers
-- Numbers with 2 decimal places (.00)
-- Numbers aligned in a column on the right side
-
-**Case 4: Table spans multiple pages**
-Extract line items from ALL pages, not just the first page
-
-### CRITICAL VALIDATION:
-
-Before returning your JSON, check:
-
-✅ Does EVERY item in charges[] have an amount?
-   - If NO: Go back and re-extract amounts using row alignment
-
-✅ Do the amounts make sense? (positive numbers, 2 decimals)
-   - If NO: You may have extracted the wrong column
-
-✅ Does extractedTotals.lineItemsSum equal the sum of all amounts?
-   - Calculate: amount[0] + amount[1] + amount[2] + ...
-   - This should match or be close to the "Sub Total" on the bill
-
-### COMMON MISTAKES TO AVOID:
-
-❌ Extracting service description but leaving amount null
-❌ Only extracting amounts from the first 2-3 rows
-❌ Using "Balance Due" instead of "Charges" column
-❌ Failing to extract amounts because OCR made text slightly unclear
-❌ Not checking if your extracted amounts add up correctly
-
-✅ Extract amount for EVERY row in the table
-✅ Use the rightmost dollar amount if multiple amounts per row
-✅ Set amountConfidence to "medium" if unsure, but ALWAYS extract something
-✅ Sum all amounts and put in extractedTotals.lineItemsSum
-
-### CRITICAL: TABLES WHERE AMOUNTS APPEAR UNDER A "CHARGES" COLUMN
-Many hospital statements list multiple dollar amounts stacked under a "CHARGES" header (even if descriptions are hard to read).
-
-If you see a CHARGES column with multiple amounts (example: 2200.00, 975.00, 118.00, 403.00), you MUST:
-1) Verify this is a CHARGES column (not a BALANCE column)
-2) Extract each amount as its own charge line in charges[]
-3) Set extractedTotals.lineItemsSum to the sum of ALL those amounts
-4) If a totalCharges label is not visible, still set lineItemsSum correctly (this is essential)
-
-If you see amounts under a "BALANCE" or "YOU OWE" column:
-1) Do NOT extract these as charge amounts
-2) Note in extractedTotals.notes: "Only balance amounts visible, not original charges"
-3) Set amount to null for these line items
-
-=== REPLACE LINES 344-430 IN analyze-document/index.ts WITH THIS ===
 
 ### LINE ITEM EXTRACTION (charges array) — REQUIRED — ABSOLUTELY CRITICAL
 
@@ -357,18 +241,19 @@ For EACH line item on the bill, you MUST extract:
 - **amountEvidence**: the actual text/number you saw (like "$2,368" or "2368.00")
 - **units**: quantity (default 1)
 - **date**: date of service
+- **codeType**: "cpt" (5 digits), "hcpcs" (letter+4 digits), "revenue" (3-4 digits), or "unknown"
 
 ### THE TABLE FORMAT YOU'LL SEE:
 
 Most medical bills have a table that looks like this:
 
-```
+\`\`\`
 CPT CODE | CLAIM#   | DOS (DATE)  | DESCRIPTION OF SERVICE       | QTY | TOTAL AMOUNT
 99285    | 93186854 | 1/15/2021   | ER EX/TX ALL LEVEL IV        | 1   | $2,368
 85025    | 40020045 | 1/15/2021   | CBC PLATELET ADD DIFF        | 1   | $140
 81003    | 40020282 | 1/15/2021   | URINALYSIS W/O MIC AUTO      | 1   | $89
 36415    | 40020405 | 1/15/2021   | VENIPUNCTURE (RNJ GRN)       | 1   | $16
-```
+\`\`\`
 
 ### HOW TO EXTRACT THIS - STEP BY STEP:
 
@@ -390,7 +275,7 @@ Look for rows of data with CPT codes (5-digit numbers) and dollar amounts
 
 From the example table above, you should extract:
 
-```json
+\`\`\`json
 "charges": [
   {
     "code": "99285",
@@ -433,7 +318,7 @@ From the example table above, you should extract:
     "date": "1/15/2021"
   }
 ]
-```
+\`\`\`
 
 ### CRITICAL RULES:
 
@@ -463,8 +348,8 @@ From the example table above, you should extract:
 5. **NEVER LEAVE AMOUNT AS NULL**
    - If you can see a dollar amount in the row, extract it!
    - Only use null if the amount column is truly empty
-   - Example: `{"code": "99285", "amount": null}` ← THIS IS WRONG if $2,368 is visible!
-   - Correct: `{"code": "99285", "amount": 2368.00}` ← THIS IS RIGHT!
+   - Example: \`{"code": "99285", "amount": null}\` ← THIS IS WRONG if $2,368 is visible!
+   - Correct: \`{"code": "99285", "amount": 2368.00}\` ← THIS IS RIGHT!
 
 ### VALIDATION CHECKLIST:
 
@@ -492,28 +377,28 @@ Before you return your JSON, answer these questions:
 ### COMMON MISTAKES - DON'T DO THESE:
 
 ❌ MISTAKE 1: Extracting code but no amount
-```json
+\`\`\`json
 {"code": "99285", "description": "ER visit", "amount": null}
-```
+\`\`\`
 WHY IT'S WRONG: If the bill shows $2,368 next to 99285, you MUST extract it!
 
 ❌ MISTAKE 2: Using quantity as amount
-```json
+\`\`\`json
 {"code": "99285", "amount": 1}
-```
+\`\`\`
 WHY IT'S WRONG: 1 is the quantity, not the amount. The amount is $2,368.
 
 ❌ MISTAKE 3: Only extracting 2-3 items when table has more
-```
+\`\`\`
 Table: 6 rows
 Your extraction: 2 items
-```
+\`\`\`
 WHY IT'S WRONG: Extract ALL rows!
 
 ❌ MISTAKE 4: Leaving amount as a string
-```json
+\`\`\`json
 {"code": "99285", "amount": "$2,368"}
-```
+\`\`\`
 WHY IT'S WRONG: Amount must be a number: 2368.00 (not a string with $)
 
 ### IF YOU CAN'T FIND THE AMOUNTS:
@@ -527,27 +412,34 @@ WHY IT'S WRONG: Amount must be a number: 2368.00 (not a string with $)
 ### ALTERNATE TABLE FORMATS:
 
 **Format A: With "Total Amount" header**
-```
+\`\`\`
 Code  | Description           | Qty | Total Amount
 99285 | ER Visit Level IV     | 1   | $2,368
 85025 | CBC with Differential | 1   | $140
-```
+\`\`\`
 → Extract amount from "Total Amount" column
 
 **Format B: No clear headers**
-```
+\`\`\`
 99285  ER EX/TX ALL LEVEL IV       $2,368
 85025  CBC PLATELET ADD DIFF       $140
-```
+\`\`\`
 → Extract the rightmost dollar amount
 
 **Format C: Generic services (no codes)**
-```
-Service              | Amount
-Pharmacy             | $53,458.65
-Special care unit    | $3,908.00
-```
+\`\`\`
+Service              | Quantity | Amount
+Pharmacy             | 1        | $53,458.65
+Special care unit    | 1        | $3,908.00
+\`\`\`
 → Extract amount, leave code as null
+
+**Format D: Multiple columns with amounts**
+\`\`\`
+Service    Charges    Insurance    You Owe
+ER Visit   $2,200     $2,082       $118
+\`\`\`
+→ Use "Charges" column ($2,200), NOT "You Owe" column
 
 ### REMEMBER:
 
@@ -562,20 +454,7 @@ IMPORTANT:
 - Do not leave amount null if the amount is clearly visible for that code
 - Extract ALL rows from the table, not just the first few
 - Convert "$2,368" to 2368.00 (number format, remove $ and commas)
-
-=== END REPLACEMENT ===
-### EXTRACTION FAILURES TO AVOID:
-
-❌ BAD: Extracting code but leaving amount null when amount is clearly visible
-❌ BAD: Only extracting the first line item and ignoring others
-❌ BAD: Extracting "You Owe" column instead of "Charges" column
-❌ BAD: Failing to extract amounts because text is slightly unclear
-
-✅ GOOD: Extract EVERY visible line item with its amount, even if OCR is imperfect
-✅ GOOD: Use row alignment to match codes with amounts
-✅ GOOD: Set amountConfidence to "medium" if unsure, but still extract it
-
-REMEMBER: It's better to extract with "medium" confidence than to leave amount as null!
+- Calculate extractedTotals.lineItemsSum as the sum of all line item amounts
 
 ### MULTI-PAGE BILLS
 - Check EVERY page for totals, especially the last page
@@ -599,6 +478,10 @@ REMEMBER: It's better to extract with "medium" confidence than to leave amount a
 
 ### closingReassurance (REQUIRED)
 "Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful."
-
-(Everything else in your existing prompt can remain as-is, including code validation rules and action steps.)
 `;
+
+export default {
+  async fetch(request: Request) {
+    // ... rest of your existing code stays the same ...
+  },
+};
