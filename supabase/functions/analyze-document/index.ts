@@ -341,94 +341,229 @@ If you see amounts under a "BALANCE" or "YOU OWE" column:
 2) Note in extractedTotals.notes: "Only balance amounts visible, not original charges"
 3) Set amount to null for these line items
 
-### LINE ITEM EXTRACTION (charges array) — REQUIRED — CRITICAL
+=== REPLACE LINES 344-430 IN analyze-document/index.ts WITH THIS ===
 
-⚠️ CRITICAL: You MUST extract amounts for EVERY line item, even from messy tables.
+### LINE ITEM EXTRACTION (charges array) — REQUIRED — ABSOLUTELY CRITICAL
 
-For EACH line item visible on the bill, you MUST extract:
-- description: service description text (if unreadable, use "Line item (description unclear)")
-- amount: the billed CHARGE amount for that line (REQUIRED - extract this!)
-- amountConfidence: "high" if clearly visible, "medium" if aligned by row/column, "low" if uncertain
-- amountEvidence: exact text showing this charge (e.g., "$975.00" or "975.00")
-- code: CPT/HCPCS/revenue code if visible (must match valid formats)
-- codeType: "cpt" (5 digits), "hcpcs" (letter+4 digits), "revenue" (3-4 digits), "unknown"
-- units: quantity if shown, default 1
-- date: date of service if shown
+⚠️⚠️⚠️ THIS IS THE MOST IMPORTANT PART - READ CAREFULLY ⚠️⚠️⚠️
 
-### CRITICAL TABLE EXTRACTION RULES:
+**YOUR #1 JOB: Extract the dollar amount for EVERY line item you see**
 
-**When you see a table with codes and amounts:**
+For EACH line item on the bill, you MUST extract:
+- **code**: CPT/HCPCS code (like 99285, 85025, G0305, J1885)
+- **description**: what the service was
+- **amount**: THE DOLLAR AMOUNT - THIS IS MANDATORY!
+- **amountConfidence**: "high" (clearly visible), "medium" (somewhat clear), or "low" (unclear)
+- **amountEvidence**: the actual text/number you saw (like "$2,368" or "2368.00")
+- **units**: quantity (default 1)
+- **date**: date of service
 
-Example table:
+### THE TABLE FORMAT YOU'LL SEE:
+
+Most medical bills have a table that looks like this:
+
 ```
-Service                          Code    Charges
-Radiology - Chemotherapy Admin   77336   $3,848.00
-HC Del Inxt W/Guid Cmplx         77336   $3,848.00
-HC Cont Rad Physics Support      77336   $781.00
+CPT CODE | CLAIM#   | DOS (DATE)  | DESCRIPTION OF SERVICE       | QTY | TOTAL AMOUNT
+99285    | 93186854 | 1/15/2021   | ER EX/TX ALL LEVEL IV        | 1   | $2,368
+85025    | 40020045 | 1/15/2021   | CBC PLATELET ADD DIFF        | 1   | $140
+81003    | 40020282 | 1/15/2021   | URINALYSIS W/O MIC AUTO      | 1   | $89
+36415    | 40020405 | 1/15/2021   | VENIPUNCTURE (RNJ GRN)       | 1   | $16
 ```
 
-You MUST:
-1. **Identify which column has the amounts** - look for "Charges", "Amount", "Billed"
-2. **For EACH row:**
-   - Extract the code (77336)
-   - Extract the amount from the SAME ROW ($3,848.00)
-   - Pair them together in the charges array
-3. **Use positional alignment:**
-   - If code is in column 2 and amount is in column 3, match them by row
-   - Even if text is unclear, match the row position
+### HOW TO EXTRACT THIS - STEP BY STEP:
 
-**Example of CORRECT extraction from the table above:**
+**STEP 1: Find the table**
+Look for rows of data with CPT codes (5-digit numbers) and dollar amounts
+
+**STEP 2: Identify the columns**
+- Column 1: CPT CODE (99285, 85025, 81003, 36415)
+- Middle columns: Other info (claim#, date, description, quantity)
+- LAST column: TOTAL AMOUNT ($2,368, $140, $89, $16) ← THIS IS WHAT YOU NEED!
+
+**STEP 3: For EACH row in the table:**
+- Read the CPT CODE from column 1
+- Read the DESCRIPTION from the middle
+- Read the TOTAL AMOUNT from the last column
+- Put them together
+
+**STEP 4: Convert to JSON**
+
+From the example table above, you should extract:
+
 ```json
 "charges": [
   {
-    "code": "77336",
-    "description": "Radiology - Chemotherapy Admin",
-    "amount": 3848.00,
+    "code": "99285",
+    "codeType": "cpt",
+    "description": "ER EX/TX ALL LEVEL IV",
+    "amount": 2368.00,
     "amountConfidence": "high",
-    "amountEvidence": "$3,848.00"
+    "amountEvidence": "$2,368 in TOTAL AMOUNT column",
+    "units": 1,
+    "date": "1/15/2021"
   },
   {
-    "code": "77336", 
-    "description": "HC Del Inxt W/Guid Cmplx",
-    "amount": 3848.00,
+    "code": "85025",
+    "codeType": "cpt",
+    "description": "CBC PLATELET ADD DIFF",
+    "amount": 140.00,
     "amountConfidence": "high",
-    "amountEvidence": "$3,848.00"
+    "amountEvidence": "$140 in TOTAL AMOUNT column",
+    "units": 1,
+    "date": "1/15/2021"
   },
   {
-    "code": "77336",
-    "description": "HC Cont Rad Physics Support", 
-    "amount": 781.00,
+    "code": "81003",
+    "codeType": "cpt",
+    "description": "URINALYSIS W/O MIC AUTO",
+    "amount": 89.00,
     "amountConfidence": "high",
-    "amountEvidence": "$781.00"
+    "amountEvidence": "$89 in TOTAL AMOUNT column",
+    "units": 1,
+    "date": "1/15/2021"
+  },
+  {
+    "code": "36415",
+    "codeType": "cpt",
+    "description": "VENIPUNCTURE (RNJ GRN)",
+    "amount": 16.00,
+    "amountConfidence": "high",
+    "amountEvidence": "$16 in TOTAL AMOUNT column",
+    "units": 1,
+    "date": "1/15/2021"
   }
 ]
 ```
 
-### COMMON TABLE PATTERNS:
+### CRITICAL RULES:
 
-**Pattern 1: Code in one column, Amount in another**
-```
-Code    Description              Charges
-99213   Office Visit            $150.00
-99000   Handling                 $25.00
-```
-→ Extract: code=99213, amount=150.00 | code=99000, amount=25.00
+1. **EXTRACT THE DOLLAR AMOUNT FROM THE RIGHTMOST COLUMN**
+   - This is usually labeled "TOTAL AMOUNT", "AMOUNT", "CHARGES", or "TOTAL"
+   - Look for $ symbols and decimal numbers
+   - This is the most important data point!
 
-**Pattern 2: Amounts aligned under header**
-```
-                    CHARGES
-Service 1           $2,200.00
-Service 2           $975.00
-```
-→ Extract each amount as separate line item
+2. **PAIR EACH CODE WITH ITS AMOUNT FROM THE SAME ROW**
+   - Row 1: 99285 → $2,368
+   - Row 2: 85025 → $140
+   - Row 3: 81003 → $89
+   - DO NOT mix them up!
 
-**Pattern 3: Multiple columns with amounts**
-```
-Service    Charges    Insurance    You Owe
-ER Visit   $2,200     $2,082       $118
-```
-→ Use "Charges" column ($2,200), NOT "You Owe" column
+3. **CONVERT DOLLAR AMOUNTS TO NUMBERS**
+   - "$2,368" → 2368.00 (remove $, remove commas, keep as number not string)
+   - "$140.00" → 140.00
+   - "$89" → 89.00
+   - "2368.00" → 2368.00
 
+4. **EXTRACT EVERY SINGLE ROW**
+   - If table has 4 rows → extract 4 items
+   - If table has 10 rows → extract 10 items
+   - If table has 20 rows → extract 20 items
+   - Don't stop early!
+
+5. **NEVER LEAVE AMOUNT AS NULL**
+   - If you can see a dollar amount in the row, extract it!
+   - Only use null if the amount column is truly empty
+   - Example: `{"code": "99285", "amount": null}` ← THIS IS WRONG if $2,368 is visible!
+   - Correct: `{"code": "99285", "amount": 2368.00}` ← THIS IS RIGHT!
+
+### VALIDATION CHECKLIST:
+
+Before you return your JSON, answer these questions:
+
+✅ Q1: How many rows are in the table? __
+✅ Q2: How many items did I extract in charges[]? __
+✅ Q3: Do these numbers match? (If no, go back and extract missing rows)
+
+✅ Q4: Does EVERY item in charges[] have an amount value?
+   - Check: charges[0].amount = __ (should be a number, not null)
+   - Check: charges[1].amount = __ (should be a number, not null)
+   - Check: charges[2].amount = __ (should be a number, not null)
+
+✅ Q5: Do the amounts sum correctly?
+   - Add all amounts: __ + __ + __ + ... = __
+   - Total on bill: __
+   - Are they close? (within $10 is OK)
+
+✅ Q6: Are the amounts realistic?
+   - All amounts > $0? __
+   - All amounts < $100,000? __
+   - No amounts equal to 1 or quantity values? __
+
+### COMMON MISTAKES - DON'T DO THESE:
+
+❌ MISTAKE 1: Extracting code but no amount
+```json
+{"code": "99285", "description": "ER visit", "amount": null}
+```
+WHY IT'S WRONG: If the bill shows $2,368 next to 99285, you MUST extract it!
+
+❌ MISTAKE 2: Using quantity as amount
+```json
+{"code": "99285", "amount": 1}
+```
+WHY IT'S WRONG: 1 is the quantity, not the amount. The amount is $2,368.
+
+❌ MISTAKE 3: Only extracting 2-3 items when table has more
+```
+Table: 6 rows
+Your extraction: 2 items
+```
+WHY IT'S WRONG: Extract ALL rows!
+
+❌ MISTAKE 4: Leaving amount as a string
+```json
+{"code": "99285", "amount": "$2,368"}
+```
+WHY IT'S WRONG: Amount must be a number: 2368.00 (not a string with $)
+
+### IF YOU CAN'T FIND THE AMOUNTS:
+
+1. Look for the rightmost column in the table
+2. Look for $ symbols or numbers with decimals (.00)
+3. Look for column headers: "TOTAL AMOUNT", "AMOUNT", "CHARGES", "TOTAL", "PRICE"
+4. The amounts are usually $50-$5,000 range (sometimes higher)
+5. There should be one amount per row
+
+### ALTERNATE TABLE FORMATS:
+
+**Format A: With "Total Amount" header**
+```
+Code  | Description           | Qty | Total Amount
+99285 | ER Visit Level IV     | 1   | $2,368
+85025 | CBC with Differential | 1   | $140
+```
+→ Extract amount from "Total Amount" column
+
+**Format B: No clear headers**
+```
+99285  ER EX/TX ALL LEVEL IV       $2,368
+85025  CBC PLATELET ADD DIFF       $140
+```
+→ Extract the rightmost dollar amount
+
+**Format C: Generic services (no codes)**
+```
+Service              | Amount
+Pharmacy             | $53,458.65
+Special care unit    | $3,908.00
+```
+→ Extract amount, leave code as null
+
+### REMEMBER:
+
+🎯 **Primary Goal: Pair every CPT code with its dollar amount**
+🎯 **Every item MUST have amount as a number**
+🎯 **Extract from the rightmost column with $ signs**
+🎯 **Never leave amount null when it's visible**
+🎯 **Validate: sum of amounts should ≈ total on bill**
+
+IMPORTANT:
+- If you see a CPT/HCPCS code AND an amount in the same row, you MUST pair them
+- Do not leave amount null if the amount is clearly visible for that code
+- Extract ALL rows from the table, not just the first few
+- Convert "$2,368" to 2368.00 (number format, remove $ and commas)
+
+=== END REPLACEMENT ===
 ### EXTRACTION FAILURES TO AVOID:
 
 ❌ BAD: Extracting code but leaving amount null when amount is clearly visible
