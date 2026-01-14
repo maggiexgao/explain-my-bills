@@ -178,13 +178,14 @@ const Index = () => {
 
       if (error) throw new Error(error.message || "Failed to analyze document");
       if (data?.error) throw new Error(data.error);
+      if (!data?.analysis) throw new Error("No analysis data returned from server");
 
       // Handle medical document analysis
       if (state.analysisMode === "medical_document") {
         const ai = data.analysis;
         const medicalDocResult: MedicalDocumentResult = {
-          documentType: ai.documentType || "mixed_other",
-          documentTypeLabel: ai.documentTypeLabel || "Medical Document",
+          documentType: ai?.documentType || "mixed_other",
+          documentTypeLabel: ai?.documentTypeLabel || "Medical Document",
           overview: {
             summary: ai.overview?.summary || "This document contains medical information.",
             mainPurpose: ai.overview?.mainPurpose || "Provides medical details about your care.",
@@ -224,10 +225,11 @@ const Index = () => {
 
       // Handle bill analysis
       const ai = data.analysis;
+      if (!ai) throw new Error("No analysis data returned from server");
       const analysisResult: AnalysisResult = {
-        documentType: (ai.documentType?.toLowerCase() as any) || "unknown",
-        issuer: ai.issuer || "Unknown Provider",
-        dateOfService: ai.dateOfService || "Not specified",
+        documentType: (ai?.documentType?.toLowerCase() as any) || "unknown",
+        issuer: ai?.issuer || "Unknown Provider",
+        dateOfService: ai?.dateOfService || "Not specified",
         documentPurpose: ai.documentPurpose || "Medical billing document",
         charges: ensureArray(ai.lineItems || ai.charges).map((item: any, idx: number) => ({
           id: item.id || `item-${idx + 1}`,
