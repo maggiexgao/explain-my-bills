@@ -152,17 +152,7 @@ const REVENUE_CODE_INDICATORS = [
   "0730",
   "0760",
 ];
-const POST_INSURANCE_INDICATORS = [
-  'insurance paid',
-  'insurance adjustment',
-  'your insurance paid',
-  'after insurance',
-  'remaining balance',
-  'your responsibility',
-  'payment summary',
-  'insurance payment',
-  'contractual adjustment',
-];
+
 // ============= Helper Functions =============
 
 /**
@@ -194,10 +184,8 @@ export function classifyDocument(content: string): DocumentClassification {
   const hospitalScore = HOSPITAL_SUMMARY_INDICATORS.reduce((acc, ind) => acc + (lower.includes(ind) ? 2 : 0), 0);
   const revenueCodeScore = REVENUE_CODE_INDICATORS.reduce((acc, ind) => acc + (lower.includes(ind) ? 3 : 0), 0);
 
-  const postInsuranceScore = POST_INSURANCE_INDICATORS.reduce(
-    (acc, ind) => acc + (lower.includes(ind) ? 2 : 0), 
-    0
-  );
+  // ✅ ADD THIS LINE
+  const postInsuranceScore = POST_INSURANCE_INDICATORS.reduce((acc, ind) => acc + (lower.includes(ind) ? 2 : 0), 0);
 
   const isReceipt =
     lower.includes("receipt") ||
@@ -228,15 +216,14 @@ export function classifyDocument(content: string): DocumentClassification {
   }
 
   if (statementScore >= 4) {
-    // Check for post-insurance itemized statement
+    // ✅ CHECK FOR POST-INSURANCE STATEMENT
     if (postInsuranceScore >= 6 && hasCpt) {
-      return "itemized_statement"; // Still itemized, but note it has insurance info
+      return "itemized_statement";
     }
     return hasCpt ? "itemized_statement" : "summary_statement";
   }
 
   return "unknown";
-}
 }
 
 /**
@@ -567,28 +554,9 @@ export function reconcileTotals(analysisData: any, documentContent?: string): To
       reconciliationNote = "Line item sum matches the total within 3% tolerance.";
     } else {
       reconciliationStatus = "mismatch";
-      
-      // Enhanced explanation of mismatch
-      const unexplainedAmount = comparisonTotal.value - sumLineCharges;
-      
-      if (Math.abs(unexplainedAmount) > 1) {
-        reconciliationNote = 
-          `The bill total ($${comparisonTotal.value.toFixed(2)}) is $${Math.abs(unexplainedAmount).toFixed(2)} ` +
-          `${unexplainedAmount > 0 ? 'higher' : 'lower'} than the sum of line items ($${sumLineCharges.toFixed(2)}). `;
-        
-        if (unexplainedAmount > 0) {
-          reconciliationNote += 
-            `This may indicate additional charges or fees not shown in the itemized list (such as facility fees, ` +
-            `administrative charges, or services listed elsewhere on the bill).`;
-        } else {
-          reconciliationNote += 
-            `This may indicate discounts, adjustments, or that some line items were summed from a different section.`;
-        }
-      } else {
-        reconciliationNote = 
-          `Line item sum ($${sumLineCharges.toFixed(2)}) differs from total ($${comparisonTotal.value.toFixed(2)}) ` +
-          `by ${(percentDiff * 100).toFixed(1)}% (minor rounding difference).`;
-      }
+      reconciliationNote = `Line item sum ($${sumLineCharges.toFixed(2)}) differs from total ($${comparisonTotal.value.toFixed(
+        2,
+      )}) by ${(percentDiff * 100).toFixed(1)}%.`;
     }
   }
 
