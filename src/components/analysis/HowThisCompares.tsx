@@ -68,6 +68,7 @@ import { reconcileTotals, TotalsReconciliation } from '@/lib/totalsExtractor';
 import { computeComparisonReadiness, formatReadinessForUI, ReadinessResult } from '@/lib/comparisonReadinessGate';
 import { normalizeAndDeriveTotals, StructuredTotals } from '@/lib/totals/normalizeTotals';
 import { UnmatchedCodesCard } from './UnmatchedCodesCard';
+import { buildBilledAmountByCode } from '@/lib/billedAmountByCode';
 
 // ============= Props =============
 
@@ -178,6 +179,9 @@ function extractLineItems(analysis: AnalysisResult): {
   const rejectedTokens: RejectedToken[] = [];
   const seenCodes = new Set<string>();
   
+  // Build a map of billed amounts by code from charges
+  const billedByCode = buildBilledAmountByCode(analysis.charges || []);
+  
   // 1. Extract from cptCodes array (most structured source)
   if (analysis.cptCodes && analysis.cptCodes.length > 0) {
     for (const cpt of analysis.cptCodes) {
@@ -196,24 +200,14 @@ function extractLineItems(analysis: AnalysisResult): {
       if (seenCodes.has(validated.code)) continue;
       seenCodes.add(validated.code);
       
-      // Try to find matching charge by code in description
-      const matchingCharge = analysis.charges?.find(c => 
-        c.description?.includes(cpt.code) || 
-        c.description?.includes(validated.code!)
-      );
-      
-      // Also try matching by procedure name
-      const matchByName = !matchingCharge && analysis.charges?.find(c =>
-        cpt.shortLabel && c.description?.toLowerCase().includes(cpt.shortLabel.toLowerCase())
-      );
-      
-      const charge = matchingCharge || matchByName;
+      // Look up billed amount from the billedByCode map using the validated code
+      const billedAmount = billedByCode[validated.code] ?? billedByCode[cpt.code] ?? 0;
       
       items.push({
         hcpcs: validated.code,
         rawCode: cpt.code,
         description: cpt.shortLabel || cpt.explanation,
-        billedAmount: charge?.amount ?? 0,
+        billedAmount,
         units: 1,
         modifier: validated.modifier || undefined,
         isFacility: cpt.category === 'surgery'
@@ -239,17 +233,14 @@ function extractLineItems(analysis: AnalysisResult): {
       if (seenCodes.has(validated.code)) continue;
       seenCodes.add(validated.code);
       
-      // Try to find matching charge
-      const matchingCharge = analysis.charges?.find(c => 
-        c.description?.toLowerCase().includes(cm.procedureName?.toLowerCase() || '') ||
-        c.description?.includes(cm.cptCode || '')
-      );
+      // Look up billed amount from the billedByCode map
+      const billedAmount = billedByCode[validated.code] ?? billedByCode[cm.cptCode] ?? 0;
       
       items.push({
         hcpcs: validated.code,
         rawCode: cm.cptCode,
         description: cm.procedureName || cm.explanation,
-        billedAmount: matchingCharge?.amount ?? 0,
+        billedAmount,
         units: 1,
         modifier: validated.modifier || undefined
       });
@@ -278,11 +269,14 @@ function extractLineItems(analysis: AnalysisResult): {
         if (seenCodes.has(validated.code)) continue;
         seenCodes.add(validated.code);
         
+        // Look up billed amount from the billedByCode map
+        const billedAmount = billedByCode[validated.code] ?? billedByCode[match] ?? charge.amount ?? 0;
+        
         items.push({
           hcpcs: validated.code,
           rawCode: match,
           description: charge.description,
-          billedAmount: charge.amount ?? 0,
+          billedAmount,
           units: 1,
           modifier: validated.modifier || undefined
         });
@@ -311,11 +305,14 @@ function extractLineItems(analysis: AnalysisResult): {
         if (seenCodes.has(validated.code)) continue;
         seenCodes.add(validated.code);
         
+        // Look up billed amount from the billedByCode map
+        const billedAmount = billedByCode[validated.code] ?? billedByCode[candidate.cpt] ?? 0;
+        
         items.push({
           hcpcs: validated.code,
           rawCode: candidate.cpt,
           description: candidate.shortLabel || candidate.explanation,
-          billedAmount: 0, // Suggested codes don't have matched charges
+          billedAmount,
           units: 1,
           modifier: validated.modifier || undefined
         });
