@@ -1,9 +1,9 @@
 /**
  * How This Compares Section
- * 
+ *
  * Displays Medicare benchmark comparison in a user-friendly,
  * trust-building format following approved language guidelines.
- * 
+ *
  * Key principles:
  * - Medicare is a REFERENCE ANCHOR, not "what you should pay"
  * - Calm, non-judgmental, educational tone
@@ -13,17 +13,17 @@
  * - Reverse search runs automatically when no valid codes found
  */
 
-import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
+import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
   Minus,
   CheckCircle,
   AlertTriangle,
@@ -37,10 +37,10 @@ import {
   Bug,
   FileQuestion,
   Search,
-  Sparkles
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { 
+  Sparkles,
+} from "lucide-react";
+import { cn, formatAmount, formatMultiple, formatPercent } from "@/lib/utils";
+import {
   calculateMedicareBenchmarks,
   generateBenchmarkStatement,
   generateComparisonSentence,
@@ -53,22 +53,22 @@ import {
   normalizeCode,
   isValidBillableCode,
   NormalizedCode,
-  GeoDebugInfo
-} from '@/lib/medicareBenchmarkService';
-import { 
-  normalizeAndValidateCode, 
-  validateCodeTokens,
-  ValidatedCode,
-  RejectedToken
-} from '@/lib/cptCodeValidator';
-import { reverseSearchCodes, batchReverseSearch, ReverseSearchResult, InferredCodeCandidate } from '@/lib/reverseCodeSearch';
-import { AnalysisResult, CareSetting } from '@/types';
-import { DebugCalculationPanel, DebugCalculationData } from './DebugCalculationPanel';
-import { reconcileTotals, TotalsReconciliation } from '@/lib/totalsExtractor';
-import { computeComparisonReadiness, formatReadinessForUI, ReadinessResult } from '@/lib/comparisonReadinessGate';
-import { normalizeAndDeriveTotals, StructuredTotals } from '@/lib/totals/normalizeTotals';
-import { UnmatchedCodesCard } from './UnmatchedCodesCard';
-import { buildBilledAmountByCode } from '@/lib/billedAmountByCode';
+  GeoDebugInfo,
+} from "@/lib/medicareBenchmarkService";
+import { normalizeAndValidateCode, validateCodeTokens, ValidatedCode, RejectedToken } from "@/lib/cptCodeValidator";
+import {
+  reverseSearchCodes,
+  batchReverseSearch,
+  ReverseSearchResult,
+  InferredCodeCandidate,
+} from "@/lib/reverseCodeSearch";
+import { AnalysisResult, CareSetting } from "@/types";
+import { DebugCalculationPanel, DebugCalculationData } from "./DebugCalculationPanel";
+import { reconcileTotals, TotalsReconciliation } from "@/lib/totalsExtractor";
+import { computeComparisonReadiness, formatReadinessForUI, ReadinessResult } from "@/lib/comparisonReadinessGate";
+import { normalizeAndDeriveTotals, StructuredTotals } from "@/lib/totals/normalizeTotals";
+import { UnmatchedCodesCard } from "./UnmatchedCodesCard";
+import { buildBilledAmountByCode } from "@/lib/billedAmountByCode";
 
 // ============= Props =============
 
@@ -84,93 +84,93 @@ interface HowThisComparesProps {
 const statusConfig = {
   fair: {
     icon: CheckCircle,
-    label: 'Within Typical Range',
-    color: 'text-success',
-    bg: 'bg-success/10',
-    border: 'border-success/30',
-    description: 'Your charges fall within the range commonly seen with commercial insurance.'
+    label: "Within Typical Range",
+    color: "text-success",
+    bg: "bg-success/10",
+    border: "border-success/30",
+    description: "Your charges fall within the range commonly seen with commercial insurance.",
   },
   high: {
     icon: TrendingUp,
-    label: 'Higher Than Typical',
-    color: 'text-warning',
-    bg: 'bg-warning/10',
-    border: 'border-warning/30',
-    description: 'Some charges are above typical rates. You may want to ask questions.'
+    label: "Higher Than Typical",
+    color: "text-warning",
+    bg: "bg-warning/10",
+    border: "border-warning/30",
+    description: "Some charges are above typical rates. You may want to ask questions.",
   },
   very_high: {
     icon: AlertTriangle,
-    label: 'Significantly Above Reference',
-    color: 'text-destructive',
-    bg: 'bg-destructive/10',
-    border: 'border-destructive/30',
-    description: 'These charges are notably higher than reference prices.'
+    label: "Significantly Above Reference",
+    color: "text-destructive",
+    bg: "bg-destructive/10",
+    border: "border-destructive/30",
+    description: "These charges are notably higher than reference prices.",
   },
   mixed: {
     icon: Minus,
-    label: 'Mixed Results',
-    color: 'text-warning',
-    bg: 'bg-warning/10',
-    border: 'border-warning/30',
-    description: 'Some charges are fair, others may warrant discussion.'
+    label: "Mixed Results",
+    color: "text-warning",
+    bg: "bg-warning/10",
+    border: "border-warning/30",
+    description: "Some charges are fair, others may warrant discussion.",
   },
   unknown: {
     icon: HelpCircle,
-    label: 'Limited Data',
-    color: 'text-muted-foreground',
-    bg: 'bg-muted/10',
-    border: 'border-border/40',
-    description: 'Not enough data available for a full comparison.'
-  }
+    label: "Limited Data",
+    color: "text-muted-foreground",
+    bg: "bg-muted/10",
+    border: "border-border/40",
+    description: "Not enough data available for a full comparison.",
+  },
 };
 
 const lineStatusConfig = {
   fair: {
     icon: CheckCircle,
-    label: 'Fair',
-    color: 'text-success',
-    bg: 'bg-success/10'
+    label: "Fair",
+    color: "text-success",
+    bg: "bg-success/10",
   },
   high: {
     icon: AlertTriangle,
-    label: 'High',
-    color: 'text-warning',
-    bg: 'bg-warning/10'
+    label: "High",
+    color: "text-warning",
+    bg: "bg-warning/10",
   },
   very_high: {
     icon: AlertCircle,
-    label: 'Very High',
-    color: 'text-destructive',
-    bg: 'bg-destructive/10'
+    label: "Very High",
+    color: "text-destructive",
+    bg: "bg-destructive/10",
   },
   unknown: {
     icon: HelpCircle,
-    label: 'N/A',
-    color: 'text-muted-foreground',
-    bg: 'bg-muted/10'
-  }
+    label: "N/A",
+    color: "text-muted-foreground",
+    bg: "bg-muted/10",
+  },
 };
 
 // ============= Helper Functions =============
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', { 
-    style: 'currency', 
-    currency: 'USD',
-    maximumFractionDigits: 0
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
   }).format(amount);
 }
 
 /**
  * Extract line items from analysis with improved code detection
- * 
+ *
  * This function:
  * 1. Extracts ALL codes found in the analysis (cptCodes, chargeMeanings, charges)
  * 2. Normalizes them using the same logic as the benchmark service
  * 3. Creates line items even if we can't match to a specific charge (uses $0 as placeholder)
  */
-function extractLineItems(analysis: AnalysisResult): { 
-  items: BenchmarkLineItem[]; 
+function extractLineItems(analysis: AnalysisResult): {
+  items: BenchmarkLineItem[];
   rawCodes: string[];
   rejectedTokens: RejectedToken[];
 } {
@@ -178,31 +178,31 @@ function extractLineItems(analysis: AnalysisResult): {
   const rawCodes: string[] = [];
   const rejectedTokens: RejectedToken[] = [];
   const seenCodes = new Set<string>();
-  
+
   // Build a map of billed amounts by code from charges
   const billedByCode = buildBilledAmountByCode(analysis.charges || []);
-  
+
   // 1. Extract from cptCodes array (most structured source)
   if (analysis.cptCodes && analysis.cptCodes.length > 0) {
     for (const cpt of analysis.cptCodes) {
       if (!cpt.code) continue;
-      
+
       rawCodes.push(cpt.code);
-      
+
       // Use strict validation
       const validated = normalizeAndValidateCode(cpt.code);
-      
-      if (validated.kind === 'invalid' || !validated.code) {
-        rejectedTokens.push({ token: cpt.code, reason: validated.reason || 'Invalid format' });
+
+      if (validated.kind === "invalid" || !validated.code) {
+        rejectedTokens.push({ token: cpt.code, reason: validated.reason || "Invalid format" });
         continue;
       }
-      
+
       if (seenCodes.has(validated.code)) continue;
       seenCodes.add(validated.code);
-      
+
       // Look up billed amount from the billedByCode map using the validated code
       const billedAmount = billedByCode[validated.code] ?? billedByCode[cpt.code] ?? 0;
-      
+
       items.push({
         hcpcs: validated.code,
         rawCode: cpt.code,
@@ -210,116 +210,116 @@ function extractLineItems(analysis: AnalysisResult): {
         billedAmount,
         units: 1,
         modifier: validated.modifier || undefined,
-        isFacility: cpt.category === 'surgery'
+        isFacility: cpt.category === "surgery",
       });
     }
   }
-  
+
   // 2. Extract from chargeMeanings (may have additional codes)
   if (analysis.chargeMeanings) {
     for (const cm of analysis.chargeMeanings) {
       if (!cm.cptCode) continue;
-      
+
       rawCodes.push(cm.cptCode);
-      
+
       // Use strict validation
       const validated = normalizeAndValidateCode(cm.cptCode);
-      
-      if (validated.kind === 'invalid' || !validated.code) {
-        rejectedTokens.push({ token: cm.cptCode, reason: validated.reason || 'Invalid format' });
+
+      if (validated.kind === "invalid" || !validated.code) {
+        rejectedTokens.push({ token: cm.cptCode, reason: validated.reason || "Invalid format" });
         continue;
       }
-      
+
       if (seenCodes.has(validated.code)) continue;
       seenCodes.add(validated.code);
-      
+
       // Look up billed amount from the billedByCode map
       const billedAmount = billedByCode[validated.code] ?? billedByCode[cm.cptCode] ?? 0;
-      
+
       items.push({
         hcpcs: validated.code,
         rawCode: cm.cptCode,
         description: cm.procedureName || cm.explanation,
         billedAmount,
         units: 1,
-        modifier: validated.modifier || undefined
+        modifier: validated.modifier || undefined,
       });
     }
   }
-  
+
   // 3. Scan charges for codes that might be in descriptions (fallback)
   if (analysis.charges) {
     for (const charge of analysis.charges) {
       if (!charge.description) continue;
-      
+
       // Look for CPT/HCPCS patterns in description
       const codeMatches = charge.description.match(/\b([A-Z0-9]{5})\b/gi) || [];
-      
+
       for (const match of codeMatches) {
         rawCodes.push(match);
-        
+
         // Use strict validation
         const validated = normalizeAndValidateCode(match);
-        
-        if (validated.kind === 'invalid' || !validated.code) {
-          rejectedTokens.push({ token: match, reason: validated.reason || 'Invalid format' });
+
+        if (validated.kind === "invalid" || !validated.code) {
+          rejectedTokens.push({ token: match, reason: validated.reason || "Invalid format" });
           continue;
         }
-        
+
         if (seenCodes.has(validated.code)) continue;
         seenCodes.add(validated.code);
-        
+
         // Look up billed amount from the billedByCode map
         const billedAmount = billedByCode[validated.code] ?? billedByCode[match] ?? charge.amount ?? 0;
-        
+
         items.push({
           hcpcs: validated.code,
           rawCode: match,
           description: charge.description,
           billedAmount,
           units: 1,
-          modifier: validated.modifier || undefined
+          modifier: validated.modifier || undefined,
         });
       }
     }
   }
-  
+
   // 4. Check suggestedCpts if nothing found yet
   if (items.length === 0 && analysis.suggestedCpts) {
     for (const suggested of analysis.suggestedCpts) {
       if (!suggested.candidates) continue;
-      
+
       for (const candidate of suggested.candidates) {
         if (!candidate.cpt) continue;
-        
+
         rawCodes.push(candidate.cpt);
-        
+
         // Use strict validation
         const validated = normalizeAndValidateCode(candidate.cpt);
-        
-        if (validated.kind === 'invalid' || !validated.code) {
-          rejectedTokens.push({ token: candidate.cpt, reason: validated.reason || 'Invalid format' });
+
+        if (validated.kind === "invalid" || !validated.code) {
+          rejectedTokens.push({ token: candidate.cpt, reason: validated.reason || "Invalid format" });
           continue;
         }
-        
+
         if (seenCodes.has(validated.code)) continue;
         seenCodes.add(validated.code);
-        
+
         // Look up billed amount from the billedByCode map
         const billedAmount = billedByCode[validated.code] ?? billedByCode[candidate.cpt] ?? 0;
-        
+
         items.push({
           hcpcs: validated.code,
           rawCode: candidate.cpt,
           description: candidate.shortLabel || candidate.explanation,
           billedAmount,
           units: 1,
-          modifier: validated.modifier || undefined
+          modifier: validated.modifier || undefined,
         });
       }
     }
   }
-  
+
   return { items, rawCodes, rejectedTokens };
 }
 
@@ -335,14 +335,14 @@ function extractServiceDate(analysis: AnalysisResult): string | null {
 
 // ============= Sub-Components =============
 
-function DebugPanel({ 
-  output, 
-  rawCodes, 
+function DebugPanel({
+  output,
+  rawCodes,
   serviceDate,
   state,
-  zipCode 
-}: { 
-  output: MedicareBenchmarkOutput; 
+  zipCode,
+}: {
+  output: MedicareBenchmarkOutput;
   rawCodes: string[];
   serviceDate: string | null;
   state?: string;
@@ -350,73 +350,149 @@ function DebugPanel({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showLineDetails, setShowLineDetails] = useState(false);
-  
+
   // Count codes by match status
-  const matchedCount = output.lineItems.filter(i => i.matchStatus === 'matched').length;
-  const missingCount = output.lineItems.filter(i => i.matchStatus === 'missing').length;
-  const existsNotPricedCount = output.lineItems.filter(i => i.matchStatus === 'exists_not_priced').length;
-  
+  const matchedCount = output.lineItems.filter((i) => i.matchStatus === "matched").length;
+  const missingCount = output.lineItems.filter((i) => i.matchStatus === "missing").length;
+  const existsNotPricedCount = output.lineItems.filter((i) => i.matchStatus === "exists_not_priced").length;
+
   // Conversion factor for display
   const CF = 34.6062;
-  
+
   return (
     <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/50 text-xs font-mono">
-      <button 
+      <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 w-full text-left text-muted-foreground hover:text-foreground"
       >
         <Bug className="h-3 w-3" />
         <span>Benchmark Debug Info</span>
         <div className="ml-auto flex items-center gap-2">
-          {matchedCount > 0 && <Badge variant="outline" className="text-success border-success/30 text-[10px]">{matchedCount} priced</Badge>}
-          {existsNotPricedCount > 0 && <Badge variant="outline" className="text-warning border-warning/30 text-[10px]">{existsNotPricedCount} exists/not priced</Badge>}
-          {missingCount > 0 && <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">{missingCount} missing</Badge>}
+          {matchedCount > 0 && (
+            <Badge variant="outline" className="text-success border-success/30 text-[10px]">
+              {matchedCount} priced
+            </Badge>
+          )}
+          {existsNotPricedCount > 0 && (
+            <Badge variant="outline" className="text-warning border-warning/30 text-[10px]">
+              {existsNotPricedCount} exists/not priced
+            </Badge>
+          )}
+          {missingCount > 0 && (
+            <Badge variant="outline" className="text-destructive border-destructive/30 text-[10px]">
+              {missingCount} missing
+            </Badge>
+          )}
           {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </div>
       </button>
-      
+
       {expanded && (
         <div className="mt-3 space-y-2 text-muted-foreground">
           {/* Status summary */}
           <div className="grid grid-cols-2 gap-2 p-2 rounded bg-background/50">
-            <div><strong>Status:</strong> <span className={output.status === 'ok' ? 'text-success' : output.status === 'no_codes' ? 'text-destructive' : 'text-warning'}>{output.status}</span></div>
-            <div><strong>Service Date:</strong> {serviceDate || 'Not detected'}</div>
-            <div><strong>State:</strong> {state || 'Not selected'}</div>
-            <div><strong>ZIP:</strong> {zipCode || 'Not provided'}</div>
+            <div>
+              <strong>Status:</strong>{" "}
+              <span
+                className={
+                  output.status === "ok"
+                    ? "text-success"
+                    : output.status === "no_codes"
+                      ? "text-destructive"
+                      : "text-warning"
+                }
+              >
+                {output.status}
+              </span>
+            </div>
+            <div>
+              <strong>Service Date:</strong> {serviceDate || "Not detected"}
+            </div>
+            <div>
+              <strong>State:</strong> {state || "Not selected"}
+            </div>
+            <div>
+              <strong>ZIP:</strong> {zipCode || "Not provided"}
+            </div>
           </div>
-          
+
           {/* Year info */}
           <div className="p-2 rounded bg-background/50">
             <div className="grid grid-cols-2 gap-2">
-              <div><strong>Requested Years:</strong> {output.metadata.requestedYears.join(', ') || 'None'}</div>
-              <div><strong>Benchmark Year Used:</strong> <span className="text-primary">{output.metadata.benchmarkYearUsed}</span></div>
-              <div><strong>Latest MPFS Year:</strong> {output.debug.latestMpfsYear}</div>
-              <div><strong>Year Fallback:</strong> {output.metadata.usedYearFallback ? <span className="text-warning">Yes</span> : 'No'}</div>
+              <div>
+                <strong>Requested Years:</strong> {output.metadata.requestedYears.join(", ") || "None"}
+              </div>
+              <div>
+                <strong>Benchmark Year Used:</strong>{" "}
+                <span className="text-primary">{output.metadata.benchmarkYearUsed}</span>
+              </div>
+              <div>
+                <strong>Latest MPFS Year:</strong> {output.debug.latestMpfsYear}
+              </div>
+              <div>
+                <strong>Year Fallback:</strong>{" "}
+                {output.metadata.usedYearFallback ? <span className="text-warning">Yes</span> : "No"}
+              </div>
             </div>
             {output.metadata.fallbackReason && (
-              <div className="mt-1 text-warning"><strong>Fallback Reason:</strong> {output.metadata.fallbackReason}</div>
+              <div className="mt-1 text-warning">
+                <strong>Fallback Reason:</strong> {output.metadata.fallbackReason}
+              </div>
             )}
           </div>
-          
+
           {/* Locality/GPCI info */}
           <div className="p-2 rounded bg-background/50">
-            <div className="mb-1"><strong>Geo Resolution:</strong></div>
+            <div className="mb-1">
+              <strong>Geo Resolution:</strong>
+            </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><strong>Confidence:</strong> <span className={
-                output.metadata.localityUsed === 'local_adjusted' ? 'text-success' :
-                output.metadata.localityUsed === 'state_estimate' ? 'text-warning' : 'text-muted-foreground'
-              }>{output.metadata.localityUsed}</span></div>
-              <div><strong>Lookup Method:</strong> {output.debug.gpciLookup?.method || 'N/A'}</div>
-              <div><strong>Locality Name:</strong> {output.metadata.localityName || 'National (no locality)'}</div>
-              <div><strong>Locality Code:</strong> {output.debug.gpciLookup?.localityCode || 'N/A'}</div>
+              <div>
+                <strong>Confidence:</strong>{" "}
+                <span
+                  className={
+                    output.metadata.localityUsed === "local_adjusted"
+                      ? "text-success"
+                      : output.metadata.localityUsed === "state_estimate"
+                        ? "text-warning"
+                        : "text-muted-foreground"
+                  }
+                >
+                  {output.metadata.localityUsed}
+                </span>
+              </div>
+              <div>
+                <strong>Lookup Method:</strong> {output.debug.gpciLookup?.method || "N/A"}
+              </div>
+              <div>
+                <strong>Locality Name:</strong> {output.metadata.localityName || "National (no locality)"}
+              </div>
+              <div>
+                <strong>Locality Code:</strong> {output.debug.gpciLookup?.localityCode || "N/A"}
+              </div>
             </div>
             {output.debug.gpciLookup?.localityFound && (
               <div className="mt-2 p-2 rounded bg-success/5 border border-success/20">
                 <strong className="text-success">GPCI Indices Applied:</strong>
                 <div className="grid grid-cols-3 gap-2 mt-1">
-                  <div>Work: <span className="text-foreground font-semibold">{output.debug.gpciLookup.workGpci?.toFixed(4) || 'N/A'}</span></div>
-                  <div>PE: <span className="text-foreground font-semibold">{output.debug.gpciLookup.peGpci?.toFixed(4) || 'N/A'}</span></div>
-                  <div>MP: <span className="text-foreground font-semibold">{output.debug.gpciLookup.mpGpci?.toFixed(4) || 'N/A'}</span></div>
+                  <div>
+                    Work:{" "}
+                    <span className="text-foreground font-semibold">
+                      {output.debug.gpciLookup.workGpci?.toFixed(4) || "N/A"}
+                    </span>
+                  </div>
+                  <div>
+                    PE:{" "}
+                    <span className="text-foreground font-semibold">
+                      {output.debug.gpciLookup.peGpci?.toFixed(4) || "N/A"}
+                    </span>
+                  </div>
+                  <div>
+                    MP:{" "}
+                    <span className="text-foreground font-semibold">
+                      {output.debug.gpciLookup.mpGpci?.toFixed(4) || "N/A"}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground">
                   Formula: Fee = [(Work RVU × Work GPCI) + (PE RVU × PE GPCI) + (MP RVU × MP GPCI)] × {CF}
@@ -432,46 +508,64 @@ function DebugPanel({
               </div>
             )}
           </div>
-          
+
           {/* Code extraction */}
           <div className="pt-2 border-t border-border/30">
             <strong>Raw Codes Extracted ({rawCodes.length}):</strong>
             <div className="mt-1 flex flex-wrap gap-1">
-              {rawCodes.length > 0 ? rawCodes.slice(0, 20).map((c, i) => (
-                <Badge key={i} variant="outline" className="text-xs">{c}</Badge>
-              )) : <span className="text-destructive">None found in bill</span>}
+              {rawCodes.length > 0 ? (
+                rawCodes.slice(0, 20).map((c, i) => (
+                  <Badge key={i} variant="outline" className="text-xs">
+                    {c}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-destructive">None found in bill</span>
+              )}
               {rawCodes.length > 20 && <span className="text-muted-foreground">+{rawCodes.length - 20} more</span>}
             </div>
           </div>
-          
+
           {/* Match results with classification */}
           <div className="pt-2 border-t border-border/30">
-            <div className="mb-2"><strong>Classification Results:</strong></div>
+            <div className="mb-2">
+              <strong>Classification Results:</strong>
+            </div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="p-2 rounded bg-success/5 border border-success/20">
                 <strong className="text-success">✓ Priced ({matchedCount})</strong>
-                <div className="text-[10px] mt-1">{output.debug.codesMatched.slice(0, 5).join(', ') || 'None'}</div>
+                <div className="text-[10px] mt-1">{output.debug.codesMatched.slice(0, 5).join(", ") || "None"}</div>
               </div>
               <div className="p-2 rounded bg-warning/5 border border-warning/20">
                 <strong className="text-warning">⚠ Exists, Not Priced ({existsNotPricedCount})</strong>
-                <div className="text-[10px] mt-1">{output.debug.codesExistsNotPriced.slice(0, 5).join(', ') || 'None'}</div>
+                <div className="text-[10px] mt-1">
+                  {output.debug.codesExistsNotPriced.slice(0, 5).join(", ") || "None"}
+                </div>
               </div>
               <div className="p-2 rounded bg-destructive/5 border border-destructive/20">
                 <strong className="text-destructive">✗ Missing ({missingCount})</strong>
-                <div className="text-[10px] mt-1">{output.debug.codesMissing.slice(0, 5).join(', ') || 'None'}</div>
+                <div className="text-[10px] mt-1">{output.debug.codesMissing.slice(0, 5).join(", ") || "None"}</div>
               </div>
             </div>
           </div>
-          
+
           {/* Totals */}
           <div className="p-2 rounded bg-background/50">
             <div className="grid grid-cols-3 gap-2">
-              <div><strong>Billed Total:</strong> ${output.totals.billedTotal?.toFixed(2) || '—'}</div>
-              <div><strong>Medicare Ref:</strong> ${output.totals.medicareReferenceTotal?.toFixed(2) || 'N/A'}</div>
-              <div><strong>Multiple:</strong> {output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A'}</div>
+              <div>
+                <strong>Billed Total:</strong> {formatAmount(output.totals.billedTotal)}
+              </div>
+              <div>
+                <strong>Medicare Ref:</strong>{" "}
+                {formatAmount(output.totals.medicareReferenceTotal, { placeholder: "N/A" })}
+              </div>
+              <div>
+                <strong>Multiple:</strong>{" "}
+                {output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : "N/A"}
+              </div>
             </div>
           </div>
-          
+
           {/* Per-line item details toggle */}
           <div className="pt-2 border-t border-border/30">
             <button
@@ -481,45 +575,71 @@ function DebugPanel({
               {showLineDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               <span>Per-Line Item Debug ({output.lineItems.length} items)</span>
             </button>
-            
+
             {showLineDetails && (
               <div className="mt-2 max-h-80 overflow-y-auto space-y-2">
                 {output.lineItems.map((item, i) => (
-                  <div key={i} className={cn(
-                    "p-2 rounded text-[10px] border",
-                    item.matchStatus === 'matched' ? 'bg-success/5 border-success/20' :
-                    item.matchStatus === 'exists_not_priced' ? 'bg-warning/5 border-warning/20' :
-                    'bg-destructive/5 border-destructive/20'
-                  )}>
+                  <div
+                    key={i}
+                    className={cn(
+                      "p-2 rounded text-[10px] border",
+                      item.matchStatus === "matched"
+                        ? "bg-success/5 border-success/20"
+                        : item.matchStatus === "exists_not_priced"
+                          ? "bg-warning/5 border-warning/20"
+                          : "bg-destructive/5 border-destructive/20",
+                    )}
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <code className="font-semibold text-foreground">{item.hcpcs}</code>
                       {item.modifier && <span className="text-muted-foreground">-{item.modifier}</span>}
-                      <Badge variant="outline" className={cn(
-                        "text-[8px]",
-                        item.matchStatus === 'matched' ? 'text-success border-success/30' :
-                        item.matchStatus === 'exists_not_priced' ? 'text-warning border-warning/30' :
-                        'text-destructive border-destructive/30'
-                      )}>
-                        {item.matchStatus === 'matched' ? 'PRICED' :
-                         item.matchStatus === 'exists_not_priced' ? 'EXISTS/NOT PRICED' :
-                         'MISSING'}
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[8px]",
+                          item.matchStatus === "matched"
+                            ? "text-success border-success/30"
+                            : item.matchStatus === "exists_not_priced"
+                              ? "text-warning border-warning/30"
+                              : "text-destructive border-destructive/30",
+                        )}
+                      >
+                        {item.matchStatus === "matched"
+                          ? "PRICED"
+                          : item.matchStatus === "exists_not_priced"
+                            ? "EXISTS/NOT PRICED"
+                            : "MISSING"}
                       </Badge>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-1">
-                      <div><strong>Billed:</strong> ${item.billedAmount?.toFixed(2) || '—'}</div>
-                      <div><strong>Medicare Ref:</strong> ${item.medicareReferencePerUnit?.toFixed(2) || 'N/A'}</div>
-                      <div><strong>Fee Source:</strong> {item.feeSource || 'N/A'}</div>
-                      <div><strong>GPCI Applied:</strong> {item.gpciAdjusted ? 'Yes' : 'No'}</div>
+                      <div>
+                        <strong>Billed:</strong> {formatAmount(item.billedAmount, { placeholder: "—" })}
+                      </div>
+                      <div>
+                        <strong>Medicare Ref:</strong>{" "}
+                        {formatAmount(item.medicareReferencePerUnit, { placeholder: "N/A" })}
+                      </div>
+                      <div>
+                        <strong>Fee Source:</strong> {item.feeSource || "N/A"}
+                      </div>
+                      <div>
+                        <strong>GPCI Applied:</strong> {item.gpciAdjusted ? "Yes" : "No"}
+                      </div>
                       {item.notPricedReason && (
-                        <div className="col-span-2"><strong>Not Priced Reason:</strong> <span className="text-warning">{item.notPricedReason}</span></div>
+                        <div className="col-span-2">
+                          <strong>Not Priced Reason:</strong>{" "}
+                          <span className="text-warning">{item.notPricedReason}</span>
+                        </div>
                       )}
-                      <div className="col-span-2"><strong>Year:</strong> {item.benchmarkYearUsed || 'N/A'}</div>
+                      <div className="col-span-2">
+                        <strong>Year:</strong> {item.benchmarkYearUsed || "N/A"}
+                      </div>
                     </div>
-                    
+
                     {item.notes.length > 0 && (
                       <div className="mt-1 text-muted-foreground">
-                        <strong>Notes:</strong> {item.notes.join(' | ')}
+                        <strong>Notes:</strong> {item.notes.join(" | ")}
                       </div>
                     )}
                   </div>
@@ -527,22 +647,26 @@ function DebugPanel({
               </div>
             )}
           </div>
-          
+
           {/* Query details */}
           <div className="pt-2 border-t border-border/30">
             <strong>MPFS Queries Attempted ({output.debug.queriesAttempted.length}):</strong>
             <div className="mt-1 max-h-40 overflow-y-auto space-y-1">
               {output.debug.queriesAttempted.map((q, i) => (
-                <div key={i} className={cn(
-                  "text-xs p-1 rounded",
-                  q.row_exists ? (q.has_fee || q.has_rvu ? 'bg-success/10' : 'bg-warning/10') : 'bg-destructive/10'
-                )}>
+                <div
+                  key={i}
+                  className={cn(
+                    "text-xs p-1 rounded",
+                    q.row_exists ? (q.has_fee || q.has_rvu ? "bg-success/10" : "bg-warning/10") : "bg-destructive/10",
+                  )}
+                >
                   <span className="font-semibold">{q.hcpcs}</span>
-                  {q.modifier && <span className="text-muted-foreground">-{q.modifier}</span>}
-                  {' '}(year: {q.year}, qp: {q.qp_status}) → 
+                  {q.modifier && <span className="text-muted-foreground">-{q.modifier}</span>} (year: {q.year}, qp:{" "}
+                  {q.qp_status}) →
                   {q.row_exists ? (
-                    <span className={q.has_fee || q.has_rvu ? 'text-success' : 'text-warning'}>
-                      {' '}✓ Row found {q.has_fee ? '(has fee)' : q.has_rvu ? '(has RVU)' : '(no fee/RVU)'}
+                    <span className={q.has_fee || q.has_rvu ? "text-success" : "text-warning"}>
+                      {" "}
+                      ✓ Row found {q.has_fee ? "(has fee)" : q.has_rvu ? "(has RVU)" : "(no fee/RVU)"}
                       {q.status_code && <span className="text-muted-foreground"> [status: {q.status_code}]</span>}
                     </span>
                   ) : (
@@ -552,16 +676,16 @@ function DebugPanel({
               ))}
             </div>
           </div>
-          
+
           {/* Example query for manual verification */}
           {output.debug.queriesAttempted.length > 0 && (
             <div className="pt-2 border-t border-border/30">
               <strong>Example SQL Query:</strong>
               <pre className="mt-1 p-2 rounded bg-background/80 text-[10px] overflow-x-auto">
-{`SELECT hcpcs, modifier, status, nonfac_fee, fac_fee, 
+                {`SELECT hcpcs, modifier, status, nonfac_fee, fac_fee, 
        work_rvu, nonfac_pe_rvu, fac_pe_rvu, mp_rvu, conversion_factor
 FROM mpfs_benchmarks 
-WHERE hcpcs = '${output.debug.queriesAttempted[0]?.hcpcs || '99213'}' 
+WHERE hcpcs = '${output.debug.queriesAttempted[0]?.hcpcs || "99213"}' 
   AND year = ${output.metadata.benchmarkYearUsed}
   AND qp_status = 'nonQP'
   AND source = 'CMS MPFS';`}
@@ -578,77 +702,71 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
   const [expanded, setExpanded] = useState(false);
   const config = lineStatusConfig[item.status];
   const StatusIcon = config.icon;
-  
+
   return (
-    <div className={cn(
-      'border rounded-lg transition-all',
-      item.status === 'very_high' && 'border-destructive/30 bg-destructive/5',
-      item.status === 'high' && 'border-warning/30 bg-warning/5',
-      item.status === 'fair' && 'border-border/30',
-      item.status === 'unknown' && 'border-border/20 bg-muted/5'
-    )}>
+    <div
+      className={cn(
+        "border rounded-lg transition-all",
+        item.status === "very_high" && "border-destructive/30 bg-destructive/5",
+        item.status === "high" && "border-warning/30 bg-warning/5",
+        item.status === "fair" && "border-border/30",
+        item.status === "unknown" && "border-border/20 bg-muted/5",
+      )}
+    >
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full p-4 flex items-center gap-4 text-left hover:bg-muted/10 transition-colors"
       >
         {/* CPT Code */}
         <div className="w-20 shrink-0">
-          <code className="text-sm font-mono bg-muted/40 px-2 py-1 rounded">
-            {item.hcpcs}
-          </code>
-          {item.modifier && (
-            <code className="text-xs font-mono text-muted-foreground ml-1">
-              -{item.modifier}
-            </code>
-          )}
+          <code className="text-sm font-mono bg-muted/40 px-2 py-1 rounded">{item.hcpcs}</code>
+          {item.modifier && <code className="text-xs font-mono text-muted-foreground ml-1">-{item.modifier}</code>}
         </div>
-        
+
         {/* Description */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">
-            {item.description || 'Medical service'}
-          </p>
-          {item.benchmarkYearUsed && item.matchStatus === 'matched' && (
+          <p className="text-sm font-medium text-foreground truncate">{item.description || "Medical service"}</p>
+          {item.benchmarkYearUsed && item.matchStatus === "matched" && (
             <p className="text-xs text-muted-foreground">
-              {item.benchmarkYearUsed} Medicare {item.feeSource === 'rvu_calc_local' ? '(MPFS, location-adjusted)' : 
-                item.feeSource === 'rvu_calc_national' ? '(MPFS, national)' : 
-                item.feeSource === 'direct_fee' ? '(MPFS)' : 'reference'}
+              {item.benchmarkYearUsed} Medicare{" "}
+              {item.feeSource === "rvu_calc_local"
+                ? "(MPFS, location-adjusted)"
+                : item.feeSource === "rvu_calc_national"
+                  ? "(MPFS, national)"
+                  : item.feeSource === "direct_fee"
+                    ? "(MPFS)"
+                    : "reference"}
             </p>
           )}
         </div>
-        
+
         {/* Billed */}
         <div className="w-24 text-right shrink-0">
           <p className="text-sm font-semibold text-foreground">
-            {item.billedAmount > 0 ? formatCurrency(item.billedAmount) : '—'}
+            {item.billedAmount > 0 ? formatCurrency(item.billedAmount) : "—"}
           </p>
           <p className="text-xs text-muted-foreground">billed</p>
         </div>
-        
+
         {/* Medicare Reference */}
         <div className="w-24 text-right shrink-0">
           <p className="text-sm text-muted-foreground">
-            {item.medicareReferenceTotal 
-              ? formatCurrency(item.medicareReferenceTotal)
-              : '—'
-            }
+            {item.medicareReferenceTotal ? formatCurrency(item.medicareReferenceTotal) : "—"}
           </p>
           <p className="text-xs text-muted-foreground">reference</p>
         </div>
-        
+
         {/* Multiple */}
         <div className="w-16 text-right shrink-0">
-          <p className={cn('text-sm font-semibold', config.color)}>
-            {item.multiple ? `${item.multiple}×` : '—'}
-          </p>
+          <p className={cn("text-sm font-semibold", config.color)}>{item.multiple ? `${item.multiple}×` : "—"}</p>
         </div>
-        
+
         {/* Status Badge */}
-        <Badge className={cn('shrink-0', config.bg, config.color)}>
+        <Badge className={cn("shrink-0", config.bg, config.color)}>
           <StatusIcon className="h-3 w-3 mr-1" />
           {config.label}
         </Badge>
-        
+
         {/* Expand Icon */}
         {expanded ? (
           <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -656,11 +774,11 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
           <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
         )}
       </button>
-      
+
       {/* Expanded Details */}
       {expanded && item.notes.length > 0 && (
         <div className="px-4 pb-4 pt-0">
-          <div className={cn('p-3 rounded-lg text-sm', config.bg)}>
+          <div className={cn("p-3 rounded-lg text-sm", config.bg)}>
             {item.notes.map((note, idx) => (
               <p key={idx} className="text-muted-foreground">
                 {note}
@@ -679,76 +797,67 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
   );
 }
 
-function SummaryCard({ output, totalsReconciliation, readinessResult }: { 
-  output: MedicareBenchmarkOutput; 
+function SummaryCard({
+  output,
+  totalsReconciliation,
+  readinessResult,
+}: {
+  output: MedicareBenchmarkOutput;
   totalsReconciliation?: TotalsReconciliation | null;
   readinessResult?: ReadinessResult | null;
 }) {
   const { status, message } = generateOverallStatus(output);
   const config = statusConfig[status];
   const StatusIcon = config.icon;
-  
+
   const benchmarkStatement = generateBenchmarkStatement(output);
   const comparisonSentence = generateComparisonSentence(output);
   const confidenceQualifier = generateConfidenceQualifier(output);
   const yearFallbackDisclosure = generateYearFallbackDisclosure(output);
-  
-  const flaggedCount = output.lineItems.filter(
-    i => i.status === 'high' || i.status === 'very_high'
-  ).length;
-  
+
+  const flaggedCount = output.lineItems.filter((i) => i.status === "high" || i.status === "very_high").length;
+
   // Determine if we're comparing patient balance (limited comparability)
-  const isPatientBalanceComparison = totalsReconciliation?.comparisonTotal?.type === 'patient_responsibility';
-  const comparisonTotalLabel = totalsReconciliation?.comparisonTotal?.type === 'charges' 
-    ? 'Total Charges'
-    : totalsReconciliation?.comparisonTotal?.type === 'patient_responsibility'
-    ? 'Patient Balance'
-    : totalsReconciliation?.comparisonTotal?.type === 'allowed'
-    ? 'Allowed Amount'
-    : 'Matched Items Billed';
-  
+  const isPatientBalanceComparison = totalsReconciliation?.comparisonTotal?.type === "patient_responsibility";
+  const comparisonTotalLabel =
+    totalsReconciliation?.comparisonTotal?.type === "charges"
+      ? "Total Charges"
+      : totalsReconciliation?.comparisonTotal?.type === "patient_responsibility"
+        ? "Patient Balance"
+        : totalsReconciliation?.comparisonTotal?.type === "allowed"
+          ? "Allowed Amount"
+          : "Matched Items Billed";
+
   return (
-    <Card className={cn('p-6 border-2', config.border, config.bg)}>
+    <Card className={cn("p-6 border-2", config.border, config.bg)}>
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-start gap-4">
-          <div className={cn('p-3 rounded-xl', config.bg, config.color)}>
+          <div className={cn("p-3 rounded-xl", config.bg, config.color)}>
             <StatusIcon className="h-6 w-6" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-foreground mb-1">
-              How This Compares
-            </h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              {message}
-            </p>
+            <h3 className="text-lg font-semibold text-foreground mb-1">How This Compares</h3>
+            <p className="text-sm text-muted-foreground max-w-md">{message}</p>
           </div>
         </div>
-        <Badge className={cn('shrink-0 text-sm px-3 py-1', config.bg, config.color)}>
-          {config.label}
-        </Badge>
+        <Badge className={cn("shrink-0 text-sm px-3 py-1", config.bg, config.color)}>{config.label}</Badge>
       </div>
-      
+
       {/* Benchmark Statements */}
       <div className="space-y-3 mb-6 p-4 rounded-lg bg-background/60 border border-border/30">
-        <p className="text-base text-foreground">
-          {benchmarkStatement}
-        </p>
-        {comparisonSentence && (
-          <p className="text-base font-medium text-foreground">
-            {comparisonSentence}
-          </p>
-        )}
+        <p className="text-base text-foreground">{benchmarkStatement}</p>
+        {comparisonSentence && <p className="text-base font-medium text-foreground">{comparisonSentence}</p>}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <MapPin className="h-4 w-4" />
           <span>{confidenceQualifier}</span>
-          {output.metadata.localityUsed === 'local_adjusted' && (
+          {output.metadata.localityUsed === "local_adjusted" && (
             <Badge variant="outline" className="text-[10px] bg-success/10 border-success/30 text-success">
               Location-adjusted
             </Badge>
           )}
         </div>
-        
+
         {/* Year Fallback Disclosure */}
         {yearFallbackDisclosure && (
           <div className="mt-3 p-3 rounded bg-warning/10 border border-warning/20">
@@ -759,7 +868,7 @@ function SummaryCard({ output, totalsReconciliation, readinessResult }: {
           </div>
         )}
       </div>
-      
+
       {/* Patient Balance Warning - Never compare patient balance to Medicare as "your bill is X× Medicare" */}
       {isPatientBalanceComparison && (
         <div className="p-4 rounded-lg bg-warning/10 border border-warning/20 mb-4">
@@ -768,16 +877,15 @@ function SummaryCard({ output, totalsReconciliation, readinessResult }: {
             <div>
               <p className="text-sm font-medium text-foreground mb-1">Limited Comparison</p>
               <p className="text-xs text-muted-foreground">
-                Only a patient balance was detected on this document (not total charges). 
-                Medicare reference prices are based on full service pricing before insurance. 
-                Comparing your remaining balance to Medicare rates isn't meaningful since 
-                insurance has already adjusted and paid a portion.
+                Only a patient balance was detected on this document (not total charges). Medicare reference prices are
+                based on full service pricing before insurance. Comparing your remaining balance to Medicare rates isn't
+                meaningful since insurance has already adjusted and paid a portion.
               </p>
             </div>
           </div>
         </div>
       )}
-      
+
       {/* Scope Warning Banner (if mismatch detected) */}
       {output.matchedItemsComparison.scopeWarning && !isPatientBalanceComparison && (
         <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 mb-4">
@@ -790,7 +898,7 @@ function SummaryCard({ output, totalsReconciliation, readinessResult }: {
           </div>
         </div>
       )}
-      
+
       {/* Stats Grid - Use matched-items comparison when valid, skip if patient balance only */}
       {!isPatientBalanceComparison && (
         <div className="space-y-4 mb-6">
@@ -801,92 +909,92 @@ function SummaryCard({ output, totalsReconciliation, readinessResult }: {
               <span className="text-sm font-medium">What We Compared</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              {output.matchedItemsComparison.isValidComparison 
+              {output.matchedItemsComparison.isValidComparison
                 ? `We compared the billed amounts for ${output.matchedItemsComparison.matchedItemsCount} items that we could match to Medicare pricing (${output.matchedItemsComparison.coveragePercent}% of detected items). This ensures an apples-to-apples comparison.`
                 : output.totals.billedTotal && output.totals.billedTotal > 0
                   ? `Total charges detected (${formatCurrency(output.totals.billedTotal)}) include items we couldn't match to Medicare pricing, so the multiple may not be fully accurate.`
-                  : 'We couldn\'t detect enough billed amounts to compute a meaningful comparison.'
-              }
+                  : "We couldn't detect enough billed amounts to compute a meaningful comparison."}
             </p>
           </div>
-          
+
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-4 rounded-xl bg-background/60 border border-border/30">
               <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                {output.matchedItemsComparison.isValidComparison 
-                  ? `Matched Charges`
-                  : comparisonTotalLabel
-                }
+                {output.matchedItemsComparison.isValidComparison ? `Matched Charges` : comparisonTotalLabel}
               </p>
               <p className="text-2xl font-bold text-foreground">
-                {output.matchedItemsComparison.isValidComparison 
+                {output.matchedItemsComparison.isValidComparison
                   ? formatCurrency(output.matchedItemsComparison.matchedBilledTotal!)
-                  : (output.totals.billedTotal ? formatCurrency(output.totals.billedTotal) : '—')
-                }
+                  : output.totals.billedTotal
+                    ? formatCurrency(output.totals.billedTotal)
+                    : "—"}
               </p>
               {output.matchedItemsComparison.isValidComparison && (
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  {output.matchedItemsComparison.matchedItemsCount}/{output.matchedItemsComparison.totalItemsCount} items
+                  {output.matchedItemsComparison.matchedItemsCount}/{output.matchedItemsComparison.totalItemsCount}{" "}
+                  items
                 </p>
               )}
             </div>
             <div className="text-center p-4 rounded-xl bg-primary/5 border border-primary/20">
-              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                Medicare Reference
-              </p>
+              <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Medicare Reference</p>
               <p className="text-2xl font-bold text-primary">
-                {output.matchedItemsComparison.matchedMedicareTotal 
+                {output.matchedItemsComparison.matchedMedicareTotal
                   ? formatCurrency(output.matchedItemsComparison.matchedMedicareTotal)
-                  : (output.totals.medicareReferenceTotal ? formatCurrency(output.totals.medicareReferenceTotal) : 'N/A')
-                }
+                  : output.totals.medicareReferenceTotal
+                    ? formatCurrency(output.totals.medicareReferenceTotal)
+                    : "N/A"}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                {output.metadata.benchmarkYearUsed} rates
-              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">{output.metadata.benchmarkYearUsed} rates</p>
             </div>
-            <div className={cn(
-              'text-center p-4 rounded-xl border',
-              output.matchedItemsComparison.isValidComparison 
-                ? 'bg-background/60 border-border/30' 
-                : 'bg-warning/5 border-warning/20'
-            )}>
+            <div
+              className={cn(
+                "text-center p-4 rounded-xl border",
+                output.matchedItemsComparison.isValidComparison
+                  ? "bg-background/60 border-border/30"
+                  : "bg-warning/5 border-warning/20",
+              )}
+            >
               <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                {output.matchedItemsComparison.isValidComparison ? 'Multiple' : 'Estimated'}
+                {output.matchedItemsComparison.isValidComparison ? "Multiple" : "Estimated"}
               </p>
-              <p className={cn(
-                'text-2xl font-bold',
-                output.matchedItemsComparison.isValidComparison ? config.color : 'text-warning'
-              )}>
+              <p
+                className={cn(
+                  "text-2xl font-bold",
+                  output.matchedItemsComparison.isValidComparison ? config.color : "text-warning",
+                )}
+              >
                 {output.matchedItemsComparison.isValidComparison && output.matchedItemsComparison.matchedItemsMultiple
                   ? `${output.matchedItemsComparison.matchedItemsMultiple}×`
-                  : (output.totals.multipleOfMedicare ? `${output.totals.multipleOfMedicare}×` : 'N/A')
-                }
+                  : output.totals.multipleOfMedicare
+                    ? `${output.totals.multipleOfMedicare}×`
+                    : "N/A"}
               </p>
               {!output.matchedItemsComparison.isValidComparison && output.totals.multipleOfMedicare && (
-                <p className="text-[10px] text-warning mt-1">
-                  ⚠ Scope mismatch
-                </p>
+                <p className="text-[10px] text-warning mt-1">⚠ Scope mismatch</p>
               )}
             </div>
           </div>
         </div>
       )}
-      
+
       {/* Flagged Items & Potential Savings */}
       <div className="flex items-center justify-between pt-4 border-t border-border/30">
-        {output.matchedItemsComparison.isValidComparison && 
-         output.matchedItemsComparison.matchedItemsMultiple && 
-         output.matchedItemsComparison.matchedItemsMultiple > 1.5 && 
-         output.matchedItemsComparison.matchedMedicareTotal ? (
+        {output.matchedItemsComparison.isValidComparison &&
+        output.matchedItemsComparison.matchedItemsMultiple &&
+        output.matchedItemsComparison.matchedItemsMultiple > 1.5 &&
+        output.matchedItemsComparison.matchedMedicareTotal ? (
           <div className="flex items-center gap-2">
             <TrendingDown className="h-4 w-4 text-success" />
             <span className="text-sm">
               <span className="font-semibold text-success">
-                Potential savings: {formatCurrency(output.matchedItemsComparison.matchedBilledTotal! - (output.matchedItemsComparison.matchedMedicareTotal * 1.5))}
+                Potential savings:{" "}
+                {formatCurrency(
+                  output.matchedItemsComparison.matchedBilledTotal! -
+                    output.matchedItemsComparison.matchedMedicareTotal * 1.5,
+                )}
               </span>
-              <span className="text-muted-foreground ml-1">
-                if negotiated to 150% of reference (matched items)
-              </span>
+              <span className="text-muted-foreground ml-1">if negotiated to 150% of reference (matched items)</span>
             </span>
           </div>
         ) : output.matchedItemsComparison.isValidComparison ? (
@@ -899,10 +1007,10 @@ function SummaryCard({ output, totalsReconciliation, readinessResult }: {
             Limited comparison — some items not matched
           </span>
         )}
-        
+
         {flaggedCount > 0 && (
           <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
-            {flaggedCount} item{flaggedCount > 1 ? 's' : ''} to review
+            {flaggedCount} item{flaggedCount > 1 ? "s" : ""} to review
           </Badge>
         )}
       </div>
@@ -914,26 +1022,32 @@ function SummaryCard({ output, totalsReconciliation, readinessResult }: {
  * Section for codes that exist in MPFS but have no payable Medicare amount
  */
 function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }) {
-  const existsNotPricedItems = items.filter(i => i.matchStatus === 'exists_not_priced');
+  const existsNotPricedItems = items.filter((i) => i.matchStatus === "exists_not_priced");
   if (existsNotPricedItems.length === 0) return null;
-  
+
   // Group by reason for better messaging
-  const mpfsItems = existsNotPricedItems.filter(i => 
-    i.notPricedReason === 'rvus_zero_or_missing' || 
-    i.notPricedReason === 'fees_missing' ||
-    i.notPricedReason === 'status_indicator_nonpayable'
+  const mpfsItems = existsNotPricedItems.filter(
+    (i) =>
+      i.notPricedReason === "rvus_zero_or_missing" ||
+      i.notPricedReason === "fees_missing" ||
+      i.notPricedReason === "status_indicator_nonpayable",
   );
-  
+
   const getReasonLabel = (reason: string | null): string => {
     switch (reason) {
-      case 'rvus_zero_or_missing': return 'no RVUs';
-      case 'fees_missing': return 'no fee';
-      case 'status_indicator_nonpayable': return 'not payable';
-      case 'packaged': return 'packaged (OPPS)';
-      default: return 'no reference';
+      case "rvus_zero_or_missing":
+        return "no RVUs";
+      case "fees_missing":
+        return "no fee";
+      case "status_indicator_nonpayable":
+        return "not payable";
+      case "packaged":
+        return "packaged (OPPS)";
+      default:
+        return "no reference";
     }
   };
-  
+
   return (
     <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
       <div className="flex items-start gap-3">
@@ -943,17 +1057,18 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
             Codes found in Medicare data, but no reference price available
           </p>
           <p className="text-sm text-muted-foreground mb-2">
-            These services exist in Medicare's fee schedules but do not have a 
-            separately payable amount. They may be bundled into other services, 
-            packaged under OPPS, or used for reporting purposes only.
+            These services exist in Medicare's fee schedules but do not have a separately payable amount. They may be
+            bundled into other services, packaged under OPPS, or used for reporting purposes only.
           </p>
           <div className="flex flex-wrap gap-1.5 mb-2">
-            {existsNotPricedItems.slice(0, 8).map(item => (
-              <Badge key={item.hcpcs} variant="outline" className="text-xs bg-warning/10 border-warning/30 text-warning-foreground">
+            {existsNotPricedItems.slice(0, 8).map((item) => (
+              <Badge
+                key={item.hcpcs}
+                variant="outline"
+                className="text-xs bg-warning/10 border-warning/30 text-warning-foreground"
+              >
                 {item.hcpcs}
-                <span className="ml-1 text-[10px] text-muted-foreground">
-                  ({getReasonLabel(item.notPricedReason)})
-                </span>
+                <span className="ml-1 text-[10px] text-muted-foreground">({getReasonLabel(item.notPricedReason)})</span>
               </Badge>
             ))}
             {existsNotPricedItems.length > 8 && (
@@ -963,9 +1078,9 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            <strong>Note:</strong> These are NOT missing from Medicare's data — they simply 
-            don't have a separately payable Medicare rate. This is common for add-on codes, 
-            packaged services under OPPS, carrier-priced services, or informational codes.
+            <strong>Note:</strong> These are NOT missing from Medicare's data — they simply don't have a separately
+            payable Medicare rate. This is common for add-on codes, packaged services under OPPS, carrier-priced
+            services, or informational codes.
           </p>
         </div>
       </div>
@@ -979,7 +1094,7 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
  */
 function CodesMissingSection({ codes }: { codes: string[] }) {
   if (codes.length === 0) return null;
-  
+
   // Use the new UnmatchedCodesCard which fetches descriptions from NLM
   return <UnmatchedCodesCard unmatchedCodes={codes} />;
 }
@@ -988,12 +1103,10 @@ function EducationalFooter() {
   return (
     <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
       <p className="text-sm text-muted-foreground leading-relaxed">
-        <strong className="text-foreground">About these comparisons:</strong>{' '}
-        Medicare reference prices are set by the federal government and are often used 
-        by insurers, employers, and courts as benchmarks. Commercial insurance typically 
-        pays 100-300% of Medicare rates. These comparisons help you understand your 
-        charges in context — not what you "should" pay, but how they relate to a 
-        widely-used reference point.
+        <strong className="text-foreground">About these comparisons:</strong> Medicare reference prices are set by the
+        federal government and are often used by insurers, employers, and courts as benchmarks. Commercial insurance
+        typically pays 100-300% of Medicare rates. These comparisons help you understand your charges in context — not
+        what you "should" pay, but how they relate to a widely-used reference point.
       </p>
     </div>
   );
@@ -1001,12 +1114,12 @@ function EducationalFooter() {
 
 // ============= Empty State Components =============
 
-function NoCodesEmptyState({ 
-  reverseSearchTriggered, 
-  reverseSearchResults 
-}: { 
+function NoCodesEmptyState({
+  reverseSearchTriggered,
+  reverseSearchResults,
+}: {
   reverseSearchTriggered: boolean;
-  reverseSearchResults?: DebugCalculationData['reverseSearchResults'];
+  reverseSearchResults?: DebugCalculationData["reverseSearchResults"];
 }) {
   return (
     <div className="p-6 rounded-xl bg-muted/20 border border-border/30">
@@ -1015,19 +1128,17 @@ function NoCodesEmptyState({
           <FileQuestion className="h-6 w-6 text-muted-foreground" />
         </div>
         <div>
-          <p className="text-base font-medium text-foreground mb-2">
-            No CPT/HCPCS codes detected
-          </p>
+          <p className="text-base font-medium text-foreground mb-2">No CPT/HCPCS codes detected</p>
           <p className="text-sm text-muted-foreground mb-3">
-            We couldn't detect any CPT or HCPCS codes in this bill, so we can't compute 
-            Medicare benchmarks yet. This might happen if:
+            We couldn't detect any CPT or HCPCS codes in this bill, so we can't compute Medicare benchmarks yet. This
+            might happen if:
           </p>
           <ul className="text-sm text-muted-foreground list-disc ml-4 mb-4 space-y-1">
             <li>The bill image is blurry or partially cut off</li>
             <li>This is a summary bill without itemized procedure codes</li>
             <li>The codes are in a format we don't recognize yet</li>
           </ul>
-          
+
           {/* Reverse search status */}
           {reverseSearchTriggered && (
             <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 mb-4">
@@ -1047,13 +1158,11 @@ function NoCodesEmptyState({
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  No matching codes found from service descriptions.
-                </p>
+                <p className="text-xs text-muted-foreground">No matching codes found from service descriptions.</p>
               )}
             </div>
           )}
-          
+
           <p className="text-sm text-muted-foreground">
             <strong>Try:</strong> Uploading a clearer image or a more detailed itemized statement.
           </p>
@@ -1063,22 +1172,14 @@ function NoCodesEmptyState({
   );
 }
 
-function NoMatchesEmptyState({ 
-  output, 
-  rawCodes 
-}: { 
-  output: MedicareBenchmarkOutput; 
-  rawCodes: string[];
-}) {
+function NoMatchesEmptyState({ output, rawCodes }: { output: MedicareBenchmarkOutput; rawCodes: string[] }) {
   const sampleCodes = output.debug.normalizedCodes
-    .filter(c => isValidBillableCode(c))
+    .filter((c) => isValidBillableCode(c))
     .slice(0, 8)
-    .map(c => c.hcpcs);
-  
-  const allUnmatchedCodes = output.debug.normalizedCodes
-    .filter(c => isValidBillableCode(c))
-    .map(c => c.hcpcs);
-  
+    .map((c) => c.hcpcs);
+
+  const allUnmatchedCodes = output.debug.normalizedCodes.filter((c) => isValidBillableCode(c)).map((c) => c.hcpcs);
+
   return (
     <div className="space-y-4">
       <div className="p-6 rounded-xl bg-muted/20 border border-border/30">
@@ -1087,43 +1188,38 @@ function NoMatchesEmptyState({
             <Search className="h-6 w-6 text-warning" />
           </div>
           <div>
-            <p className="text-base font-medium text-foreground mb-2">
-              Codes detected, but no Medicare matches found
-            </p>
+            <p className="text-base font-medium text-foreground mb-2">Codes detected, but no Medicare matches found</p>
             <p className="text-sm text-muted-foreground mb-3">
-              CPT/HCPCS codes were detected, but we couldn't find Medicare reference pricing 
-              for them in our current dataset.
+              CPT/HCPCS codes were detected, but we couldn't find Medicare reference pricing for them in our current
+              dataset.
             </p>
-            
+
             <div className="text-sm text-muted-foreground space-y-1 mb-4">
-              <p><strong>Year requested:</strong> {output.metadata.requestedYears.join(', ') || 'Unknown'}</p>
-              <p><strong>Year searched:</strong> {output.metadata.benchmarkYearUsed}</p>
+              <p>
+                <strong>Year requested:</strong> {output.metadata.requestedYears.join(", ") || "Unknown"}
+              </p>
+              <p>
+                <strong>Year searched:</strong> {output.metadata.benchmarkYearUsed}
+              </p>
             </div>
-            
+
             <p className="text-sm text-muted-foreground">
-              <strong>Possible reasons:</strong> These may be newer codes, DME codes, 
-              private payer codes (S-codes), or services outside the Medicare Physician Fee Schedule.
+              <strong>Possible reasons:</strong> These may be newer codes, DME codes, private payer codes (S-codes), or
+              services outside the Medicare Physician Fee Schedule.
             </p>
           </div>
         </div>
       </div>
-      
+
       {/* Show unmatched codes with descriptions fetched from NLM */}
-      {allUnmatchedCodes.length > 0 && (
-        <UnmatchedCodesCard unmatchedCodes={allUnmatchedCodes} />
-      )}
+      {allUnmatchedCodes.length > 0 && <UnmatchedCodesCard unmatchedCodes={allUnmatchedCodes} />}
     </div>
   );
 }
 
 // ============= Main Component =============
 
-export function HowThisCompares({ 
-  analysis, 
-  state, 
-  zipCode,
-  careSetting = 'office'
-}: HowThisComparesProps) {
+export function HowThisCompares({ analysis, state, zipCode, careSetting = "office" }: HowThisComparesProps) {
   const [output, setOutput] = useState<MedicareBenchmarkOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1134,64 +1230,64 @@ export function HowThisCompares({
   const [rejectedTokens, setRejectedTokens] = useState<RejectedToken[]>([]);
   const [reverseSearchTriggered, setReverseSearchTriggered] = useState(false);
   const [reverseSearchReason, setReverseSearchReason] = useState<string | undefined>();
-  const [reverseSearchResults, setReverseSearchResults] = useState<DebugCalculationData['reverseSearchResults']>([]);
+  const [reverseSearchResults, setReverseSearchResults] = useState<DebugCalculationData["reverseSearchResults"]>([]);
   const [totalsReconciliation, setTotalsReconciliation] = useState<TotalsReconciliation | null>(null);
   const [structuredTotals, setStructuredTotals] = useState<StructuredTotals | null>(null);
   const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
   useEffect(() => {
     let cancelled = false;
-    
+
     async function fetchBenchmarks() {
       setLoading(true);
       setError(null);
       setReverseSearchTriggered(false);
       setReverseSearchReason(undefined);
       setReverseSearchResults([]);
-      
+
       try {
         // Extract service date
         const extractedDate = extractServiceDate(analysis);
         setServiceDate(extractedDate);
-        
+
         // Reconcile totals from analysis
         const reconciledTotals = reconcileTotals(analysis);
         setTotalsReconciliation(reconciledTotals);
-        
+
         // Extract line items with improved logic and strict validation
         const { items: lineItems, rawCodes: extractedRawCodes, rejectedTokens: rejected } = extractLineItems(analysis);
         setRawCodes(extractedRawCodes);
         setRejectedTokens(rejected);
-        
-        console.log('[HowThisCompares] Extracted line items:', lineItems.length);
-        console.log('[HowThisCompares] Raw codes found:', extractedRawCodes);
-        console.log('[HowThisCompares] Rejected tokens:', rejected);
-        console.log('[HowThisCompares] Service date:', extractedDate);
-        
+
+        console.log("[HowThisCompares] Extracted line items:", lineItems.length);
+        console.log("[HowThisCompares] Raw codes found:", extractedRawCodes);
+        console.log("[HowThisCompares] Rejected tokens:", rejected);
+        console.log("[HowThisCompares] Service date:", extractedDate);
+
         let finalLineItems = lineItems;
-        
+
         // === REVERSE SEARCH LOGIC ===
         // Trigger reverse search when:
         // 1. No valid codes extracted, OR
         // 2. Too many rejected tokens compared to valid codes, OR
         // 3. All line items have $0 billedAmount (summary bill)
-        const needsReverseSearch = 
-          lineItems.length === 0 || 
+        const needsReverseSearch =
+          lineItems.length === 0 ||
           (rejected.length > 0 && lineItems.length < rejected.length * 0.5) ||
-          (lineItems.length > 0 && lineItems.every(i => !i.billedAmount || i.billedAmount === 0));
-        
+          (lineItems.length > 0 && lineItems.every((i) => !i.billedAmount || i.billedAmount === 0));
+
         if (needsReverseSearch) {
-          console.log('[HowThisCompares] Triggering reverse search...');
+          console.log("[HowThisCompares] Triggering reverse search...");
           setReverseSearchTriggered(true);
-          
+
           // Determine the reason
           if (lineItems.length === 0) {
-            setReverseSearchReason('No valid CPT/HCPCS codes detected');
-          } else if (lineItems.every(i => !i.billedAmount || i.billedAmount === 0)) {
-            setReverseSearchReason('Summary bill detected (no line item amounts)');
+            setReverseSearchReason("No valid CPT/HCPCS codes detected");
+          } else if (lineItems.every((i) => !i.billedAmount || i.billedAmount === 0)) {
+            setReverseSearchReason("Summary bill detected (no line item amounts)");
           } else {
-            setReverseSearchReason('Few valid codes compared to rejected tokens');
+            setReverseSearchReason("Few valid codes compared to rejected tokens");
           }
-          
+
           // Extract service descriptions from charges
           const descriptions: string[] = [];
           if (analysis.charges) {
@@ -1201,7 +1297,7 @@ export function HowThisCompares({
               }
             }
           }
-          
+
           // Also extract from chargeMeanings
           if (analysis.chargeMeanings) {
             for (const cm of analysis.chargeMeanings) {
@@ -1210,96 +1306,100 @@ export function HowThisCompares({
               }
             }
           }
-          
+
           if (descriptions.length > 0) {
             // Perform batch reverse search
             const reverseResults = await batchReverseSearch(descriptions.slice(0, 10));
-            
+
             // Collect inferred codes
             const inferredCodes: BenchmarkLineItem[] = [];
-            const searchResultsForDebug: DebugCalculationData['reverseSearchResults'] = [];
-            
+            const searchResultsForDebug: DebugCalculationData["reverseSearchResults"] = [];
+
             for (const result of reverseResults) {
-              if (result.primaryCandidate && result.primaryCandidate.confidence !== 'low') {
+              if (result.primaryCandidate && result.primaryCandidate.confidence !== "low") {
                 inferredCodes.push({
                   hcpcs: result.primaryCandidate.hcpcs,
                   description: result.sourceText,
                   billedAmount: 0, // Inferred codes don't have amounts
-                  units: 1
+                  units: 1,
                 });
-                
+
                 searchResultsForDebug.push({
                   description: result.sourceText.substring(0, 50),
                   matchedCode: result.primaryCandidate.hcpcs,
                   score: result.primaryCandidate.score,
-                  source: result.searchMethod
+                  source: result.searchMethod,
                 });
               }
             }
-            
+
             setReverseSearchResults(searchResultsForDebug);
-            
+
             // Use inferred codes if we got any
             if (inferredCodes.length > 0) {
-              console.log('[HowThisCompares] Reverse search found:', inferredCodes.length, 'codes');
+              console.log("[HowThisCompares] Reverse search found:", inferredCodes.length, "codes");
               finalLineItems = inferredCodes;
             }
           }
         }
-        
+
         // Apply service date to all items if not already set
-        const itemsWithDate = finalLineItems.map(item => ({
+        const itemsWithDate = finalLineItems.map((item) => ({
           ...item,
           dateOfService: item.dateOfService || extractedDate || undefined,
-          isFacility: careSetting === 'facility' ? true : item.isFacility
+          isFacility: careSetting === "facility" ? true : item.isFacility,
         }));
-        
-        const result = await calculateMedicareBenchmarks(
-          itemsWithDate,
-          state,
-          zipCode
-        );
-        
-        console.log('[HowThisCompares] Benchmark result:', result.status);
-        console.log('[HowThisCompares] Debug info:', result.debug);
-        
+
+        const result = await calculateMedicareBenchmarks(itemsWithDate, state, zipCode);
+
+        console.log("[HowThisCompares] Benchmark result:", result.status);
+        console.log("[HowThisCompares] Debug info:", result.debug);
+
         // Compute structured totals from analysis for readiness gate
-        const lineItemsForTotals = itemsWithDate.map(item => ({
+        const lineItemsForTotals = itemsWithDate.map((item) => ({
           description: item.description,
           billedAmount: item.billedAmount,
           code: item.hcpcs,
-          units: item.units
+          units: item.units,
         }));
         // Use reconciled totals as input to normalize, or empty object if not available
-        const rawTotalsFromReconciliation = reconciledTotals?.comparisonTotal ? {
-          totalCharges: reconciledTotals.comparisonTotal.type === 'charges' ? {
-            value: reconciledTotals.comparisonTotal.value,
-            confidence: reconciledTotals.comparisonTotal.confidence,
-            evidence: reconciledTotals.comparisonTotal.explanation,
-            label: 'Total Charges'
-          } : undefined,
-          patientResponsibility: reconciledTotals.comparisonTotal.type === 'patient_responsibility' ? {
-            value: reconciledTotals.comparisonTotal.value,
-            confidence: reconciledTotals.comparisonTotal.confidence,
-            evidence: reconciledTotals.comparisonTotal.explanation,
-            label: 'Patient Responsibility'
-          } : undefined
-        } : {};
+        const rawTotalsFromReconciliation = reconciledTotals?.comparisonTotal
+          ? {
+              totalCharges:
+                reconciledTotals.comparisonTotal.type === "charges"
+                  ? {
+                      value: reconciledTotals.comparisonTotal.value,
+                      confidence: reconciledTotals.comparisonTotal.confidence,
+                      evidence: reconciledTotals.comparisonTotal.explanation,
+                      label: "Total Charges",
+                    }
+                  : undefined,
+              patientResponsibility:
+                reconciledTotals.comparisonTotal.type === "patient_responsibility"
+                  ? {
+                      value: reconciledTotals.comparisonTotal.value,
+                      confidence: reconciledTotals.comparisonTotal.confidence,
+                      evidence: reconciledTotals.comparisonTotal.explanation,
+                      label: "Patient Responsibility",
+                    }
+                  : undefined,
+            }
+          : {};
         const derivedTotals = normalizeAndDeriveTotals(rawTotalsFromReconciliation, lineItemsForTotals);
-        
+
         // Compute comparison readiness using the gate
         const readiness = computeComparisonReadiness(result, derivedTotals);
-        console.log('[HowThisCompares] Readiness result:', readiness.status, readiness.reasons);
-        
+        console.log("[HowThisCompares] Readiness result:", readiness.status, readiness.reasons);
+
         if (!cancelled) {
           setOutput(result);
           setStructuredTotals(derivedTotals);
           setReadinessResult(readiness);
         }
       } catch (err) {
-        console.error('[HowThisCompares] Medicare benchmark error:', err);
+        console.error("[HowThisCompares] Medicare benchmark error:", err);
         if (!cancelled) {
-          setError('Unable to load Medicare comparison data');
+          setError("Unable to load Medicare comparison data");
         }
       } finally {
         if (!cancelled) {
@@ -1307,19 +1407,19 @@ export function HowThisCompares({
         }
       }
     }
-    
+
     if (state) {
       fetchBenchmarks();
     } else {
       setLoading(false);
-      setError('Select a state to see Medicare comparisons');
+      setError("Select a state to see Medicare comparisons");
     }
-    
+
     return () => {
       cancelled = true;
     };
   }, [analysis, state, zipCode, careSetting]);
-  
+
   // Loading state
   if (loading) {
     return (
@@ -1332,107 +1432,96 @@ export function HowThisCompares({
       </div>
     );
   }
-  
+
   // Error state
   if (error && !output) {
     return (
       <div className="p-6 rounded-xl bg-muted/20 border border-border/30 text-center">
         <HelpCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">
-          {error}
-        </p>
+        <p className="text-sm text-muted-foreground">{error}</p>
       </div>
     );
   }
-  
+
   // No output at all
   if (!output) {
     return (
       <div className="p-6 rounded-xl bg-muted/20 border border-border/30 text-center">
         <HelpCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">
-          Medicare comparison not available
-        </p>
+        <p className="text-sm text-muted-foreground">Medicare comparison not available</p>
       </div>
     );
   }
-  
+
   // === DISTINCT EMPTY STATES ===
-  
+
   // State 1: NO codes extracted at all
-  if (output.status === 'no_codes') {
+  if (output.status === "no_codes") {
     return (
       <div className="space-y-4">
-        <NoCodesEmptyState reverseSearchTriggered={reverseSearchTriggered} reverseSearchResults={reverseSearchResults} />
-        
+        <NoCodesEmptyState
+          reverseSearchTriggered={reverseSearchTriggered}
+          reverseSearchResults={reverseSearchResults}
+        />
+
         {/* Debug toggle */}
         <div className="flex items-center gap-2">
-          <Switch
-            id="debug-mode"
-            checked={showDebug}
-            onCheckedChange={setShowDebug}
-          />
+          <Switch id="debug-mode" checked={showDebug} onCheckedChange={setShowDebug} />
           <Label htmlFor="debug-mode" className="text-xs text-muted-foreground">
             Show debug info
           </Label>
         </div>
-        
+
         {showDebug && (
           <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} state={state} zipCode={zipCode} />
         )}
       </div>
     );
   }
-  
+
   // State 2: Codes extracted but NO MPFS matches
-  if (output.status === 'no_matches') {
+  if (output.status === "no_matches") {
     return (
       <div className="space-y-4">
         <NoMatchesEmptyState output={output} rawCodes={rawCodes} />
         <EducationalFooter />
-        
+
         {/* Debug toggle */}
         <div className="flex items-center gap-2">
-          <Switch
-            id="debug-mode"
-            checked={showDebug}
-            onCheckedChange={setShowDebug}
-          />
+          <Switch id="debug-mode" checked={showDebug} onCheckedChange={setShowDebug} />
           <Label htmlFor="debug-mode" className="text-xs text-muted-foreground">
             Show debug info
           </Label>
         </div>
-        
+
         {showDebug && (
           <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} state={state} zipCode={zipCode} />
         )}
       </div>
     );
   }
-  
+
   // State 3 & 4: We have SOME or ALL matches - show the comparison
-  
+
   // Determine how many items to show
-  const displayItems = showAllItems 
-    ? output.lineItems 
-    : output.lineItems.slice(0, 5);
-  
+  const displayItems = showAllItems ? output.lineItems : output.lineItems.slice(0, 5);
+
   return (
     <div className="space-y-6">
       {/* Summary Card */}
       <SummaryCard output={output} totalsReconciliation={totalsReconciliation} readinessResult={readinessResult} />
-      
+
       {/* Partial match notice */}
-      {output.status === 'partial' && (
+      {output.status === "partial" && (
         <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
           <p className="text-sm text-muted-foreground flex items-start gap-2">
             <Info className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
-            Some services on this bill could not be matched to Medicare reference prices. 
-            The comparison above covers only the matched items.
+            Some services on this bill could not be matched to Medicare reference prices. The comparison above covers
+            only the matched items.
           </p>
         </div>
       )}
-      
+
       {/* Line Item Details */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -1440,13 +1529,8 @@ export function HowThisCompares({
             Service-by-Service Breakdown ({output.lineItems.length} items)
           </h4>
           {output.lineItems.length > 5 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAllItems(!showAllItems)}
-              className="text-xs"
-            >
-              {showAllItems ? 'Show Less' : `Show All ${output.lineItems.length}`}
+            <Button variant="ghost" size="sm" onClick={() => setShowAllItems(!showAllItems)} className="text-xs">
+              {showAllItems ? "Show Less" : `Show All ${output.lineItems.length}`}
             </Button>
           )}
         </div>
@@ -1456,28 +1540,24 @@ export function HowThisCompares({
           ))}
         </div>
       </div>
-      
+
       {/* Codes that exist but have no Medicare price */}
       <CodesExistsNotPricedSection items={output.lineItems} />
-      
+
       {/* Codes not found in MPFS at all */}
       <CodesMissingSection codes={output.codesNotFound} />
-      
+
       {/* Educational Footer */}
       <EducationalFooter />
-      
+
       {/* Debug toggle */}
       <div className="flex items-center gap-2">
-        <Switch
-          id="debug-mode"
-          checked={showDebug}
-          onCheckedChange={setShowDebug}
-        />
+        <Switch id="debug-mode" checked={showDebug} onCheckedChange={setShowDebug} />
         <Label htmlFor="debug-mode" className="text-xs text-muted-foreground">
           Show benchmark debug info
         </Label>
       </div>
-      
+
       {showDebug && (
         <DebugPanel output={output} rawCodes={rawCodes} serviceDate={serviceDate} state={state} zipCode={zipCode} />
       )}
