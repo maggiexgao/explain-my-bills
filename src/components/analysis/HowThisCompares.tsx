@@ -181,7 +181,9 @@ function extractLineItems(analysis: AnalysisResult): {
   const seenCodes = new Set<string>();
 
   // Build a map of billed amounts by code from charges
+  console.log('[DEBUG HowThisCompares] analysis.charges:', JSON.stringify(analysis.charges, null, 2));
   const billedByCode = buildBilledAmountByCode(analysis.charges || []);
+  console.log('[DEBUG HowThisCompares] billedByCode map:', JSON.stringify(billedByCode, null, 2));
 
   // 1. Extract from cptCodes array (most structured source)
   if (analysis.cptCodes && analysis.cptCodes.length > 0) {
