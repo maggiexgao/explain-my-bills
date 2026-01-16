@@ -68,7 +68,6 @@ For every CPT code row, extract:
   - Remove $ signs
   - Remove commas
   - Keep as pure number
-  - Example: "$2,368.00" becomes 2368.00
 - **amountEvidence**: Quote the exact text you saw (e.g., "$2,368.00 from CHARGES column")
 
 ### STEP 4: Validate your extraction
@@ -82,7 +81,7 @@ Before returning, verify:
 ## REAL-WORLD EXAMPLES:
 
 ### Example 1: Clear charges column
-```
+
 STATEMENT OF PHYSICIAN SERVICES
 
 ACCT#    DATE      CPT    DESCRIPTION              CHARGES
@@ -90,10 +89,8 @@ ACCT#    DATE      CPT    DESCRIPTION              CHARGES
 999999   09/11/09  85025  CBC WITH DIFF            $140.00
 999999   09/11/09  36415  VENIPUNCTURE             $16.00
                                          TOTAL:    $1402.00
-```
 
 Your extraction:
-```json
 {
   "charges": [
     { "code": "99285", "description": "ER VISIT LEVEL IV", "amount": 1246.00, "amountEvidence": "$1246.00 from CHARGES column" },
@@ -108,34 +105,28 @@ Your extraction:
     "lineItemsSum": 1402.00
   }
 }
-```
 
 ### Example 2: Table with multiple amount columns
-```
+
 CODE   DATE     DESCRIPTION        BILLED    INS PAID  ADJUSTED  BALANCE
 99213  01/15/25 OFFICE VISIT       $250.00   $200.00   $25.00    $25.00
 36415  01/15/25 VENIPUNCTURE       $16.00    $12.80    $1.60     $1.60
-```
 
 Your extraction (focus on BILLED column):
-```json
 {
   "charges": [
     { "code": "99213", "description": "OFFICE VISIT", "amount": 250.00, "amountEvidence": "$250.00 from BILLED column" },
     { "code": "36415", "description": "VENIPUNCTURE", "amount": 16.00, "amountEvidence": "$16.00 from BILLED column" }
   ]
 }
-```
 
 ### Example 3: Amounts without $ or column headers
-```
+
 88300    2026 Medicare (MPFS, location-adjusted)    —    $15
 43217    2026 Medicare (MPFS, location-adjusted)    —    $447
 44389    2026 Medicare (MPFS, location-adjusted)    —    $436
-```
 
 Your extraction:
-```json
 {
   "charges": [
     { "code": "88300", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 15.00, "amountEvidence": "$15 from amount column" },
@@ -143,29 +134,28 @@ Your extraction:
     { "code": "44389", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 436.00, "amountEvidence": "$436 from amount column" }
   ]
 }
-```
 
 ## COMMON MISTAKES TO AVOID:
 
-❌ WRONG: `{ "code": "99285", "amount": null }`
-✅ WHY: The amount $2,368.00 is clearly visible! Extract it.
+WRONG: { "code": "99285", "amount": null }
+WHY: The amount $2,368.00 is clearly visible! Extract it.
 
-❌ WRONG: `{ "code": "99285", "amount": 1 }`
-✅ WHY: That's the QUANTITY, not the billed amount. Look for the $ column.
+WRONG: { "code": "99285", "amount": 1 }
+WHY: That's the QUANTITY, not the billed amount. Look for the $ column.
 
-❌ WRONG: `{ "code": "99285", "amount": "$2,368.00" }`
-✅ WHY: Amount must be a NUMBER (2368.00), not a string.
+WRONG: { "code": "99285", "amount": "$2,368.00" }
+WHY: Amount must be a NUMBER (2368.00), not a string.
 
-❌ WRONG: `{ "code": "99285", "amount": 368.00 }`
-✅ WHY: That's the patient responsibility, not the original BILLED amount ($2,368.00).
+WRONG: { "code": "99285", "amount": 368.00 }
+WHY: That's the patient responsibility, not the original BILLED amount ($2,368.00).
 
-✅ CORRECT: `{ "code": "99285", "amount": 2368.00, "amountEvidence": "$2,368.00 from CHARGES column" }`
+CORRECT: { "code": "99285", "amount": 2368.00, "amountEvidence": "$2,368.00 from CHARGES column" }
 
 ## IF YOU CAN'T FIND BILLED AMOUNTS:
 
 If the document truly has no billed amounts (rare), set:
-- `amount: null`
-- `amountEvidence: "No billed amount visible in document"`
+- amount: null
+- amountEvidence: "No billed amount visible in document"
 
 But 99% of bills HAVE billed amounts. Look harder:
 - Check right side of table
