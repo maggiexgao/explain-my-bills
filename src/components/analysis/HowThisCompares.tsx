@@ -1207,27 +1207,14 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
         let finalLineItems = lineItems;
 
         // === REVERSE SEARCH LOGIC ===
-        // Trigger reverse search when:
-        // 1. No valid codes extracted, OR
-        // 2. Too many rejected tokens compared to valid codes, OR
-        // 3. All line items have $0 billedAmount (summary bill)
-        const needsReverseSearch =
-          lineItems.length === 0 ||
-          (rejected.length > 0 && lineItems.length < rejected.length * 0.5) ||
-          (lineItems.length > 0 && lineItems.every((i) => !i.billedAmount || i.billedAmount === 0));
+        // ONLY trigger reverse search when we have ZERO valid codes
+        // DO NOT override valid codes from analysis.charges with inferred codes
+        const needsReverseSearch = lineItems.length === 0;
 
         if (needsReverseSearch) {
-          console.log("[HowThisCompares] Triggering reverse search...");
+          console.log("[HowThisCompares] No codes found, triggering reverse search...");
           setReverseSearchTriggered(true);
-
-          // Determine the reason
-          if (lineItems.length === 0) {
-            setReverseSearchReason("No valid CPT/HCPCS codes detected");
-          } else if (lineItems.every((i) => !i.billedAmount || i.billedAmount === 0)) {
-            setReverseSearchReason("Summary bill detected (no line item amounts)");
-          } else {
-            setReverseSearchReason("Few valid codes compared to rejected tokens");
-          }
+          setReverseSearchReason("No valid CPT/HCPCS codes detected");
 
           // Extract service descriptions from charges
           const descriptions: string[] = [];
@@ -1276,12 +1263,14 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
 
             setReverseSearchResults(searchResultsForDebug);
 
-            // Use inferred codes if we got any
+            // Use inferred codes ONLY if we had no codes to begin with
             if (inferredCodes.length > 0) {
               console.log("[HowThisCompares] Reverse search found:", inferredCodes.length, "codes");
               finalLineItems = inferredCodes;
             }
           }
+        } else {
+          console.log("[HowThisCompares] Using", lineItems.length, "codes from analysis.charges");
         }
 
         // Apply service date to all items if not already set
