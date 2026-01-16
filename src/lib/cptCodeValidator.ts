@@ -161,6 +161,19 @@ export function normalizeAndValidateCode(rawToken: string): ValidatedCode {
       }
     }
   }
+  // ✅ NEW: Check for INLINE modifier (e.g., "93976TC" = code "93976" + modifier "TC")
+  // Pattern: 5 digits followed by 2 letters (common modifiers: TC, 26, LT, RT, 59, etc.)
+  else if (/^\d{5}[A-Z]{2}$/.test(cleaned)) {
+    code = cleaned.substring(0, 5);
+    modifier = cleaned.substring(5, 7);
+    console.log(`[cptCodeValidator] Extracted inline modifier: ${cleaned} → code=${code}, modifier=${modifier}`);
+  }
+  // ✅ NEW: Check for INLINE modifier with HCPCS (e.g., "A4570TC")
+  else if (/^[A-Z]\d{4}[A-Z0-9]{2}$/.test(cleaned)) {
+    code = cleaned.substring(0, 5);
+    modifier = cleaned.substring(5, 7);
+    console.log(`[cptCodeValidator] Extracted HCPCS inline modifier: ${cleaned} → code=${code}, modifier=${modifier}`);
+  }
   
   // Step 6: Validate code format
   // CPT: exactly 5 digits
@@ -184,6 +197,18 @@ export function normalizeAndValidateCode(rawToken: string): ValidatedCode {
   const hcpcsMatch = cleaned.match(/\b([A-Z]\d{4})\b/);
   if (hcpcsMatch && HCPCS_PATTERN.test(hcpcsMatch[1])) {
     return { code: hcpcsMatch[1], modifier, kind: 'hcpcs', reason: undefined };
+  }
+  
+  // ✅ NEW: Try extracting 5 digits from start even without word boundary
+  if (/^\d{5}/.test(cleaned)) {
+    const extractedCode = cleaned.substring(0, 5);
+    const remainingChars = cleaned.substring(5);
+    // Check if remaining chars could be a modifier
+    if (remainingChars.length === 0) {
+      return { code: extractedCode, modifier: null, kind: 'cpt', reason: undefined };
+    } else if (remainingChars.length === 2 && MODIFIER_PATTERN.test(remainingChars)) {
+      return { code: extractedCode, modifier: remainingChars, kind: 'cpt', reason: undefined };
+    }
   }
   
   // Step 8: Final rejection
