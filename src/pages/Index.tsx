@@ -231,8 +231,7 @@ const Index = () => {
         issuer: ai?.issuer || "Unknown Provider",
         dateOfService: ai?.dateOfService || "Not specified",
         documentPurpose: ai.documentPurpose || "Medical billing document",
-     charges: ensureArray(ai.charges || ai.lineItems || []).map(...)
-          // ✅ FIX: Check multiple field names for the amount
+        charges: ensureArray(ai.charges || ai.lineItems || []).map((item: any, idx: number) => {
           const rawAmount = item.amount ?? item.billedAmount ?? item.billed ?? 0;
           const amount =
             typeof rawAmount === "number" ? rawAmount : parseFloat(String(rawAmount).replace(/[^0-9.-]/g, "")) || 0;
@@ -245,6 +244,7 @@ const Index = () => {
             explanation: item.explanation || "",
           };
         }),
+        medicalCodes: ensureArray(ai.medicalCodes).map((code: any) => ({
         medicalCodes: ensureArray(ai.medicalCodes).map((code: any) => ({
           code: code.code || "Unknown",
           type: (code.type?.toUpperCase() || "CPT") as "CPT" | "ICD" | "HCPCS",
