@@ -271,7 +271,7 @@ function extractLineItems(analysis: AnalysisResult): {
         seenCodes.add(validated.code);
 
         // Look up billed amount from the billedByCode map
-        const billedAmount = billedByCode[validated.code] ?? billedByCode[match] ?? charge.amount ?? 0;
+        // ✅ FIX: AI sometimes returns 'billed' instead of 'amount' const billedAmount = billedByCode[validated.code] ?? billedByCode[match] ?? charge.amount ?? charge.billed ?? 0;
 
         items.push({
           hcpcs: validated.code,
