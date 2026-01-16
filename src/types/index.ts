@@ -229,6 +229,7 @@ export interface MedicalCode {
 
 export interface ChargeItem {
   id: string;
+  code?: string; // ✅ CPT/HCPCS/Revenue code from backend
   description: string;
   amount: number;
   billed?: number; // ✅ AI sometimes returns this instead of amount
