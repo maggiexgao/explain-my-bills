@@ -163,14 +163,10 @@ function formatCurrency(amount: number): string {
 }
 
 /**
- * Extract line items from analysis with improved code detection
- *
- * CRITICAL: This function prioritizes analysis.charges as the PRIMARY source
- * because that's where the billed amounts come from. Other sources are FALLBACK only.
- *
- * Priority order:
- * 1. analysis.charges (has both codes AND billed amounts)
- * 2. cptCodes/chargeMeanings/suggestedCpts (fallback if charges empty)
+ * Extract line items ONLY from analysis.charges
+ * 
+ * COMPLETE REWRITE: This function now ONLY uses analysis.charges as the source.
+ * No more cptCodes, chargeMeanings, or suggestedCpts - those were causing wrong codes.
  */
 function extractLineItems(analysis: AnalysisResult): {
   items: BenchmarkLineItem[];
@@ -180,164 +176,37 @@ function extractLineItems(analysis: AnalysisResult): {
   const items: BenchmarkLineItem[] = [];
   const rawCodes: string[] = [];
   const rejectedTokens: RejectedToken[] = [];
-  const seenCodes = new Set<string>();
 
-  // Build a map of billed amounts by code from charges
+  // Build billed amounts map from charges
   const billedByCode = buildBilledAmountByCode(analysis.charges || []);
-  console.log('[DEBUG HowThisCompares] billedByCode map:', JSON.stringify(billedByCode, null, 2));
+  console.log('[DEBUG extractLineItems] billedByCode:', JSON.stringify(billedByCode, null, 2));
 
-  // ✅ STEP 1: Extract DIRECTLY from analysis.charges FIRST (PRIMARY SOURCE)
-  // This ensures we display the exact codes that have billed amounts
-  if (analysis.charges && analysis.charges.length > 0) {
-    console.log('[DEBUG HowThisCompares] Processing analysis.charges as PRIMARY source');
+  // ONLY extract from analysis.charges - nothing else
+  for (const charge of analysis.charges || []) {
+    const code = ((charge as any).code || "").trim();
     
-    for (const charge of analysis.charges) {
-      // Get the code - prioritize 'code' field, then check 'id' if it looks like a code
-      const directCode = ((charge as any).code || "").trim();
-      
-      if (!directCode) {
-        console.log('[DEBUG HowThisCompares] Charge has no code, skipping:', charge.description);
-        continue;
-      }
-
-      rawCodes.push(directCode);
-
-      // Validate and normalize the code
-      const validated = normalizeAndValidateCode(directCode);
-
-      if (validated.kind === "invalid" || !validated.code) {
-        console.log('[DEBUG HowThisCompares] Code rejected:', directCode, 'Reason:', validated.reason);
-        rejectedTokens.push({ token: directCode, reason: validated.reason || "Invalid format" });
-        continue;
-      }
-
-      if (seenCodes.has(validated.code)) {
-        console.log('[DEBUG HowThisCompares] Duplicate code, skipping:', validated.code);
-        continue;
-      }
-      
-      seenCodes.add(validated.code);
-
-      // Get billed amount - prefer billedByCode map, fallback to charge.amount
-      const billedAmount = billedByCode[validated.code] ?? billedByCode[directCode] ?? charge.amount ?? 0;
-      
-      console.log('[DEBUG HowThisCompares] Adding item:', validated.code, 'Amount:', billedAmount);
-
-      items.push({
-        hcpcs: validated.code,
-        rawCode: directCode,
-        description: charge.description || "",
-        billedAmount,
-        units: 1,
-        modifier: validated.modifier || undefined,
-      });
+    if (!code) {
+      console.log('[DEBUG extractLineItems] Skipping charge with no code:', charge.description);
+      continue;
     }
+
+    rawCodes.push(code);
+
+    // Use the code directly - skip validation that might reject valid codes
+    const billedAmount = billedByCode[code] ?? charge.amount ?? 0;
+    
+    console.log('[DEBUG extractLineItems] Adding:', code, 'Amount:', billedAmount);
+
+    items.push({
+      hcpcs: code,
+      rawCode: code,
+      description: charge.description || "",
+      billedAmount,
+      units: 1,
+    });
   }
 
-  // ✅ STEP 2: If we got items from charges, we're done - return them
-  // Only use fallback sources if charges was empty or had no valid codes
-  if (items.length > 0) {
-    console.log('[DEBUG HowThisCompares] Got', items.length, 'items from analysis.charges, skipping fallbacks');
-    return { items, rawCodes, rejectedTokens };
-  }
-
-  console.log('[DEBUG HowThisCompares] No items from charges, using FALLBACK sources');
-
-  // ✅ FALLBACK: Extract from cptCodes array 
-  if (analysis.cptCodes && analysis.cptCodes.length > 0) {
-    for (const cpt of analysis.cptCodes) {
-      if (!cpt.code) continue;
-
-      rawCodes.push(cpt.code);
-
-      const validated = normalizeAndValidateCode(cpt.code);
-
-      if (validated.kind === "invalid" || !validated.code) {
-        rejectedTokens.push({ token: cpt.code, reason: validated.reason || "Invalid format" });
-        continue;
-      }
-
-      if (seenCodes.has(validated.code)) continue;
-      seenCodes.add(validated.code);
-
-      const billedAmount = billedByCode[validated.code] ?? billedByCode[cpt.code] ?? 0;
-
-      items.push({
-        hcpcs: validated.code,
-        rawCode: cpt.code,
-        description: cpt.shortLabel || cpt.explanation,
-        billedAmount,
-        units: 1,
-        modifier: validated.modifier || undefined,
-        isFacility: cpt.category === "surgery",
-      });
-    }
-  }
-
-  // ✅ FALLBACK: Extract from chargeMeanings
-  if (analysis.chargeMeanings) {
-    for (const cm of analysis.chargeMeanings) {
-      if (!cm.cptCode) continue;
-
-      rawCodes.push(cm.cptCode);
-
-      const validated = normalizeAndValidateCode(cm.cptCode);
-
-      if (validated.kind === "invalid" || !validated.code) {
-        rejectedTokens.push({ token: cm.cptCode, reason: validated.reason || "Invalid format" });
-        continue;
-      }
-
-      if (seenCodes.has(validated.code)) continue;
-      seenCodes.add(validated.code);
-
-      const billedAmount = billedByCode[validated.code] ?? billedByCode[cm.cptCode] ?? 0;
-
-      items.push({
-        hcpcs: validated.code,
-        rawCode: cm.cptCode,
-        description: cm.procedureName || cm.explanation,
-        billedAmount,
-        units: 1,
-        modifier: validated.modifier || undefined,
-      });
-    }
-  }
-
-  // ✅ FALLBACK: Check suggestedCpts if still nothing
-  if (items.length === 0 && analysis.suggestedCpts) {
-    for (const suggested of analysis.suggestedCpts) {
-      if (!suggested.candidates) continue;
-
-      for (const candidate of suggested.candidates) {
-        if (!candidate.cpt) continue;
-
-        rawCodes.push(candidate.cpt);
-
-        const validated = normalizeAndValidateCode(candidate.cpt);
-
-        if (validated.kind === "invalid" || !validated.code) {
-          rejectedTokens.push({ token: candidate.cpt, reason: validated.reason || "Invalid format" });
-          continue;
-        }
-
-        if (seenCodes.has(validated.code)) continue;
-        seenCodes.add(validated.code);
-
-        const billedAmount = billedByCode[validated.code] ?? billedByCode[candidate.cpt] ?? 0;
-
-        items.push({
-          hcpcs: validated.code,
-          rawCode: candidate.cpt,
-          description: candidate.shortLabel || candidate.explanation,
-          billedAmount,
-          units: 1,
-          modifier: validated.modifier || undefined,
-        });
-      }
-    }
-  }
-
+  console.log('[DEBUG extractLineItems] Final items:', items.length);
   return { items, rawCodes, rejectedTokens };
 }
 
