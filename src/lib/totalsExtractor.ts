@@ -484,12 +484,16 @@ export function reconcileTotals(analysisData: any, documentContent?: string): To
   const lineItems: LineItemExtraction[] = [];
   if (analysisData.charges && Array.isArray(analysisData.charges)) {
     for (const charge of analysisData.charges) {
-      const chargeAmt = parseCurrency(charge.amount);
+      // ✅ FIX: AI sometimes returns 'billed' instead of 'amount'
+      // Check both fields to ensure we capture the dollar amount
+      const rawAmount = charge.amount ?? charge.billed ?? charge.billedAmount;
+      const chargeAmt = parseCurrency(rawAmount);
+
       lineItems.push({
         description: charge.description || "",
         chargeAmount: chargeAmt !== null && chargeAmt > 0 ? chargeAmt : undefined,
         chargeAmountConfidence: (charge.amountConfidence as TotalsConfidence) || "medium",
-        chargeAmountEvidence: charge.amountEvidence || undefined,
+        chargeAmountEvidence: charge.amountEvidence || charge.billedEvidence || undefined,
         code: charge.code,
         codeType: charge.codeType || "unknown",
         units: charge.units || 1,
