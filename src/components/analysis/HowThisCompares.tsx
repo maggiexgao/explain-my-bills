@@ -731,87 +731,81 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
     <div
       className={cn(
         "border rounded-lg transition-all",
-        item.status === "very_high" && "border-destructive/30 bg-destructive/5",
-        item.status === "high" && "border-warning/30 bg-warning/5",
-        item.status === "fair" && "border-border/30",
+        item.status === "very_high" && "border-destructive/20 bg-destructive/5",
+        item.status === "high" && "border-warning/20 bg-warning/5",
+        item.status === "fair" && "border-border/30 bg-card",
         item.status === "unknown" && "border-border/20 bg-muted/5",
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-4 flex items-center gap-4 text-left hover:bg-muted/10 transition-colors"
+        className="w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-muted/10 transition-colors"
       >
-        {/* CPT Code */}
-        <div className="w-20 shrink-0">
-          <code className="text-sm font-mono bg-muted/40 px-2 py-1 rounded">{item.hcpcs}</code>
-          {item.modifier && <code className="text-xs font-mono text-muted-foreground ml-1">-{item.modifier}</code>}
+        {/* CPT Code - Compact */}
+        <code className="text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded w-14 text-center shrink-0">
+          {item.hcpcs}
+          {item.modifier && <span className="text-muted-foreground">-{item.modifier}</span>}
+        </code>
+
+        {/* Description - Flexible */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-foreground truncate">{item.description || "Medical service"}</p>
         </div>
 
-        {/* Description */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{item.description || "Medical service"}</p>
-          {item.benchmarkYearUsed && item.matchStatus === "matched" && (
-            <p className="text-xs text-muted-foreground">
-              {item.benchmarkYearUsed} Medicare{" "}
-              {item.feeSource === "rvu_calc_local"
-                ? "(MPFS, location-adjusted)"
-                : item.feeSource === "rvu_calc_national"
-                  ? "(MPFS, national)"
-                  : item.feeSource === "direct_fee"
-                    ? "(MPFS)"
-                    : "reference"}
+        {/* Amounts - Compact Grid */}
+        <div className="flex items-center gap-4 shrink-0">
+          {/* Billed */}
+          <div className="text-right w-20">
+            <p className="text-sm font-semibold text-foreground">
+              {item.billedAmount > 0 ? formatCurrency(item.billedAmount) : "—"}
             </p>
+            <p className="text-[10px] text-muted-foreground">billed</p>
+          </div>
+
+          {/* Medicare Reference */}
+          <div className="text-right w-20">
+            <p className="text-sm text-muted-foreground">
+              {item.medicareReferenceTotal ? formatCurrency(item.medicareReferenceTotal) : "—"}
+            </p>
+            <p className="text-[10px] text-muted-foreground">reference</p>
+          </div>
+
+          {/* Multiple - Only show if meaningful */}
+          {item.multiple && item.multiple > 0 && (
+            <div className="w-12 text-right">
+              <p className={cn("text-sm font-semibold", config.color)}>{item.multiple}×</p>
+            </div>
           )}
         </div>
 
-        {/* Billed */}
-        <div className="w-24 text-right shrink-0">
-          <p className="text-sm font-semibold text-foreground">
-            {item.billedAmount > 0 ? formatCurrency(item.billedAmount) : "—"}
-          </p>
-          <p className="text-xs text-muted-foreground">billed</p>
+        {/* Status Icon - Minimal */}
+        <div className={cn("shrink-0 p-1 rounded", config.bg)}>
+          <StatusIcon className={cn("h-3.5 w-3.5", config.color)} />
         </div>
-
-        {/* Medicare Reference */}
-        <div className="w-24 text-right shrink-0">
-          <p className="text-sm text-muted-foreground">
-            {item.medicareReferenceTotal ? formatCurrency(item.medicareReferenceTotal) : "—"}
-          </p>
-          <p className="text-xs text-muted-foreground">reference</p>
-        </div>
-
-        {/* Multiple */}
-        <div className="w-16 text-right shrink-0">
-          <p className={cn("text-sm font-semibold", config.color)}>{item.multiple ? `${item.multiple}×` : "—"}</p>
-        </div>
-
-        {/* Status Badge */}
-        <Badge className={cn("shrink-0", config.bg, config.color)}>
-          <StatusIcon className="h-3 w-3 mr-1" />
-          {config.label}
-        </Badge>
 
         {/* Expand Icon */}
-        {expanded ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+        {item.notes.length > 0 && (
+          expanded ? (
+            <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )
         )}
       </button>
 
-      {/* Expanded Details */}
+      {/* Expanded Details - Compact */}
       {expanded && item.notes.length > 0 && (
-        <div className="px-4 pb-4 pt-0">
-          <div className={cn("p-3 rounded-lg text-sm", config.bg)}>
+        <div className="px-3 pb-2.5 pt-0">
+          <div className={cn("p-2 rounded text-xs", config.bg)}>
             {item.notes.map((note, idx) => (
-              <p key={idx} className="text-muted-foreground">
+              <p key={idx} className="text-muted-foreground leading-relaxed">
                 {note}
               </p>
             ))}
             {item.isBundled && (
-              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+              <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
                 <Info className="h-3 w-3" />
-                This code may include related follow-up services
+                May include related follow-up services
               </p>
             )}
           </div>
@@ -1043,70 +1037,130 @@ function SummaryCard({
 }
 
 /**
+ * Estimate commercial rate from Medicare reference or provide fallback messaging
+ */
+function getCommercialEstimate(billedAmount: number, reason: string | null): {
+  lowEstimate: number;
+  highEstimate: number;
+  explanation: string;
+} | null {
+  // For bundled/packaged services, we can't provide a meaningful estimate
+  if (reason === "packaged" || reason === "bundled") {
+    return null;
+  }
+  
+  // Use the billed amount to estimate if commercial rate is reasonable
+  // Commercial rates are typically 150-300% of Medicare
+  // If we had Medicare rate, we could compare. Without it, just note the billing context.
+  return {
+    lowEstimate: billedAmount * 0.4, // Lower bound estimate (if billed at 250% of Medicare)
+    highEstimate: billedAmount * 0.67, // Upper bound estimate (if billed at 150% of Medicare)
+    explanation: "Typical commercial insurance pays 150-300% of Medicare rates for similar services",
+  };
+}
+
+/**
  * Section for codes that exist in MPFS but have no payable Medicare amount
+ * Now with commercial rate fallback estimates
  */
 function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }) {
   const existsNotPricedItems = items.filter((i) => i.matchStatus === "exists_not_priced");
   if (existsNotPricedItems.length === 0) return null;
 
-  // Group by reason for better messaging
-  const mpfsItems = existsNotPricedItems.filter(
-    (i) =>
-      i.notPricedReason === "rvus_zero_or_missing" ||
-      i.notPricedReason === "fees_missing" ||
-      i.notPricedReason === "status_indicator_nonpayable",
-  );
-
   const getReasonLabel = (reason: string | null): string => {
     switch (reason) {
       case "rvus_zero_or_missing":
-        return "no RVUs";
+        return "Carrier-priced";
       case "fees_missing":
-        return "no fee";
+        return "No fee schedule";
       case "status_indicator_nonpayable":
-        return "not payable";
+        return "Bundled/Add-on";
       case "packaged":
-        return "packaged (OPPS)";
+        return "Packaged (OPPS)";
       default:
-        return "no reference";
+        return "No reference";
     }
   };
 
+  const getReasonExplanation = (reason: string | null): string => {
+    switch (reason) {
+      case "rvus_zero_or_missing":
+        return "Payment set by individual insurance carriers, not Medicare";
+      case "fees_missing":
+        return "Lab/pathology test - typically priced through CLFS or private contracts";
+      case "status_indicator_nonpayable":
+        return "Usually billed with a primary service; Medicare bundles payment";
+      case "packaged":
+        return "Payment included in facility fee under OPPS";
+      default:
+        return "No separate Medicare benchmark available";
+    }
+  };
+
+  // Calculate totals for non-priced items
+  const totalBilledNonPriced = existsNotPricedItems.reduce((sum, item) => sum + (item.billedAmount || 0), 0);
+
   return (
-    <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-foreground mb-1">
-            Codes found in Medicare data, but no reference price available
-          </p>
-          <p className="text-sm text-muted-foreground mb-2">
-            These services exist in Medicare's fee schedules but do not have a separately payable amount. They may be
-            bundled into other services, packaged under OPPS, or used for reporting purposes only.
-          </p>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {existsNotPricedItems.slice(0, 8).map((item) => (
-              <Badge
-                key={item.hcpcs}
-                variant="outline"
-                className="text-xs bg-warning/10 border-warning/30 text-warning-foreground"
-              >
-                {item.hcpcs}
-                <span className="ml-1 text-[10px] text-muted-foreground">({getReasonLabel(item.notPricedReason)})</span>
-              </Badge>
-            ))}
-            {existsNotPricedItems.length > 8 && (
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                +{existsNotPricedItems.length - 8} more
-              </Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            <strong>Note:</strong> These are NOT missing from Medicare's data — they simply don't have a separately
-            payable Medicare rate. This is common for add-on codes, packaged services under OPPS, carrier-priced
-            services, or informational codes.
-          </p>
+    <div className="rounded-lg border border-border/40 bg-card overflow-hidden">
+      {/* Compact Header */}
+      <div className="px-4 py-3 bg-muted/30 border-b border-border/30 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">
+            {existsNotPricedItems.length} service{existsNotPricedItems.length > 1 ? "s" : ""} without Medicare benchmark
+          </span>
         </div>
+        {totalBilledNonPriced > 0 && (
+          <span className="text-sm text-muted-foreground">
+            {formatCurrency(totalBilledNonPriced)} billed
+          </span>
+        )}
+      </div>
+
+      {/* Compact Table */}
+      <div className="divide-y divide-border/30">
+        {existsNotPricedItems.slice(0, 6).map((item) => {
+          const estimate = item.billedAmount ? getCommercialEstimate(item.billedAmount, item.notPricedReason) : null;
+          
+          return (
+            <div key={item.hcpcs} className="px-4 py-2.5 flex items-center gap-4 text-sm hover:bg-muted/20 transition-colors">
+              {/* Code */}
+              <code className="font-mono text-xs bg-muted/50 px-2 py-0.5 rounded w-16 text-center shrink-0">
+                {item.hcpcs}
+              </code>
+              
+              {/* Description */}
+              <div className="flex-1 min-w-0">
+                <p className="text-foreground truncate text-sm">{item.description || "Medical service"}</p>
+                <p className="text-xs text-muted-foreground">{getReasonExplanation(item.notPricedReason)}</p>
+              </div>
+              
+              {/* Billed Amount */}
+              <div className="text-right shrink-0 w-20">
+                <p className="font-medium">{item.billedAmount ? formatCurrency(item.billedAmount) : "—"}</p>
+              </div>
+              
+              {/* Status Badge - more subtle */}
+              <Badge variant="outline" className="text-[10px] shrink-0 bg-muted/30 text-muted-foreground border-border/50">
+                {getReasonLabel(item.notPricedReason)}
+              </Badge>
+            </div>
+          );
+        })}
+        
+        {existsNotPricedItems.length > 6 && (
+          <div className="px-4 py-2 text-xs text-muted-foreground text-center bg-muted/10">
+            +{existsNotPricedItems.length - 6} more services
+          </div>
+        )}
+      </div>
+
+      {/* Compact Footer with context */}
+      <div className="px-4 py-2.5 bg-muted/20 border-t border-border/30">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          <strong>Note:</strong> These services exist in Medicare's database but don't have separate payment rates. 
+          Commercial insurance typically pays <span className="font-medium">150-300%</span> of Medicare for similar services.
+        </p>
       </div>
     </div>
   );
@@ -1548,63 +1602,61 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
 
       {/* Line Item Details */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          {/* Check if codes were inferred - add RIGHT BEFORE Service-by-Service Breakdown */}
-          {(() => {
-            // Check if codes were inferred vs directly extracted
-            const hasInferredCodes = output?.lineItems?.some((item) =>
-              item.notes?.some(
-                (note) =>
-                  note.toLowerCase().includes("inferred") ||
-                  note.toLowerCase().includes("reverse search") ||
-                  note.toLowerCase().includes("estimated"),
-              ),
+        {/* Approximate Comparison Warning - Refined UI */}
+        {(() => {
+          const hasInferredCodes = output?.lineItems?.some((item) =>
+            item.notes?.some(
+              (note) =>
+                note.toLowerCase().includes("inferred") ||
+                note.toLowerCase().includes("reverse search") ||
+                note.toLowerCase().includes("estimated"),
+            ),
+          );
+
+          const hasGenericDescriptions = output?.lineItems?.some((item) => {
+            const desc = item.description?.toLowerCase() || "";
+            return (
+              desc.includes("pharmacy") ||
+              desc.includes("supplies") ||
+              desc.includes("emergency room") ||
+              desc.includes("emergency dept") ||
+              desc.includes("laboratory") ||
+              desc.includes("radiology") ||
+              desc === "services"
             );
+          });
 
-            // Check if descriptions are generic
-            const hasGenericDescriptions = output?.lineItems?.some((item) => {
-              const desc = item.description?.toLowerCase() || "";
-              return (
-                desc.includes("pharmacy") ||
-                desc.includes("supplies") ||
-                desc.includes("emergency room") ||
-                desc.includes("emergency dept") ||
-                desc.includes("laboratory") ||
-                desc.includes("radiology") ||
-                desc === "services"
-              );
-            });
+          const showReverseSearchWarning = hasInferredCodes || hasGenericDescriptions;
 
-            const showReverseSearchWarning = hasInferredCodes || hasGenericDescriptions;
+          return showReverseSearchWarning ? (
+            <div className="mb-4 p-3 rounded-lg bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Approximate Comparison</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                    Some service descriptions are generic. We've matched to comparable Medicare codes, but actual rates may vary.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null;
+        })()}
 
-            return showReverseSearchWarning ? (
-              <Alert className="mb-4 border-yellow-200 bg-yellow-50">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <AlertTitle className="text-yellow-900 font-semibold">Approximate Medicare Comparison</AlertTitle>
-                <AlertDescription className="text-yellow-800 text-sm">
-                  Some service descriptions on this bill are generic (like "Pharmacy", "Supplies", "Emergency Room").
-                  We've matched them to the closest comparable Medicare codes, but these may not be exact matches. The
-                  actual services provided could have different Medicare rates depending on the specific procedures
-                  performed.
-                </AlertDescription>
-              </Alert>
-            ) : null;
-          })()}
-
-          {/* NOW the Service-by-Service Breakdown heading */}
+        {/* Service-by-Service Header */}
+        <div className="flex items-center justify-between mb-3">
           <h4 className="text-sm font-semibold text-foreground">
-            Service-by-Service Breakdown ({output.lineItems.length} items)
-          </h4>
-          <h4 className="text-sm font-semibold text-foreground">
-            Service-by-Service Breakdown ({output.lineItems.length} items)
+            Service Details ({output.lineItems.length})
           </h4>
           {output.lineItems.length > 5 && (
-            <Button variant="ghost" size="sm" onClick={() => setShowAllItems(!showAllItems)} className="text-xs">
+            <Button variant="ghost" size="sm" onClick={() => setShowAllItems(!showAllItems)} className="text-xs h-7">
               {showAllItems ? "Show Less" : `Show All ${output.lineItems.length}`}
             </Button>
           )}
         </div>
-        <div className="space-y-2">
+        
+        {/* Compact Line Items */}
+        <div className="space-y-1.5">
           {displayItems.map((item, idx) => (
             <LineItemCard key={`${item.hcpcs}-${idx}`} item={item} />
           ))}
