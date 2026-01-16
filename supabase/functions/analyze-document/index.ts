@@ -7,94 +7,84 @@ const corsHeaders = {
 };
 
 // POND PROMPT: Patient-advocacy focused bill analysis
-// Build the prompt in parts to avoid parsing issues with special characters
 const SYSTEM_PROMPT = [
-  "You are Pond, a patient-advocacy assistant that extracts billing data from medical bills.",
+  "You are analyzing a medical bill. Your PRIMARY job is extracting dollar amounts for each code.",
   "",
-  "=======================================================================",
-  "CRITICAL: EXTRACTING LINE ITEM AMOUNTS IS YOUR #1 JOB",
-  "=======================================================================",
+  "STEP-BY-STEP INSTRUCTIONS:",
   "",
-  "THE MOST IMPORTANT THING YOU MUST DO:",
+  "1. FIND THE TABLE - Look for rows with codes (0110, 0300, 99213, etc.)",
   "",
-  "For EVERY row in the billing table, you MUST extract the DOLLAR AMOUNT that was BILLED/CHARGED.",
+  "2. FIND THE AMOUNT COLUMN - It's usually the RIGHTMOST column with dollar signs ($)",
+  "   Common labels: 'AMOUNT', 'CHARGES', 'TOTAL', 'BILLED'",
   "",
-  "WHAT IS THE BILLED AMOUNT?",
+  "3. FOR EACH ROW:",
+  "   - Extract the code (first column, usually 4-5 digits)",
+  "   - Extract the description (middle columns)",
+  "   - Extract the DOLLAR AMOUNT from the rightmost column - THIS IS REQUIRED",
+  "   - The amount must be a NUMBER (remove $ and commas)",
   "",
-  "The BILLED amount is what the PROVIDER ORIGINALLY CHARGED before any insurance payments or adjustments.",
+  "EXAMPLE:",
+  "If you see this row:",
+  "0300 | 1/1/2022 | 036419 | ARTERIAL PUNCTURE | $89.29",
   "",
-  "Example table:",
-  "REV CODE | DATE | HCPCS | DESCRIPTION | AMOUNT",
-  "0110 | 1/1/2022 | none | ROOM AND CARE | 1546.83",
-  "0300 | 1/1/2022 | 036419 | ARTERIAL PUNCTURE | 89.29",
-  "0301 | 1/2/2022 | 080053 | COMP METABOLIC PANEL | 434.60",
-  "",
-  "For this table, you MUST extract:",
-  "Row 1: amount = 1546.83",
-  "Row 2: amount = 89.29",
-  "Row 3: amount = 434.60",
-  "",
-  "The amount is ALWAYS in the rightmost column labeled AMOUNT or CHARGES or TOTAL.",
-  "",
-  "STEP BY STEP EXTRACTION:",
-  "",
-  "1. Find the table with revenue codes (0110, 0300, etc.) or CPT codes (99285, etc.)",
-  "2. Identify the AMOUNT column (usually the RIGHTMOST column with dollar signs)",
-  "3. For EACH row, extract: code, description, and amount AS A NUMBER (remove dollar sign and commas)",
-  "4. Validate: Count rows in table. Count items in your charges array. They must match!",
+  "You extract:",
+  "{ code: '0300', description: 'ARTERIAL PUNCTURE', amount: 89.29 }",
   "",
   "CRITICAL RULES:",
+  "- EVERY code MUST have an amount - look in the same row",
+  "- Amount must be a NUMBER not a string",
+  "- If you can't find an amount, something is wrong - look harder",
+  "- Count your extracted charges - it should match the number of rows",
   "",
-  "- NEVER set amount to null if you can see a dollar amount",
-  "- NEVER skip rows - extract ALL rows",
-  "- NEVER return amount as a string - must be a number like 1546.83 not a string like 1546.83",
-  "- ALWAYS extract the number from the RIGHTMOST column with dollar signs",
-  "- ALWAYS validate: does your charges array have the same number of items as rows in the table?",
+  "OUTPUT FORMAT:",
   "",
-  "OUTPUT FORMAT (return valid JSON):",
-  "",
-  JSON.stringify({
-    charges: [
-      {
-        code: "string - the revenue or CPT code",
-        codeType: "revenue OR cpt OR hcpcs",
-        description: "string - service description",
-        amount: "number - REQUIRED - never null if visible - e.g. 1546.83",
-        amountEvidence: "string - exact text you saw for the amount",
-        units: "number - quantity if shown",
-        date: "string - date of service if shown"
-      }
-    ],
-    extractedTotals: {
-      totalCharges: {
-        value: "number - the total charges amount",
-        evidence: "string - exact text"
+  JSON.stringify(
+    {
+      charges: [
+        {
+          code: "string - the code from the first column",
+          codeType: "revenue OR cpt OR hcpcs",
+          description: "string - service description",
+          amount: "number - REQUIRED - the dollar amount from rightmost column",
+          amountEvidence: "string - the exact text you saw (e.g. '$89.29' or '89.29')",
+          units: "number - quantity if shown",
+          date: "string - date if shown",
+        },
+      ],
+      extractedTotals: {
+        totalCharges: {
+          value: "number - total charges if shown",
+          evidence: "string - where you found it",
+        },
+        lineItemsSum: "number - sum of all amounts you extracted",
       },
-      lineItemsSum: "number - sum of all charge amounts you extracted"
+      atAGlance: {
+        visitSummary: "string - brief visit description",
+        totalBilled: "number - total amount billed",
+        amountYouMayOwe: "number or null - patient responsibility if shown",
+        status: "looks_standard OR worth_reviewing OR likely_issues",
+        statusExplanation: "string - why this status",
+        documentClassification:
+          "itemized_statement OR summary_statement OR eob OR hospital_summary_bill OR portal_summary OR payment_receipt OR revenue_code_only OR unknown",
+      },
+      thingsWorthReviewing: [],
+      savingsOpportunities: [],
+      conversationScripts: {
+        firstCallScript: "string",
+        ifTheyPushBack: "string",
+        whoToAskFor: "string",
+      },
+      priceContext: {
+        hasBenchmarks: false,
+        comparisons: [],
+        fallbackMessage: "string",
+      },
+      pondNextSteps: [],
+      closingReassurance: "string",
     },
-    atAGlance: {
-      visitSummary: "string - brief description of visit",
-      totalBilled: "number - total amount billed",
-      amountYouMayOwe: "number or null - patient responsibility if shown",
-      status: "looks_standard OR worth_reviewing OR likely_issues",
-      statusExplanation: "string - why this status",
-      documentClassification: "itemized_statement OR summary_statement OR eob OR hospital_summary_bill OR portal_summary OR payment_receipt OR revenue_code_only OR unknown"
-    },
-    thingsWorthReviewing: [],
-    savingsOpportunities: [],
-    conversationScripts: {
-      firstCallScript: "string",
-      ifTheyPushBack: "string",
-      whoToAskFor: "string"
-    },
-    priceContext: {
-      hasBenchmarks: false,
-      comparisons: [],
-      fallbackMessage: "string"
-    },
-    pondNextSteps: [],
-    closingReassurance: "string"
-  }, null, 2)
+    null,
+    2,
+  ),
 ].join("\n");
 
 serve(async (req) => {
@@ -206,34 +196,40 @@ serve(async (req) => {
     console.log("==========================================================");
 
     // Enhanced logging for charges
-    const chargesArray = parsedResult.charges as Array<{ 
-      code?: string; 
-      amount?: number | null; 
-      amountEvidence?: string;
-      description?: string;
-    }> | undefined;
+    const chargesArray = parsedResult.charges as
+      | Array<{
+          code?: string;
+          amount?: number | null;
+          amountEvidence?: string;
+          description?: string;
+        }>
+      | undefined;
 
     if (chargesArray && chargesArray.length > 0) {
       console.log("==========================================================");
       console.log("[DEBUG] DETAILED CHARGES BREAKDOWN:");
       console.log("[DEBUG] Total charges in array:", chargesArray.length);
-      
+
       const chargesWithAmounts = chargesArray.filter((charge) => charge.amount != null && charge.amount > 0);
       const chargesWithoutAmounts = chargesArray.filter((charge) => charge.amount == null || charge.amount === 0);
-      
+
       console.log("[DEBUG] Charges WITH amounts:", chargesWithAmounts.length);
       console.log("[DEBUG] Charges WITHOUT amounts:", chargesWithoutAmounts.length);
-      
+
       console.log("\n[DEBUG] First 5 charges WITH amounts:");
       chargesWithAmounts.slice(0, 5).forEach((charge, idx) => {
-        console.log(`  [${idx + 1}] Code: ${charge.code} | Amount: $${charge.amount} | Evidence: "${charge.amountEvidence}"`);
+        console.log(
+          `  [${idx + 1}] Code: ${charge.code} | Amount: $${charge.amount} | Evidence: "${charge.amountEvidence}"`,
+        );
       });
-      
+
       console.log("\n[DEBUG] First 5 charges WITHOUT amounts:");
       chargesWithoutAmounts.slice(0, 5).forEach((charge, idx) => {
-        console.log(`  [${idx + 1}] Code: ${charge.code} | Description: ${charge.description} | Amount: ${charge.amount} | Evidence: "${charge.amountEvidence}"`);
+        console.log(
+          `  [${idx + 1}] Code: ${charge.code} | Description: ${charge.description} | Amount: ${charge.amount} | Evidence: "${charge.amountEvidence}"`,
+        );
       });
-      
+
       const totalSum = chargesWithAmounts.reduce((sum, charge) => sum + (charge.amount || 0), 0);
       console.log("\n[DEBUG] Sum of extracted amounts: $" + totalSum.toFixed(2));
       console.log("==========================================================");
