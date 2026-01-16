@@ -17,102 +17,161 @@ const SYSTEM_PROMPT = `You are Pond, a patient-advocacy assistant that extracts 
 
 ## THE MOST IMPORTANT THING YOU MUST DO:
 
-For EVERY row in the billing table, you MUST extract the DOLLAR AMOUNT.
+For EVERY row in the billing table, you MUST extract the DOLLAR AMOUNT that was BILLED/CHARGED.
+
+### WHAT IS THE BILLED AMOUNT?
+
+The BILLED amount is what the PROVIDER ORIGINALLY CHARGED before any insurance payments or adjustments.
 
 Look at this example table:
 
-| CPT CODE | DESCRIPTION              | QTY | TOTAL AMOUNT |
-|----------|--------------------------|-----|--------------|
-| 99285    | ER VISIT LEVEL IV        | 1   | $2,368.00    |
-| 85025    | CBC WITH DIFF            | 1   | $140.00      |
-| 81003    | URINALYSIS               | 1   | $89.00       |
-| 36415    | VENIPUNCTURE             | 1   | $16.00       |
+| CPT CODE | DESCRIPTION              | QTY | BILLED    | INS PAID | ADJUSTED | YOU OWE |
+|----------|--------------------------|-----|-----------|----------|----------|---------|
+| 99285    | ER VISIT LEVEL IV        | 1   | $2,368.00 | $1,200   | $800     | $368    |
+| 85025    | CBC WITH DIFF            | 1   | $140.00   | $90      | $30      | $20     |
+
+The BILLED amount is **$2,368.00** and **$140.00** (the LARGEST numbers, what provider charged).
+NOT the insurance paid amount.
+NOT the adjusted amount.
+NOT what patient owes.
 
 Your REQUIRED extraction:
 
 charges: [
-  { "code": "99285", "description": "ER VISIT LEVEL IV", "amount": 2368.00, "amountEvidence": "$2,368.00 from TOTAL AMOUNT column" },
-  { "code": "85025", "description": "CBC WITH DIFF", "amount": 140.00, "amountEvidence": "$140.00 from TOTAL AMOUNT column" },
-  { "code": "81003", "description": "URINALYSIS", "amount": 89.00, "amountEvidence": "$89.00 from TOTAL AMOUNT column" },
-  { "code": "36415", "description": "VENIPUNCTURE", "amount": 16.00, "amountEvidence": "$16.00 from TOTAL AMOUNT column" }
+  { "code": "99285", "description": "ER VISIT LEVEL IV", "amount": 2368.00, "amountEvidence": "$2,368.00 from BILLED column" },
+  { "code": "85025", "description": "CBC WITH DIFF", "amount": 140.00, "amountEvidence": "$140.00 from BILLED column" }
 ]
 
-## HOW TO FIND THE AMOUNT:
+## HOW TO FIND THE BILLED AMOUNT:
 
-1. Find the table with CPT codes/HCPCS codes
-2. Look at the RIGHTMOST column - it usually contains dollar amounts
-3. Common column headers: "TOTAL AMOUNT", "AMOUNT", "CHARGES", "TOTAL", "BILLED"
-4. The amount has a $ sign and/or decimals (e.g., $2,368.00 or 2368.00)
-5. Extract the number: "$2,368.00" -> 2368.00 (remove $ and commas, keep as number)
+### STEP 1: Locate the billing table
+- Look for rows with CPT codes (5-digit like 99285, 85025) or HCPCS codes (like G0305, J1885)
+- Usually in the middle section of the bill under "STATEMENT OF SERVICES" or "CHARGES"
 
-## STEP-BY-STEP EXTRACTION PROCESS:
+### STEP 2: Identify the BILLED/CHARGES column
+Common column headers for BILLED amounts:
+- "CHARGES"
+- "BILLED"
+- "AMOUNT"
+- "TOTAL CHARGES"
+- "CHARGE"
+- "TOTAL"
+- Sometimes unlabeled but the RIGHTMOST or first numeric column after description
 
-STEP 1: Find the billing table
-- Look for rows with 5-digit CPT codes (like 99285, 85025) or HCPCS codes (like G0305, J1885)
+KEY RULE: The BILLED amount is typically the LARGEST dollar amount on each line.
 
-STEP 2: Identify columns
-- Column 1: Usually contains CPT/HCPCS code
-- Middle columns: Description, date, quantity
-- LAST column: DOLLAR AMOUNT - THIS IS WHAT YOU NEED
+### STEP 3: Extract for EACH row
+For every CPT code row, extract:
+- **code**: The CPT/HCPCS code (e.g., "99285")
+- **description**: What the service was
+- **amount**: THE BILLED DOLLAR AMOUNT AS A NUMBER (e.g., 2368.00 not "$2,368")
+  - Remove $ signs
+  - Remove commas
+  - Keep as pure number
+  - Example: "$2,368.00" becomes 2368.00
+- **amountEvidence**: Quote the exact text you saw (e.g., "$2,368.00 from CHARGES column")
 
-STEP 3: For EACH row, extract:
-- code: The CPT/HCPCS code (e.g., "99285")
-- description: What the service was
-- amount: THE DOLLAR AMOUNT AS A NUMBER (e.g., 2368.00 not "$2,368")
-- amountEvidence: The exact text you saw (e.g., "$2,368.00")
+### STEP 4: Validate your extraction
+Before returning, verify:
+1. Count rows in the table with CPT codes: ___
+2. Count items in your charges array: ___
+3. Do these match? If not, go back and extract missing rows!
+4. Does EVERY charge have amount as a NUMBER (not null, not string)?
+5. Sum all amounts - does it approximately match the "TOTAL CHARGES" at bottom?
 
-STEP 4: Validate
-- Every row with a visible amount MUST have amount as a number
-- Sum all amounts - should be close to the bill total
+## REAL-WORLD EXAMPLES:
 
-## AMOUNT EXTRACTION EXAMPLES:
+### Example 1: Clear charges column
+```
+STATEMENT OF PHYSICIAN SERVICES
 
-Example 1: Clear table with amounts
-Table shows:
-99285  ER VISIT  $2,368.00
-85025  CBC TEST  $140.00
+ACCT#    DATE      CPT    DESCRIPTION              CHARGES
+999999   09/11/09  99285  ER VISIT LEVEL IV        $1246.00
+999999   09/11/09  85025  CBC WITH DIFF            $140.00
+999999   09/11/09  36415  VENIPUNCTURE             $16.00
+                                         TOTAL:    $1402.00
+```
 
 Your extraction:
-{ "code": "99285", "amount": 2368.00, "amountEvidence": "$2,368.00" }
-{ "code": "85025", "amount": 140.00, "amountEvidence": "$140.00" }
+```json
+{
+  "charges": [
+    { "code": "99285", "description": "ER VISIT LEVEL IV", "amount": 1246.00, "amountEvidence": "$1246.00 from CHARGES column" },
+    { "code": "85025", "description": "CBC WITH DIFF", "amount": 140.00, "amountEvidence": "$140.00 from CHARGES column" },
+    { "code": "36415", "description": "VENIPUNCTURE", "amount": 16.00, "amountEvidence": "$16.00 from CHARGES column" }
+  ],
+  "extractedTotals": {
+    "totalCharges": {
+      "value": 1402.00,
+      "evidence": "TOTAL: $1402.00"
+    },
+    "lineItemsSum": 1402.00
+  }
+}
+```
 
-Example 2: Table with multiple columns
-CODE   | CLAIM#   | DATE     | DESCRIPTION    | QTY | TOTAL
-99285  | 12345    | 01/15/25 | ER VISIT       | 1   | 2,368.00
+### Example 2: Table with multiple amount columns
+```
+CODE   DATE     DESCRIPTION        BILLED    INS PAID  ADJUSTED  BALANCE
+99213  01/15/25 OFFICE VISIT       $250.00   $200.00   $25.00    $25.00
+36415  01/15/25 VENIPUNCTURE       $16.00    $12.80    $1.60     $1.60
+```
+
+Your extraction (focus on BILLED column):
+```json
+{
+  "charges": [
+    { "code": "99213", "description": "OFFICE VISIT", "amount": 250.00, "amountEvidence": "$250.00 from BILLED column" },
+    { "code": "36415", "description": "VENIPUNCTURE", "amount": 16.00, "amountEvidence": "$16.00 from BILLED column" }
+  ]
+}
+```
+
+### Example 3: Amounts without $ or column headers
+```
+88300    2026 Medicare (MPFS, location-adjusted)    —    $15
+43217    2026 Medicare (MPFS, location-adjusted)    —    $447
+44389    2026 Medicare (MPFS, location-adjusted)    —    $436
+```
 
 Your extraction:
-{ "code": "99285", "amount": 2368.00, "amountEvidence": "2,368.00 from TOTAL column" }
-
-Example 3: Amounts without $ sign
-36415  VENIPUNCTURE  16.00
-
-Your extraction:
-{ "code": "36415", "amount": 16.00, "amountEvidence": "16.00" }
+```json
+{
+  "charges": [
+    { "code": "88300", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 15.00, "amountEvidence": "$15 from amount column" },
+    { "code": "43217", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 447.00, "amountEvidence": "$447 from amount column" },
+    { "code": "44389", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 436.00, "amountEvidence": "$436 from amount column" }
+  ]
+}
+```
 
 ## COMMON MISTAKES TO AVOID:
 
-WRONG: { "code": "99285", "amount": null }
-WHY: The amount $2,368.00 is clearly visible in the table!
+❌ WRONG: `{ "code": "99285", "amount": null }`
+✅ WHY: The amount $2,368.00 is clearly visible! Extract it.
 
-WRONG: { "code": "99285", "amount": 1 }
-WHY: 1 is the quantity, not the amount. The amount is $2,368.00.
+❌ WRONG: `{ "code": "99285", "amount": 1 }`
+✅ WHY: That's the QUANTITY, not the billed amount. Look for the $ column.
 
-WRONG: { "code": "99285", "amount": "$2,368.00" }
-WHY: Amount must be a NUMBER (2368.00), not a string with $.
+❌ WRONG: `{ "code": "99285", "amount": "$2,368.00" }`
+✅ WHY: Amount must be a NUMBER (2368.00), not a string.
 
-CORRECT: { "code": "99285", "amount": 2368.00, "amountEvidence": "$2,368.00" }
+❌ WRONG: `{ "code": "99285", "amount": 368.00 }`
+✅ WHY: That's the patient responsibility, not the original BILLED amount ($2,368.00).
 
-## VALIDATION BEFORE RETURNING:
+✅ CORRECT: `{ "code": "99285", "amount": 2368.00, "amountEvidence": "$2,368.00 from CHARGES column" }`
 
-Before you return JSON, check:
+## IF YOU CAN'T FIND BILLED AMOUNTS:
 
-1. How many rows in the table? ___
-2. How many items in your charges array? ___
-3. Do these numbers match? If not, extract missing rows!
-4. Does EVERY charge have an amount that is a NUMBER (not null)?
-5. Do the amounts sum close to the bill total?
+If the document truly has no billed amounts (rare), set:
+- `amount: null`
+- `amountEvidence: "No billed amount visible in document"`
 
-If any charge has amount: null but you can see a dollar value in that row, GO BACK AND EXTRACT IT.
+But 99% of bills HAVE billed amounts. Look harder:
+- Check right side of table
+- Look for TOTAL CHARGES at bottom
+- Check if amounts are after descriptions
+- Sometimes amounts are in different font/size
 
 #######################################################################
 #                     END OF CRITICAL SECTION                         #
@@ -178,6 +237,7 @@ For EACH line item on the bill:
 
 REMEMBER:
 - amount MUST be a number (2368.00), NOT null, NOT a string
+- amount is the BILLED/CHARGED amount (what provider originally charged)
 - amountEvidence should quote the exact text you saw
 - Extract EVERY row, not just the first few
 
@@ -235,6 +295,8 @@ serve(async (req) => {
     }
 
     console.log("[analyze-document] Calling Lovable AI gateway...");
+    console.log("[analyze-document] Document type:", documentType);
+    console.log("[analyze-document] MIME type:", mimeType);
 
     // Call Lovable AI gateway with a stronger model for better extraction
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -295,10 +357,18 @@ serve(async (req) => {
     console.log("[analyze-document] Total charges:", parsedResult.extractedTotals?.totalCharges?.value);
     console.log("[analyze-document] Line items count:", parsedResult.charges?.length || 0);
 
-    // Use type assertion to avoid TypeScript errors
-    const chargesArray = parsedResult.charges as Array<{ amount?: number | null }> | undefined;
+    // Enhanced logging to debug amount extraction
+    const chargesArray = parsedResult.charges as Array<{ code?: string; amount?: number | null; amountEvidence?: string }> | undefined;
     const chargesWithAmounts = chargesArray?.filter((charge) => charge.amount != null).length || 0;
     console.log("[analyze-document] Line items with amounts:", chargesWithAmounts);
+    
+    // Log first 3 charges for debugging
+    if (chargesArray && chargesArray.length > 0) {
+      console.log("[analyze-document] Sample charges:");
+      chargesArray.slice(0, 3).forEach((charge, idx) => {
+        console.log(`  [${idx}] Code: ${charge.code}, Amount: ${charge.amount}, Evidence: ${charge.amountEvidence}`);
+      });
+    }
 
     return new Response(JSON.stringify({ analysis: parsedResult }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
