@@ -232,27 +232,6 @@ const Index = () => {
         dateOfService: ai?.dateOfService || "Not specified",
         documentPurpose: ai.documentPurpose || "Medical billing document",
         charges: ensureArray(ai.charges || ai.lineItems || []).map((item: any, idx: number) => {
-          charges: ensureArray(ai.charges || ai.lineItems || []).map((item: any, idx: number) => {
-  const rawAmount = item.amount ?? item.billedAmount ?? item.billed ?? 0;
-  const amount =
-    typeof rawAmount === "number" ? rawAmount : parseFloat(String(rawAmount).replace(/[^0-9.-]/g, "")) || 0;
-
-  // ADD THIS DEBUG
-  console.log(`[INDEX MAPPING] Item ${idx}:`, {
-    code: item.code,
-    rawAmount,
-    amount,
-    fullItem: JSON.stringify(item)
-  });
-
-  return {
-    id: item.id || `item-${idx + 1}`,
-    code: item.code || "",
-    description: item.description || "Item",
-    amount,
-    explanation: item.explanation || "",
-  };
-}),
           const rawAmount = item.amount ?? item.billedAmount ?? item.billed ?? 0;
           const amount =
             typeof rawAmount === "number" ? rawAmount : parseFloat(String(rawAmount).replace(/[^0-9.-]/g, "")) || 0;
