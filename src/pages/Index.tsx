@@ -231,16 +231,20 @@ const Index = () => {
         issuer: ai?.issuer || "Unknown Provider",
         dateOfService: ai?.dateOfService || "Not specified",
         documentPurpose: ai.documentPurpose || "Medical billing document",
-        charges: ensureArray(ai.lineItems || ai.charges).map((item: any, idx: number) => ({
-          id: item.id || `item-${idx + 1}`,
-          code: item.code || "", // ✅ Preserve CPT/HCPCS/Revenue code from backend
-          description: item.description || "Item",
-          amount:
-            typeof item.amount === "number"
-              ? item.amount
-              : parseFloat(String(item.amount ?? "").replace(/[^0-9.-]/g, "")) || 0,
-          explanation: item.explanation || "",
-        })),
+        charges: ensureArray(ai.lineItems || ai.charges).map((item: any, idx: number) => {
+          // ✅ FIX: Check multiple field names for the amount
+          const rawAmount = item.amount ?? item.billedAmount ?? item.billed ?? 0;
+          const amount =
+            typeof rawAmount === "number" ? rawAmount : parseFloat(String(rawAmount).replace(/[^0-9.-]/g, "")) || 0;
+
+          return {
+            id: item.id || `item-${idx + 1}`,
+            code: item.code || "",
+            description: item.description || "Item",
+            amount,
+            explanation: item.explanation || "",
+          };
+        }),
         medicalCodes: ensureArray(ai.medicalCodes).map((code: any) => ({
           code: code.code || "Unknown",
           type: (code.type?.toUpperCase() || "CPT") as "CPT" | "ICD" | "HCPCS",
