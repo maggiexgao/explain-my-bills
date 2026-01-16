@@ -6,86 +6,67 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// POND PROMPT: Patient-advocacy focused bill analysis
-const SYSTEM_PROMPT = [
-  "You are analyzing a medical bill. Your PRIMARY job is extracting dollar amounts for each code.",
-  "",
-  "STEP-BY-STEP INSTRUCTIONS:",
-  "",
-  "1. FIND THE TABLE - Look for rows with codes (0110, 0300, 99213, etc.)",
-  "",
-  "2. FIND THE AMOUNT COLUMN - It's usually the RIGHTMOST column with dollar signs ($)",
-  "   Common labels: 'AMOUNT', 'CHARGES', 'TOTAL', 'BILLED'",
-  "",
-  "3. FOR EACH ROW:",
-  "   - Extract the code (first column, usually 4-5 digits)",
-  "   - Extract the description (middle columns)",
-  "   - Extract the DOLLAR AMOUNT from the rightmost column - THIS IS REQUIRED",
-  "   - The amount must be a NUMBER (remove $ and commas)",
-  "",
-  "EXAMPLE:",
-  "If you see this row:",
-  "0300 | 1/1/2022 | 036419 | ARTERIAL PUNCTURE | $89.29",
-  "",
-  "You extract:",
-  "{ code: '0300', description: 'ARTERIAL PUNCTURE', amount: 89.29 }",
-  "",
-  "CRITICAL RULES:",
-  "- EVERY code MUST have an amount - look in the same row",
-  "- Amount must be a NUMBER not a string",
-  "- If you can't find an amount, something is wrong - look harder",
-  "- Count your extracted charges - it should match the number of rows",
-  "",
-  "OUTPUT FORMAT:",
-  "",
-  JSON.stringify(
-    {
-      charges: [
-        {
-          code: "string - the code from the first column",
-          codeType: "revenue OR cpt OR hcpcs",
-          description: "string - service description",
-          amount: "number - REQUIRED - the dollar amount from rightmost column",
-          amountEvidence: "string - the exact text you saw (e.g. '$89.29' or '89.29')",
-          units: "number - quantity if shown",
-          date: "string - date if shown",
-        },
-      ],
-      extractedTotals: {
-        totalCharges: {
-          value: "number - total charges if shown",
-          evidence: "string - where you found it",
-        },
-        lineItemsSum: "number - sum of all amounts you extracted",
+// POND PROMPT: Direct extraction focused
+const SYSTEM_PROMPT = `You are analyzing a medical bill image. Extract ALL line items with their dollar amounts.
+
+CRITICAL: Look at the table and for EACH row, extract the dollar amount from the rightmost "AMOUNT" column.
+
+Example row:
+0300 | 10/10/22 | 036415 | VENIPUNCTURE | $89.03
+
+Extract as:
+{ "code": "036415", "description": "VENIPUNCTURE", "amount": 89.03 }
+
+RULES:
+1. Extract EVERY row from the table
+2. The amount is in the rightmost column with $ signs
+3. Convert amounts to numbers (remove $ and commas)
+4. NEVER leave amount as null if you can see a dollar value
+
+Return this JSON structure:
+
+${JSON.stringify(
+  {
+    charges: [
+      {
+        code: "string",
+        codeType: "revenue OR cpt OR hcpcs",
+        description: "string",
+        amount: "number - REQUIRED",
+        amountEvidence: "string - exact text you saw",
+        date: "string - if shown",
       },
-      atAGlance: {
-        visitSummary: "string - brief visit description",
-        totalBilled: "number - total amount billed",
-        amountYouMayOwe: "number or null - patient responsibility if shown",
-        status: "looks_standard OR worth_reviewing OR likely_issues",
-        statusExplanation: "string - why this status",
-        documentClassification:
-          "itemized_statement OR summary_statement OR eob OR hospital_summary_bill OR portal_summary OR payment_receipt OR revenue_code_only OR unknown",
-      },
-      thingsWorthReviewing: [],
-      savingsOpportunities: [],
-      conversationScripts: {
-        firstCallScript: "string",
-        ifTheyPushBack: "string",
-        whoToAskFor: "string",
-      },
-      priceContext: {
-        hasBenchmarks: false,
-        comparisons: [],
-        fallbackMessage: "string",
-      },
-      pondNextSteps: [],
-      closingReassurance: "string",
+    ],
+    extractedTotals: {
+      totalCharges: { value: "number", evidence: "string" },
+      lineItemsSum: "number",
     },
-    null,
-    2,
-  ),
-].join("\n");
+    atAGlance: {
+      visitSummary: "string",
+      totalBilled: "number",
+      amountYouMayOwe: "number or null",
+      status: "looks_standard OR worth_reviewing OR likely_issues",
+      statusExplanation: "string",
+      documentClassification: "string",
+    },
+    thingsWorthReviewing: [],
+    savingsOpportunities: [],
+    conversationScripts: {
+      firstCallScript: "string",
+      ifTheyPushBack: "string",
+      whoToAskFor: "string",
+    },
+    priceContext: {
+      hasBenchmarks: false,
+      comparisons: [],
+      fallbackMessage: "string",
+    },
+    pondNextSteps: [],
+    closingReassurance: "string",
+  },
+  null,
+  2,
+)}`;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -128,7 +109,7 @@ serve(async (req) => {
     console.log("[DEBUG] Base64 data length:", base64Data.length);
     console.log("==========================================================");
 
-    // Call Lovable AI gateway with a stronger model for better extraction
+    // Try Claude Sonnet 4 for better document understanding
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -136,7 +117,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "anthropic/claude-sonnet-4-20250514",
         messages: [
           {
             role: "user",
