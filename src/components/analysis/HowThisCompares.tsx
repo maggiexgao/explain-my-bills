@@ -164,9 +164,9 @@ function formatCurrency(amount: number): string {
 
 /**
  * Extract line items ONLY from analysis.charges
- * 
- * COMPLETE REWRITE: This function now ONLY uses analysis.charges as the source.
- * No more cptCodes, chargeMeanings, or suggestedCpts - those were causing wrong codes.
+/**
+ * Extract line items ONLY from analysis.charges
+ * NO validation - accept ALL codes from the backend
  */
 function extractLineItems(analysis: AnalysisResult): {
   items: BenchmarkLineItem[];
@@ -176,37 +176,63 @@ function extractLineItems(analysis: AnalysisResult): {
   const items: BenchmarkLineItem[] = [];
   const rawCodes: string[] = [];
   const rejectedTokens: RejectedToken[] = [];
+  const seenCodes = new Set<string>();
 
   // Build billed amounts map from charges
   const billedByCode = buildBilledAmountByCode(analysis.charges || []);
-  console.log('[DEBUG extractLineItems] billedByCode:', JSON.stringify(billedByCode, null, 2));
+  console.log("[DEBUG extractLineItems] billedByCode map:", billedByCode);
+  console.log("[DEBUG extractLineItems] Charges array:", analysis.charges?.length || 0, "items");
 
-  // ONLY extract from analysis.charges - nothing else
-  for (const charge of analysis.charges || []) {
+  // ONLY extract from analysis.charges - no other sources
+  if (!analysis.charges || !Array.isArray(analysis.charges)) {
+    console.log("[DEBUG extractLineItems] No charges array found");
+    return { items, rawCodes, rejectedTokens };
+  }
+
+  for (const charge of analysis.charges) {
     const code = ((charge as any).code || "").trim();
-    
+
     if (!code) {
-      console.log('[DEBUG extractLineItems] Skipping charge with no code:', charge.description);
+      console.log("[DEBUG extractLineItems] Skipping charge with no code:", charge.description);
       continue;
     }
 
+    // Skip duplicates
+    if (seenCodes.has(code)) {
+      console.log("[DEBUG extractLineItems] Skipping duplicate code:", code);
+      continue;
+    }
+
+    seenCodes.add(code);
     rawCodes.push(code);
 
-    // Use the code directly - skip validation that might reject valid codes
-    const billedAmount = billedByCode[code] ?? charge.amount ?? 0;
-    
-    console.log('[DEBUG extractLineItems] Adding:', code, 'Amount:', billedAmount);
+    // Get amount from billedByCode map
+    const billedAmount = billedByCode[code] || 0;
+
+    console.log(
+      "[DEBUG extractLineItems] Adding code:",
+      code,
+      "Amount:",
+      billedAmount,
+      "Description:",
+      charge.description,
+    );
 
     items.push({
       hcpcs: code,
       rawCode: code,
-      description: charge.description || "",
+      description: charge.description || "Medical service",
       billedAmount,
-      units: 1,
+      units: (charge as any).units || 1,
     });
   }
 
-  console.log('[DEBUG extractLineItems] Final items:', items.length);
+  console.log("[DEBUG extractLineItems] Final items count:", items.length);
+  console.log(
+    "[DEBUG extractLineItems] Final items:",
+    items.map((i) => `${i.hcpcs}: $${i.billedAmount}`),
+  );
+
   return { items, rawCodes, rejectedTokens };
 }
 
@@ -647,13 +673,12 @@ function LineItemCard({ item }: { item: BenchmarkLineResult }) {
         </div>
 
         {/* Expand Icon */}
-        {item.notes.length > 0 && (
-          expanded ? (
+        {item.notes.length > 0 &&
+          (expanded ? (
             <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           ) : (
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          )
-        )}
+          ))}
       </button>
 
       {/* Expanded Details - Compact */}
@@ -902,7 +927,10 @@ function SummaryCard({
 /**
  * Estimate commercial rate from Medicare reference or provide fallback messaging
  */
-function getCommercialEstimate(billedAmount: number, reason: string | null): {
+function getCommercialEstimate(
+  billedAmount: number,
+  reason: string | null,
+): {
   lowEstimate: number;
   highEstimate: number;
   explanation: string;
@@ -911,7 +939,7 @@ function getCommercialEstimate(billedAmount: number, reason: string | null): {
   if (reason === "packaged" || reason === "bundled") {
     return null;
   }
-  
+
   // Use the billed amount to estimate if commercial rate is reasonable
   // Commercial rates are typically 150-300% of Medicare
   // If we had Medicare rate, we could compare. Without it, just note the billing context.
@@ -974,9 +1002,7 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
           </span>
         </div>
         {totalBilledNonPriced > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {formatCurrency(totalBilledNonPriced)} billed
-          </span>
+          <span className="text-sm text-muted-foreground">{formatCurrency(totalBilledNonPriced)} billed</span>
         )}
       </div>
 
@@ -984,33 +1010,39 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
       <div className="divide-y divide-border/30">
         {existsNotPricedItems.slice(0, 6).map((item) => {
           const estimate = item.billedAmount ? getCommercialEstimate(item.billedAmount, item.notPricedReason) : null;
-          
+
           return (
-            <div key={item.hcpcs} className="px-4 py-2.5 flex items-center gap-4 text-sm hover:bg-muted/20 transition-colors">
+            <div
+              key={item.hcpcs}
+              className="px-4 py-2.5 flex items-center gap-4 text-sm hover:bg-muted/20 transition-colors"
+            >
               {/* Code */}
               <code className="font-mono text-xs bg-muted/50 px-2 py-0.5 rounded w-16 text-center shrink-0">
                 {item.hcpcs}
               </code>
-              
+
               {/* Description */}
               <div className="flex-1 min-w-0">
                 <p className="text-foreground truncate text-sm">{item.description || "Medical service"}</p>
                 <p className="text-xs text-muted-foreground">{getReasonExplanation(item.notPricedReason)}</p>
               </div>
-              
+
               {/* Billed Amount */}
               <div className="text-right shrink-0 w-20">
                 <p className="font-medium">{item.billedAmount ? formatCurrency(item.billedAmount) : "—"}</p>
               </div>
-              
+
               {/* Status Badge - more subtle */}
-              <Badge variant="outline" className="text-[10px] shrink-0 bg-muted/30 text-muted-foreground border-border/50">
+              <Badge
+                variant="outline"
+                className="text-[10px] shrink-0 bg-muted/30 text-muted-foreground border-border/50"
+              >
                 {getReasonLabel(item.notPricedReason)}
               </Badge>
             </div>
           );
         })}
-        
+
         {existsNotPricedItems.length > 6 && (
           <div className="px-4 py-2 text-xs text-muted-foreground text-center bg-muted/10">
             +{existsNotPricedItems.length - 6} more services
@@ -1021,8 +1053,9 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
       {/* Compact Footer with context */}
       <div className="px-4 py-2.5 bg-muted/20 border-t border-border/30">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <strong>Note:</strong> These services exist in Medicare's database but don't have separate payment rates. 
-          Commercial insurance typically pays <span className="font-medium">150-300%</span> of Medicare for similar services.
+          <strong>Note:</strong> These services exist in Medicare's database but don't have separate payment rates.
+          Commercial insurance typically pays <span className="font-medium">150-300%</span> of Medicare for similar
+          services.
         </p>
       </div>
     </div>
@@ -1487,7 +1520,8 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
                 <div>
                   <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Approximate Comparison</p>
                   <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
-                    Some service descriptions are generic. We've matched to comparable Medicare codes, but actual rates may vary.
+                    Some service descriptions are generic. We've matched to comparable Medicare codes, but actual rates
+                    may vary.
                   </p>
                 </div>
               </div>
@@ -1497,16 +1531,14 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
 
         {/* Service-by-Service Header */}
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-foreground">
-            Service Details ({output.lineItems.length})
-          </h4>
+          <h4 className="text-sm font-semibold text-foreground">Service Details ({output.lineItems.length})</h4>
           {output.lineItems.length > 5 && (
             <Button variant="ghost" size="sm" onClick={() => setShowAllItems(!showAllItems)} className="text-xs h-7">
               {showAllItems ? "Show Less" : `Show All ${output.lineItems.length}`}
             </Button>
           )}
         </div>
-        
+
         {/* Compact Line Items */}
         <div className="space-y-1.5">
           {displayItems.map((item, idx) => (
