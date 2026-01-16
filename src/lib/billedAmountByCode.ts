@@ -1,6 +1,7 @@
 export function buildBilledAmountByCode(
   charges: Array<{
     code?: string | null;
+    id?: string | null;
     amount?: number | string | null;
     billed?: number | string | null;
     billedAmount?: number | string | null;
@@ -17,9 +18,10 @@ export function buildBilledAmountByCode(
   }
 
   for (const line of charges) {
-    const code = (line?.code || "").trim();
+    // ✅ FIX: Check both 'code' and 'id' fields since AI returns different structures
+    const code = (line?.code || line?.id || "").trim();
     if (!code) {
-      console.log('[DEBUG billedAmountByCode] Skipping line with no code:', line);
+      console.log('[DEBUG billedAmountByCode] Skipping line with no code or id:', line);
       continue;
     }
 
