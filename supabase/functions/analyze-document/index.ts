@@ -23,232 +23,126 @@ For EVERY row in the billing table, you MUST extract the DOLLAR AMOUNT that was 
 
 The BILLED amount is what the PROVIDER ORIGINALLY CHARGED before any insurance payments or adjustments.
 
-Look at this example table:
+Look at this example from a REAL hospital bill:
 
-| CPT CODE | DESCRIPTION              | QTY | BILLED    | INS PAID | ADJUSTED | YOU OWE |
-|----------|--------------------------|-----|-----------|----------|----------|---------|
-| 99285    | ER VISIT LEVEL IV        | 1   | $2,368.00 | $1,200   | $800     | $368    |
-| 85025    | CBC WITH DIFF            | 1   | $140.00   | $90      | $30      | $20     |
+| REV CODE | DATE | HCPCS | DESCRIPTION | AMOUNT |
+|----------|------|-------|-------------|---------|
+| 0110 | 1/1/2022 | - | ROOM AND CARE | $1,546.83 |
+| 0300 | 1/1/2022 | 036419 | ARTERIAL PUNCTURE | $89.29 |
+| 0301 | 1/2/2022 | 080053 | COMP METABOLIC PANEL | $434.60 |
 
-The BILLED amount is **$2,368.00** and **$140.00** (the LARGEST numbers, what provider charged).
-NOT the insurance paid amount.
-NOT the adjusted amount.
-NOT what patient owes.
+For this table, you MUST extract:
+- Row 1: amount = 1546.83
+- Row 2: amount = 89.29  
+- Row 3: amount = 434.60
 
-Your REQUIRED extraction:
+The amount is ALWAYS in the rightmost column labeled "AMOUNT" or "CHARGES" or similar.
 
-charges: [
-  { "code": "99285", "description": "ER VISIT LEVEL IV", "amount": 2368.00, "amountEvidence": "$2,368.00 from BILLED column" },
-  { "code": "85025", "description": "CBC WITH DIFF", "amount": 140.00, "amountEvidence": "$140.00 from BILLED column" }
-]
+## STEP-BY-STEP EXTRACTION:
 
-## HOW TO FIND THE BILLED AMOUNT:
+1. **Find the table** - Look for rows with revenue codes (0110, 0300, etc.) or CPT codes (99285, etc.)
 
-### STEP 1: Locate the billing table
-- Look for rows with CPT codes (5-digit like 99285, 85025) or HCPCS codes (like G0305, J1885)
-- Usually in the middle section of the bill under "STATEMENT OF SERVICES" or "CHARGES"
+2. **Identify the AMOUNT column** - It's usually the RIGHTMOST column with $ signs
 
-### STEP 2: Identify the BILLED/CHARGES column
-Common column headers for BILLED amounts:
-- "CHARGES"
-- "BILLED"
-- "AMOUNT"
-- "TOTAL CHARGES"
-- "CHARGE"
-- "TOTAL"
-- Sometimes unlabeled but the RIGHTMOST or first numeric column after description
+3. **For EACH row, extract:**
+   - code: The revenue/CPT code
+   - description: Service description
+   - **amount: THE DOLLAR VALUE AS A NUMBER** (remove $, remove commas)
+   - amountEvidence: Quote what you saw
 
-KEY RULE: The BILLED amount is typically the LARGEST dollar amount on each line.
+4. **Validate:** Count rows in table. Count items in your charges array. Must match!
 
-### STEP 3: Extract for EACH row
-For every CPT code row, extract:
-- **code**: The CPT/HCPCS code (e.g., "99285")
-- **description**: What the service was
-- **amount**: THE BILLED DOLLAR AMOUNT AS A NUMBER (e.g., 2368.00 not "$2,368")
-  - Remove $ signs
-  - Remove commas
-  - Keep as pure number
-- **amountEvidence**: Quote the exact text you saw (e.g., "$2,368.00 from CHARGES column")
+## REAL EXAMPLE FROM YOUR DOCUMENT:
 
-### STEP 4: Validate your extraction
-Before returning, verify:
-1. Count rows in the table with CPT codes: ___
-2. Count items in your charges array: ___
-3. Do these match? If not, go back and extract missing rows!
-4. Does EVERY charge have amount as a NUMBER (not null, not string)?
-5. Sum all amounts - does it approximately match the "TOTAL CHARGES" at bottom?
+If you see:
+```
+0110 - ROOM AND CARE          Room Care     $1,546.83
+                              Subtotal:     $ 1,546.83
 
-## REAL-WORLD EXAMPLES:
+0300 - LABORATORY             
+1/1/2022  036419  1  ARTERIAL PUNCTURE      $    89.29
+1/1/2022  036415  1  VENIPUNCTURE           $    69.03
+                              Subtotal:     $   618.34
+```
 
-### Example 1: Clear charges column
-
-STATEMENT OF PHYSICIAN SERVICES
-
-ACCT#    DATE      CPT    DESCRIPTION              CHARGES
-999999   09/11/09  99285  ER VISIT LEVEL IV        $1246.00
-999999   09/11/09  85025  CBC WITH DIFF            $140.00
-999999   09/11/09  36415  VENIPUNCTURE             $16.00
-                                         TOTAL:    $1402.00
-
-Your extraction:
+You MUST extract:
+```json
 {
   "charges": [
-    { "code": "99285", "description": "ER VISIT LEVEL IV", "amount": 1246.00, "amountEvidence": "$1246.00 from CHARGES column" },
-    { "code": "85025", "description": "CBC WITH DIFF", "amount": 140.00, "amountEvidence": "$140.00 from CHARGES column" },
-    { "code": "36415", "description": "VENIPUNCTURE", "amount": 16.00, "amountEvidence": "$16.00 from CHARGES column" }
-  ],
-  "extractedTotals": {
-    "totalCharges": {
-      "value": 1402.00,
-      "evidence": "TOTAL: $1402.00"
+    {
+      "code": "0110",
+      "description": "ROOM AND CARE",
+      "amount": 1546.83,
+      "amountEvidence": "$1,546.83 from AMOUNT column"
     },
-    "lineItemsSum": 1402.00
-  }
-}
-
-### Example 2: Table with multiple amount columns
-
-CODE   DATE     DESCRIPTION        BILLED    INS PAID  ADJUSTED  BALANCE
-99213  01/15/25 OFFICE VISIT       $250.00   $200.00   $25.00    $25.00
-36415  01/15/25 VENIPUNCTURE       $16.00    $12.80    $1.60     $1.60
-
-Your extraction (focus on BILLED column):
-{
-  "charges": [
-    { "code": "99213", "description": "OFFICE VISIT", "amount": 250.00, "amountEvidence": "$250.00 from BILLED column" },
-    { "code": "36415", "description": "VENIPUNCTURE", "amount": 16.00, "amountEvidence": "$16.00 from BILLED column" }
+    {
+      "code": "036419", 
+      "description": "ARTERIAL PUNCTURE",
+      "amount": 89.29,
+      "amountEvidence": "$89.29"
+    },
+    {
+      "code": "036415",
+      "description": "VENIPUNCTURE", 
+      "amount": 69.03,
+      "amountEvidence": "$69.03"
+    }
   ]
 }
+```
 
-### Example 3: Amounts without $ or column headers
+## CRITICAL RULES:
 
-88300    2026 Medicare (MPFS, location-adjusted)    —    $15
-43217    2026 Medicare (MPFS, location-adjusted)    —    $447
-44389    2026 Medicare (MPFS, location-adjusted)    —    $436
+❌ NEVER set amount to null if you can see a $ amount
+❌ NEVER skip rows - extract ALL rows  
+❌ NEVER return amount as a string like "$1,546.83" - must be number 1546.83
+✅ ALWAYS extract the number from the RIGHTMOST column with $ signs
+✅ ALWAYS validate: does your charges array have the same number of items as rows in the table?
 
-Your extraction:
-{
-  "charges": [
-    { "code": "88300", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 15.00, "amountEvidence": "$15 from amount column" },
-    { "code": "43217", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 447.00, "amountEvidence": "$447 from amount column" },
-    { "code": "44389", "description": "2026 Medicare (MPFS, location-adjusted)", "amount": 436.00, "amountEvidence": "$436 from amount column" }
-  ]
-}
-
-## COMMON MISTAKES TO AVOID:
-
-WRONG: { "code": "99285", "amount": null }
-WHY: The amount $2,368.00 is clearly visible! Extract it.
-
-WRONG: { "code": "99285", "amount": 1 }
-WHY: That's the QUANTITY, not the billed amount. Look for the $ column.
-
-WRONG: { "code": "99285", "amount": "$2,368.00" }
-WHY: Amount must be a NUMBER (2368.00), not a string.
-
-WRONG: { "code": "99285", "amount": 368.00 }
-WHY: That's the patient responsibility, not the original BILLED amount ($2,368.00).
-
-CORRECT: { "code": "99285", "amount": 2368.00, "amountEvidence": "$2,368.00 from CHARGES column" }
-
-## IF YOU CAN'T FIND BILLED AMOUNTS:
-
-If the document truly has no billed amounts (rare), set:
-- amount: null
-- amountEvidence: "No billed amount visible in document"
-
-But 99% of bills HAVE billed amounts. Look harder:
-- Check right side of table
-- Look for TOTAL CHARGES at bottom
-- Check if amounts are after descriptions
-- Sometimes amounts are in different font/size
-
-#######################################################################
-#                     END OF CRITICAL SECTION                         #
-#######################################################################
-
-## DOCUMENT VALIDATION
-
-If the document does NOT contain charges, costs, totals, or billing details, return:
-{ "notABill": true, "message": "This doesn't appear to be a medical bill..." }
-
-## REQUIRED OUTPUT SECTIONS
-
-### atAGlance (REQUIRED)
-
-{
-  "visitSummary": "Plain English description of the visit",
-  "totalBilled": number or null (original charges BEFORE insurance),
-  "amountYouMayOwe": number or null (what patient owes NOW),
-  "status": "looks_standard" | "worth_reviewing" | "likely_issues",
-  "statusExplanation": "One sentence: Based on what's shown here...",
-  "documentClassification": "itemized_statement" | "summary_statement" | "eob" | "hospital_summary_bill" | "portal_summary" | "payment_receipt" | "revenue_code_only" | "unknown"
-}
-
-CRITICAL: totalBilled should be the ORIGINAL charges (larger number). amountYouMayOwe is what patient pays (smaller, after insurance).
-
-### extractedTotals (REQUIRED)
-
-{
-  "extractedTotals": {
-    "totalCharges": {
-      "value": number or null,
-      "confidence": "high" | "medium" | "low",
-      "evidence": "Exact text found (e.g., 'Total Charges: $1,234.56')",
-      "label": "Label found on document"
-    },
-    "totalPaymentsAndAdjustments": { "value": number or null, "confidence": "...", "evidence": "...", "label": "..." },
-    "patientResponsibility": { "value": number or null, "confidence": "...", "evidence": "...", "label": "..." },
-    "amountDue": { "value": number or null, "confidence": "...", "evidence": "...", "label": "..." },
-    "insurancePaid": { "value": number or null, "confidence": "...", "evidence": "...", "label": "..." },
-    "lineItemsSum": number or null,
-    "notes": ["Any extraction notes"]
-  }
-}
-
-### charges (REQUIRED - THIS IS THE LINE ITEMS ARRAY)
-
-For EACH line item on the bill:
+## OUTPUT FORMAT:
 
 {
   "charges": [
     {
-      "code": "99285",
-      "codeType": "cpt",
-      "description": "ER VISIT LEVEL IV",
-      "amount": 2368.00,
-      "amountConfidence": "high",
-      "amountEvidence": "$2,368.00 from TOTAL AMOUNT column",
-      "units": 1,
-      "date": "01/15/2025"
+      "code": "string",
+      "codeType": "revenue" | "cpt" | "hcpcs",
+      "description": "string",
+      "amount": number (REQUIRED - never null if visible),
+      "amountEvidence": "exact text you saw",
+      "units": number,
+      "date": "string"
     }
-  ]
-}
-
-REMEMBER:
-- amount MUST be a number (2368.00), NOT null, NOT a string
-- amount is the BILLED/CHARGED amount (what provider originally charged)
-- amountEvidence should quote the exact text you saw
-- Extract EVERY row, not just the first few
-
-### thingsWorthReviewing (REQUIRED - array, can be empty)
-[{ "whatToReview": "...", "whyItMatters": "...", "issueType": "error|negotiable|missing_info|confirmation" }]
-
-### savingsOpportunities (REQUIRED - array)
-[{ "whatMightBeReduced": "...", "whyNegotiable": "...", "additionalInfoNeeded": "optional", "savingsContext": "optional" }]
-
-### conversationScripts (REQUIRED)
-{ "firstCallScript": "...", "ifTheyPushBack": "...", "whoToAskFor": "..." }
-
-### priceContext (REQUIRED)
-{ "hasBenchmarks": true/false, "comparisons": [], "fallbackMessage": "..." }
-
-### pondNextSteps (REQUIRED - array)
-[{ "step": "...", "isUrgent": false }]
-
-### closingReassurance (REQUIRED)
-"Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful."
-`;
+  ],
+  "extractedTotals": {
+    "totalCharges": {
+      "value": number,
+      "evidence": "exact text"
+    },
+    "lineItemsSum": number (sum of all charge amounts)
+  },
+  "atAGlance": {
+    "visitSummary": "string",
+    "totalBilled": number,
+    "amountYouMayOwe": number or null,
+    "status": "looks_standard" | "worth_reviewing" | "likely_issues",
+    "statusExplanation": "string",
+    "documentClassification": "itemized_statement" | "summary_statement" | "eob" | "hospital_summary_bill" | "portal_summary" | "payment_receipt" | "revenue_code_only" | "unknown"
+  },
+  "thingsWorthReviewing": [],
+  "savingsOpportunities": [],
+  "conversationScripts": {
+    "firstCallScript": "string",
+    "ifTheyPushBack": "string", 
+    "whoToAskFor": "string"
+  },
+  "priceContext": {
+    "hasBenchmarks": false,
+    "comparisons": [],
+    "fallbackMessage": "string"
+  },
+  "pondNextSteps": [],
+  "closingReassurance": "string"
+}`;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -284,9 +178,12 @@ serve(async (req) => {
       mimeType = "image/png";
     }
 
-    console.log("[analyze-document] Calling Lovable AI gateway...");
-    console.log("[analyze-document] Document type:", documentType);
-    console.log("[analyze-document] MIME type:", mimeType);
+    console.log("==========================================================");
+    console.log("[DEBUG] Starting document analysis");
+    console.log("[DEBUG] Document type:", documentType);
+    console.log("[DEBUG] MIME type:", mimeType);
+    console.log("[DEBUG] Base64 data length:", base64Data.length);
+    console.log("==========================================================");
 
     // Call Lovable AI gateway with a stronger model for better extraction
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -340,24 +237,57 @@ serve(async (req) => {
       });
     }
 
+    console.log("==========================================================");
+    console.log("[DEBUG] RAW AI RESPONSE:");
+    console.log(content);
+    console.log("==========================================================");
+
     // Parse the JSON response
     const parsedResult = JSON.parse(content);
 
-    console.log("[analyze-document] Successfully extracted data");
-    console.log("[analyze-document] Total charges:", parsedResult.extractedTotals?.totalCharges?.value);
-    console.log("[analyze-document] Line items count:", parsedResult.charges?.length || 0);
+    console.log("==========================================================");
+    console.log("[DEBUG] PARSED RESULT SUMMARY:");
+    console.log("[DEBUG] Total charges from extractedTotals:", parsedResult.extractedTotals?.totalCharges?.value);
+    console.log("[DEBUG] Line items sum:", parsedResult.extractedTotals?.lineItemsSum);
+    console.log("[DEBUG] Charges array length:", parsedResult.charges?.length || 0);
+    console.log("==========================================================");
 
-    // Enhanced logging to debug amount extraction
-    const chargesArray = parsedResult.charges as Array<{ code?: string; amount?: number | null; amountEvidence?: string }> | undefined;
-    const chargesWithAmounts = chargesArray?.filter((charge) => charge.amount != null).length || 0;
-    console.log("[analyze-document] Line items with amounts:", chargesWithAmounts);
-    
-    // Log first 3 charges for debugging
+    // Enhanced logging for charges
+    const chargesArray = parsedResult.charges as Array<{ 
+      code?: string; 
+      amount?: number | null; 
+      amountEvidence?: string;
+      description?: string;
+    }> | undefined;
+
     if (chargesArray && chargesArray.length > 0) {
-      console.log("[analyze-document] Sample charges:");
-      chargesArray.slice(0, 3).forEach((charge, idx) => {
-        console.log(`  [${idx}] Code: ${charge.code}, Amount: ${charge.amount}, Evidence: ${charge.amountEvidence}`);
+      console.log("==========================================================");
+      console.log("[DEBUG] DETAILED CHARGES BREAKDOWN:");
+      console.log("[DEBUG] Total charges in array:", chargesArray.length);
+      
+      const chargesWithAmounts = chargesArray.filter((charge) => charge.amount != null && charge.amount > 0);
+      const chargesWithoutAmounts = chargesArray.filter((charge) => charge.amount == null || charge.amount === 0);
+      
+      console.log("[DEBUG] Charges WITH amounts:", chargesWithAmounts.length);
+      console.log("[DEBUG] Charges WITHOUT amounts:", chargesWithoutAmounts.length);
+      
+      console.log("\n[DEBUG] First 5 charges WITH amounts:");
+      chargesWithAmounts.slice(0, 5).forEach((charge, idx) => {
+        console.log(`  [${idx + 1}] Code: ${charge.code} | Amount: $${charge.amount} | Evidence: "${charge.amountEvidence}"`);
       });
+      
+      console.log("\n[DEBUG] First 5 charges WITHOUT amounts:");
+      chargesWithoutAmounts.slice(0, 5).forEach((charge, idx) => {
+        console.log(`  [${idx + 1}] Code: ${charge.code} | Description: ${charge.description} | Amount: ${charge.amount} | Evidence: "${charge.amountEvidence}"`);
+      });
+      
+      const totalSum = chargesWithAmounts.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+      console.log("\n[DEBUG] Sum of extracted amounts: $" + totalSum.toFixed(2));
+      console.log("==========================================================");
+    } else {
+      console.log("==========================================================");
+      console.log("[DEBUG] ⚠️ NO CHARGES EXTRACTED AT ALL!");
+      console.log("==========================================================");
     }
 
     return new Response(JSON.stringify({ analysis: parsedResult }), {
