@@ -245,7 +245,6 @@ const Index = () => {
           };
         }),
         medicalCodes: ensureArray(ai.medicalCodes).map((code: any) => ({
-        medicalCodes: ensureArray(ai.medicalCodes).map((code: any) => ({
           code: code.code || "Unknown",
           type: (code.type?.toUpperCase() || "CPT") as "CPT" | "ICD" | "HCPCS",
           description: code.description || "",
@@ -444,7 +443,7 @@ const Index = () => {
             ? typeof ai.billTotal === "number"
               ? ai.billTotal
               : parseFloat(String(ai.billTotal ?? "").replace(/[^0-9.-]/g, "")) || 0
-            : ensureArray(ai.lineItems || ai.charges).reduce((sum: number, item: any) => {
+            : ensureArray(ai.charges || ai.lineItems || []).reduce((sum: number, item: any) => {
                 const amountValue = typeof item.amount === "number" ? item.amount : (item.amount ?? "");
                 const raw = String(amountValue);
                 const parsed = parseFloat(raw.replace(/[^0-9.-]/g, "")) || 0;
