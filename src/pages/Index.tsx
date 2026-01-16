@@ -233,6 +233,7 @@ const Index = () => {
         documentPurpose: ai.documentPurpose || "Medical billing document",
         charges: ensureArray(ai.lineItems || ai.charges).map((item: any, idx: number) => ({
           id: item.id || `item-${idx + 1}`,
+          code: item.code || "", // ✅ Preserve CPT/HCPCS/Revenue code from backend
           description: item.description || "Item",
           amount:
             typeof item.amount === "number"
