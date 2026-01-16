@@ -250,18 +250,40 @@ function extractLineItems(analysis: AnalysisResult): {
     }
   }
 
-  // 3. Scan charges for codes that might be in descriptions (fallback)
+  // 3. ✅ PRIORITY: Extract codes directly from analysis.charges (has the billed amounts!)
   if (analysis.charges) {
     for (const charge of analysis.charges) {
-      if (!charge.description) continue;
+      // First check if charge has a direct 'code' field
+      const directCode = (charge as any).code;
+      if (directCode && directCode.trim()) {
+        rawCodes.push(directCode);
 
-      // Look for CPT/HCPCS patterns in description
+        const validated = normalizeAndValidateCode(directCode);
+
+        if (validated.kind === "invalid" || !validated.code) {
+          rejectedTokens.push({ token: directCode, reason: validated.reason || "Invalid format" });
+        } else if (!seenCodes.has(validated.code)) {
+          seenCodes.add(validated.code);
+
+          items.push({
+            hcpcs: validated.code,
+            rawCode: directCode,
+            description: charge.description || "",
+            billedAmount: charge.amount ?? 0,
+            units: 1,
+            modifier: validated.modifier || undefined,
+          });
+        }
+        continue; // Skip description parsing if we have direct code
+      }
+
+      // Fallback: Look for CPT/HCPCS patterns in description
+      if (!charge.description) continue;
       const codeMatches = charge.description.match(/\b([A-Z0-9]{5})\b/gi) || [];
 
       for (const match of codeMatches) {
         rawCodes.push(match);
 
-        // Use strict validation
         const validated = normalizeAndValidateCode(match);
 
         if (validated.kind === "invalid" || !validated.code) {
@@ -272,8 +294,6 @@ function extractLineItems(analysis: AnalysisResult): {
         if (seenCodes.has(validated.code)) continue;
         seenCodes.add(validated.code);
 
-        // Look up billed amount from the billedByCode map
-        // ✅ FIX: AI sometimes returns 'billed' instead of 'amount'
         const billedAmount = billedByCode[validated.code] ?? billedByCode[match] ?? charge.amount ?? 0;
 
         items.push({
