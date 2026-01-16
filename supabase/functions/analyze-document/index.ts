@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // POND PROMPT: Direct extraction focused
-const SYSTEM_PROMPT = `You are analyzing a medical bill image. Extract ALL line items with their dollar amounts.
+const SYSTEM_PROMPT = `You are analyzing a medical bill. Extract ALL line items with their dollar amounts.
 
 CRITICAL: Look at the table and for EACH row, extract the dollar amount from the rightmost "AMOUNT" column.
 
@@ -22,6 +22,7 @@ RULES:
 2. The amount is in the rightmost column with $ signs
 3. Convert amounts to numbers (remove $ and commas)
 4. NEVER leave amount as null if you can see a dollar value
+5. Return amount in the "amount" field (not "billed" or "billedAmount")
 
 Return this JSON structure:
 
@@ -32,7 +33,7 @@ ${JSON.stringify(
         code: "string",
         codeType: "revenue OR cpt OR hcpcs",
         description: "string",
-        amount: "number - REQUIRED",
+        amount: "number - REQUIRED - use this exact field name",
         amountEvidence: "string - exact text you saw",
         date: "string - if shown",
       },
@@ -168,6 +169,25 @@ serve(async (req) => {
 
     // Parse the JSON response
     const parsedResult = JSON.parse(content);
+
+    // ✅ CRITICAL FIX: Ensure all charges have "amount" field (not "billed" or "billedAmount")
+    if (parsedResult.charges && Array.isArray(parsedResult.charges)) {
+      parsedResult.charges = parsedResult.charges.map((charge: any) => {
+        // Normalize to use "amount" field consistently
+        const amount = charge.amount ?? charge.billedAmount ?? charge.billed ?? null;
+        return {
+          ...charge,
+          amount: amount, // Always use "amount" field
+          billedAmount: undefined, // Remove alternate field names
+          billed: undefined, // Remove alternate field names
+        };
+      });
+    }
+
+    console.log("==========================================================");
+    console.log("[DEBUG] NORMALIZED CHARGES:");
+    console.log(JSON.stringify(parsedResult.charges?.slice(0, 5), null, 2));
+    console.log("==========================================================");
 
     console.log("==========================================================");
     console.log("[DEBUG] PARSED RESULT SUMMARY:");
