@@ -231,7 +231,7 @@ const Index = () => {
         issuer: ai?.issuer || "Unknown Provider",
         dateOfService: ai?.dateOfService || "Not specified",
         documentPurpose: ai.documentPurpose || "Medical billing document",
-        charges: ensureArray(ai.lineItems || ai.charges).map((item: any, idx: number) => {
+     charges: ensureArray(ai.charges || ai.lineItems || []).map(...)
           // ✅ FIX: Check multiple field names for the amount
           const rawAmount = item.amount ?? item.billedAmount ?? item.billed ?? 0;
           const amount =
