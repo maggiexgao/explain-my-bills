@@ -170,74 +170,86 @@ serve(async (req) => {
     // Parse the JSON response
     const parsedResult = JSON.parse(content);
 
-    // ✅ CRITICAL FIX: Ensure all charges have "amount" field (not "billed" or "billedAmount")
+    // ✅ CRITICAL FIX: Properly normalize amounts from any field name
     if (parsedResult.charges && Array.isArray(parsedResult.charges)) {
-      parsedResult.charges = parsedResult.charges.map((charge: any) => {
-        // Normalize to use "amount" field consistently
-        const amount = charge.amount ?? charge.billedAmount ?? charge.billed ?? null;
+      console.log("==========================================================");
+      console.log("[DEBUG] === NORMALIZING CHARGES ===");
+
+      parsedResult.charges = parsedResult.charges.map((charge: any, idx: number) => {
+        // Log what AI returned BEFORE normalization
+        console.log(
+          `[DEBUG] Charge ${idx} BEFORE: code=${charge.code}, amount=${charge.amount}, billedAmount=${charge.billedAmount}, billed=${charge.billed}, amountEvidence=${charge.amountEvidence}`,
+        );
+
+        // ✅ FIX: Properly extract amount from any field
+        // The bug was: null ?? 89.03 returns null (not 89.03!)
+        // We need to check for actual numeric values
+        let amount: number | null = null;
+
+        // Check each possible field for a valid number
+        const candidates = [
+          charge.amount,
+          charge.billedAmount,
+          charge.billed,
+          charge.totalAmount,
+          charge.charge,
+          charge.total,
+        ];
+
+        for (const candidate of candidates) {
+          // Check if it's a valid positive number
+          if (typeof candidate === "number" && !isNaN(candidate) && candidate > 0) {
+            amount = candidate;
+            break;
+          }
+          // Handle string amounts (e.g., "$89.03" or "89.03")
+          if (typeof candidate === "string" && candidate.trim()) {
+            const parsed = parseFloat(candidate.replace(/[$,]/g, "").trim());
+            if (!isNaN(parsed) && parsed > 0) {
+              amount = parsed;
+              break;
+            }
+          }
+        }
+
+        console.log(`[DEBUG] Charge ${idx} AFTER: code=${charge.code}, normalized amount=${amount}`);
+
         return {
           ...charge,
           amount: amount, // Always use "amount" field
-          billedAmount: undefined, // Remove alternate field names
-          billed: undefined, // Remove alternate field names
         };
       });
-    }
 
-    console.log("==========================================================");
-    console.log("[DEBUG] NORMALIZED CHARGES:");
-    console.log(JSON.stringify(parsedResult.charges?.slice(0, 5), null, 2));
-    console.log("==========================================================");
-
-    console.log("==========================================================");
-    console.log("[DEBUG] PARSED RESULT SUMMARY:");
-    console.log("[DEBUG] Total charges from extractedTotals:", parsedResult.extractedTotals?.totalCharges?.value);
-    console.log("[DEBUG] Line items sum:", parsedResult.extractedTotals?.lineItemsSum);
-    console.log("[DEBUG] Charges array length:", parsedResult.charges?.length || 0);
-    console.log("==========================================================");
-
-    // Enhanced logging for charges
-    const chargesArray = parsedResult.charges as
-      | Array<{
-          code?: string;
-          amount?: number | null;
-          amountEvidence?: string;
-          description?: string;
-        }>
-      | undefined;
-
-    if (chargesArray && chargesArray.length > 0) {
       console.log("==========================================================");
-      console.log("[DEBUG] DETAILED CHARGES BREAKDOWN:");
-      console.log("[DEBUG] Total charges in array:", chargesArray.length);
 
-      const chargesWithAmounts = chargesArray.filter((charge) => charge.amount != null && charge.amount > 0);
-      const chargesWithoutAmounts = chargesArray.filter((charge) => charge.amount == null || charge.amount === 0);
+      // Log summary statistics
+      const chargesWithAmounts = parsedResult.charges.filter((c: any) => c.amount != null && c.amount > 0);
+      const chargesWithoutAmounts = parsedResult.charges.filter((c: any) => c.amount == null || c.amount === 0);
 
-      console.log("[DEBUG] Charges WITH amounts:", chargesWithAmounts.length);
-      console.log("[DEBUG] Charges WITHOUT amounts:", chargesWithoutAmounts.length);
+      console.log("[DEBUG] === NORMALIZATION SUMMARY ===");
+      console.log(`[DEBUG] Total charges: ${parsedResult.charges.length}`);
+      console.log(`[DEBUG] Charges WITH valid amounts: ${chargesWithAmounts.length}`);
+      console.log(`[DEBUG] Charges WITHOUT amounts: ${chargesWithoutAmounts.length}`);
 
-      console.log("\n[DEBUG] First 5 charges WITH amounts:");
-      chargesWithAmounts.slice(0, 5).forEach((charge, idx) => {
-        console.log(
-          `  [${idx + 1}] Code: ${charge.code} | Amount: $${charge.amount} | Evidence: "${charge.amountEvidence}"`,
-        );
-      });
+      if (chargesWithAmounts.length > 0) {
+        console.log("[DEBUG] Sample charges with amounts:");
+        chargesWithAmounts.slice(0, 5).forEach((c: any, i: number) => {
+          console.log(`  [${i}] ${c.code}: $${c.amount}`);
+        });
+      }
 
-      console.log("\n[DEBUG] First 5 charges WITHOUT amounts:");
-      chargesWithoutAmounts.slice(0, 5).forEach((charge, idx) => {
-        console.log(
-          `  [${idx + 1}] Code: ${charge.code} | Description: ${charge.description} | Amount: ${charge.amount} | Evidence: "${charge.amountEvidence}"`,
-        );
-      });
+      if (chargesWithoutAmounts.length > 0) {
+        console.log("[DEBUG] ⚠️ Charges MISSING amounts:");
+        chargesWithoutAmounts.slice(0, 5).forEach((c: any, i: number) => {
+          console.log(`  [${i}] ${c.code}: ${c.description}`);
+        });
+      }
 
-      const totalSum = chargesWithAmounts.reduce((sum, charge) => sum + (charge.amount || 0), 0);
-      console.log("\n[DEBUG] Sum of extracted amounts: $" + totalSum.toFixed(2));
+      const totalSum = chargesWithAmounts.reduce((sum: number, c: any) => sum + (c.amount || 0), 0);
+      console.log(`[DEBUG] Sum of extracted amounts: $${totalSum.toFixed(2)}`);
       console.log("==========================================================");
     } else {
-      console.log("==========================================================");
-      console.log("[DEBUG] ⚠️ NO CHARGES EXTRACTED AT ALL!");
-      console.log("==========================================================");
+      console.log("[DEBUG] ⚠️ NO CHARGES ARRAY IN AI RESPONSE!");
     }
 
     return new Response(JSON.stringify({ analysis: parsedResult }), {
