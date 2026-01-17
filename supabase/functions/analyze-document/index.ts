@@ -184,7 +184,7 @@ serve(async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4-20250514",
+        model: "google/gemini-2.5-pro",
         messages: [
           {
             role: "user",
