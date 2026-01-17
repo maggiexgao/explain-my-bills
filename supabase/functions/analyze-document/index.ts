@@ -60,6 +60,7 @@ Row 3 has no CPT, so use revenue code.
 
 ## OUTPUT FORMAT
 
+Return valid JSON with this structure:
 {
   "billFormat": "cpt_first | rev_plus_cpt | svc_code | no_codes | summary_only",
   "charges": [
@@ -100,7 +101,6 @@ Row 3 has no CPT, so use revenue code.
   "closingReassurance": "string"
 }`;
 
-// Define types for the charge object
 interface Charge {
   code?: string;
   codeType?: string;
@@ -177,6 +177,7 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("[analyze-document] Starting analysis, MIME:", mimeType);
 
+    // Use Gemini 2.5 Pro for vision tasks (best for image analysis)
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -204,7 +205,6 @@ serve(async (req: Request): Promise<Response> => {
         ],
         temperature: 0.1,
         max_tokens: 16000,
-        response_format: { type: "json_object" },
       }),
     });
 
@@ -228,14 +228,26 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    console.log("[analyze-document] Received AI response");
+    console.log("[analyze-document] Received AI response, length:", content.length);
+
+    // Parse JSON - handle potential markdown code blocks
+    let jsonContent = content;
+
+    // Remove markdown code blocks if present
+    if (jsonContent.includes("```json")) {
+      jsonContent = jsonContent.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+    } else if (jsonContent.includes("```")) {
+      jsonContent = jsonContent.replace(/```\n?/g, "");
+    }
+
+    jsonContent = jsonContent.trim();
 
     let parsedResult: AnalysisResult;
     try {
-      parsedResult = JSON.parse(content);
+      parsedResult = JSON.parse(jsonContent);
     } catch (_parseError) {
-      console.error("[analyze-document] JSON parse error");
-      return new Response(JSON.stringify({ error: "Failed to parse AI response" }), {
+      console.error("[analyze-document] JSON parse error. Content preview:", jsonContent.substring(0, 200));
+      return new Response(JSON.stringify({ error: "Failed to parse AI response as JSON" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -256,7 +268,7 @@ serve(async (req: Request): Promise<Response> => {
         let codeType = charge.codeType || "unknown";
         let revenueCode = charge.revenueCode ? String(charge.revenueCode).trim() : null;
 
-        // Validate code type
+        // Validate code type based on pattern
         if (/^\d{5}$/.test(code)) {
           codeType = "cpt";
           cptCount++;
@@ -269,7 +281,7 @@ serve(async (req: Request): Promise<Response> => {
           revenueCount++;
         }
 
-        // Normalize amount
+        // Normalize amount to number
         let amount: number | null = null;
         const rawAmount = charge.amount ?? charge.billedAmount ?? charge.billed ?? charge.total;
 
@@ -310,11 +322,11 @@ serve(async (req: Request): Promise<Response> => {
       parsedResult.extractedTotals.lineItemsSum = lineItemsSum;
 
       if (revenueCount > 0 && cptCount === 0 && hcpcsCount === 0) {
-        console.log("[analyze-document] WARNING: Only revenue codes found");
+        console.log("[analyze-document] WARNING: Only revenue codes found - bill may have CPT codes that were missed");
       }
     }
 
-    // Ensure defaults
+    // Ensure defaults exist
     if (!parsedResult.atAGlance) {
       parsedResult.atAGlance = {
         visitSummary: "Medical services",
@@ -326,8 +338,8 @@ serve(async (req: Request): Promise<Response> => {
 
     if (!parsedResult.conversationScripts) {
       parsedResult.conversationScripts = {
-        firstCallScript: "Hi, I'm calling about my bill.",
-        ifTheyPushBack: "I'd like to speak with a supervisor.",
+        firstCallScript: "Hi, I'm calling about my bill and would like to understand the charges.",
+        ifTheyPushBack: "I'd like to speak with a billing supervisor.",
         whoToAskFor: "Billing department",
       };
     }
@@ -341,7 +353,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (!parsedResult.closingReassurance) {
-      parsedResult.closingReassurance = "Medical bills are often negotiable.";
+      parsedResult.closingReassurance = "Medical bills are often negotiable. You have the right to question charges.";
     }
 
     console.log("[analyze-document] Analysis complete");
