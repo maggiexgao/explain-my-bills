@@ -6,100 +6,117 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `You are a medical bill data extraction expert. Extract billing codes and amounts from medical bills.
+const SYSTEM_PROMPT = `You are a medical bill analysis expert. Extract data and provide helpful analysis.
 
-## STEP 1: IDENTIFY THE BILL FORMAT
+## BILL FORMAT DETECTION
 
-Look at column headers to determine the format:
+Look at column headers:
+- If "Code" column has 4-digit codes (0450) AND separate "CPT/HCPCS" column has 5-digit codes (99284), USE the CPT/HCPCS column
+- If only one code column with 5-digit codes, use that
+- Revenue codes (0110, 0450) are facility billing codes - prefer CPT codes when available
 
-**FORMAT A - CPT Code First**: "CPT CODE | CLAIM # | DESCRIPTION | AMOUNT"
-→ First column IS the CPT code (5 digits like 99284)
+## EXTRACTION TASK
 
-**FORMAT B - Revenue Code + Separate CPT Column**: "Code | Description | CPT/HCPCS | Amount"
-→ First code column has 4-digit REVENUE codes (0450, 0301)
-→ There's a SEPARATE column for CPT/HCPCS codes (99284, 80053, J2405)
-→ USE THE CPT/HCPCS COLUMN, NOT THE REVENUE CODE!
+Extract ALL line items. For each charge, prefer the CPT/HCPCS code (5 digits like 99284, or letter+4 like J2405) over the revenue code (4 digits like 0450).
 
-**FORMAT C - Svc Code Format**: "Date | Rev. # | Svc Code | Service | Charges"
-→ "Svc Code" column contains the CPT/HCPCS codes
+## REQUIRED OUTPUT FORMAT
 
-**FORMAT D - No Codes**: "Products | Quantity | Price | Amount"
-→ No CPT codes present, only service descriptions
+Return this EXACT JSON structure:
 
-## STEP 2: CODE TYPES
-
-- CPT Code: 5 digits (99284, 80053, 85025)
-- HCPCS Code: Letter + 4 digits (J2405, G0378)
-- Revenue Code: 4 digits starting with 0 (0110, 0450, 0301)
-
-## STEP 3: EXTRACTION
-
-For EACH line item:
-1. code: The CPT or HCPCS code (prefer this over revenue code)
-2. codeType: "cpt", "hcpcs", or "revenue"
-3. revenueCode: The 4-digit revenue code if present
-4. description: Service description
-5. amount: Dollar amount as NUMBER
-
-## CRITICAL EXAMPLE
-
-Table:
-| Code | Description | CPT/HCPCS | Amount |
-| 0450 | ED VISIT    | 99284     | $2,579 |
-| 0301 | METABOLIC   | 80053     | $400   |
-| 0260 | IV INFUSION |           | $157   |
-
-Extract:
-[
-  { "code": "99284", "codeType": "cpt", "revenueCode": "0450", "amount": 2579 },
-  { "code": "80053", "codeType": "cpt", "revenueCode": "0301", "amount": 400 },
-  { "code": "0260", "codeType": "revenue", "revenueCode": "0260", "amount": 157 }
-]
-
-Row 3 has no CPT, so use revenue code.
-
-## OUTPUT FORMAT
-
-Return valid JSON with this structure:
 {
-  "billFormat": "cpt_first | rev_plus_cpt | svc_code | no_codes | summary_only",
+  "billFormat": "rev_plus_cpt",
   "charges": [
     {
-      "code": "string",
-      "codeType": "cpt | hcpcs | revenue | none",
-      "revenueCode": "string or null",
-      "description": "string",
-      "amount": number,
-      "units": number,
-      "date": "string or null"
+      "code": "99284",
+      "codeType": "cpt",
+      "revenueCode": "0450",
+      "description": "Emergency Room Visit Level 4",
+      "amount": 2579.90,
+      "units": 1
     }
   ],
   "extractedTotals": {
-    "totalCharges": { "value": number, "evidence": "string" },
-    "lineItemsSum": number
+    "totalCharges": { "value": 3954.75, "evidence": "Total Charges: $3,954.75" },
+    "lineItemsSum": 3954.75
   },
   "atAGlance": {
-    "visitSummary": "string",
-    "totalBilled": number,
-    "amountYouMayOwe": null,
-    "status": "looks_standard | worth_reviewing | likely_issues",
-    "statusExplanation": "string"
+    "visitSummary": "Emergency room visit with lab tests and IV therapy",
+    "totalBilled": 3954.75,
+    "amountYouMayOwe": 2126.67,
+    "status": "worth_reviewing",
+    "statusExplanation": "Hospital emergency room bills often have room for negotiation."
   },
-  "thingsWorthReviewing": [],
-  "savingsOpportunities": [],
+  "thingsWorthReviewing": [
+    {
+      "whatToReview": "Emergency Room charge of $2,579.90",
+      "whyItMatters": "ER visits at Level 4 are typically $1,500-2,000 elsewhere. Worth questioning.",
+      "issueType": "negotiable"
+    },
+    {
+      "whatToReview": "Lab tests totaling $700+",
+      "whyItMatters": "Hospital lab fees are often 3-5x higher than independent labs.",
+      "issueType": "negotiable"
+    }
+  ],
+  "savingsOpportunities": [
+    {
+      "whatMightBeReduced": "Request self-pay discount (20-50% off)",
+      "whyNegotiable": "Most hospitals offer discounts if you ask. Call billing and mention you're paying out of pocket.",
+      "savingsContext": "Could save $800-2000"
+    },
+    {
+      "whatMightBeReduced": "Ask about financial assistance",
+      "whyNegotiable": "Nonprofit hospitals are required to offer charity care programs.",
+      "additionalInfoNeeded": "Your household income"
+    },
+    {
+      "whatMightBeReduced": "Negotiate a payment plan",
+      "whyNegotiable": "Hospitals often accept reduced lump-sum payments or 0% interest payment plans.",
+      "savingsContext": "Avoid collections"
+    }
+  ],
   "conversationScripts": {
-    "firstCallScript": "string",
-    "ifTheyPushBack": "string",
-    "whoToAskFor": "string"
+    "firstCallScript": "Hi, I'm calling about a bill for [patient name], account [number]. I have questions about some charges, particularly the emergency room fee. Can you help me understand the breakdown?",
+    "ifTheyPushBack": "I understand these are your standard rates. Are there any self-pay discounts, financial assistance programs, or payment plans available?",
+    "whoToAskFor": "Patient Financial Services or a Billing Supervisor"
   },
+  "pondNextSteps": [
+    { "step": "Request an itemized bill if not received", "isUrgent": false },
+    { "step": "Call billing to ask about discounts", "isUrgent": false },
+    { "step": "Review each charge against your records", "isUrgent": false }
+  ],
   "priceContext": {
     "hasBenchmarks": false,
     "comparisons": [],
-    "fallbackMessage": "string"
+    "fallbackMessage": "Medicare comparison will be calculated based on your location."
   },
-  "pondNextSteps": [],
-  "closingReassurance": "string"
-}`;
+  "closingReassurance": "Hospital bills are often negotiable. Many patients reduce their bills by 20-50% simply by asking. You have the right to question any charge."
+}
+
+## FIELD REQUIREMENTS - VERY IMPORTANT
+
+1. **thingsWorthReviewing** - Array of objects with EXACTLY these field names:
+   - "whatToReview": string (the specific charge or issue to look at)
+   - "whyItMatters": string (why the patient should care about this)
+   - "issueType": one of "error", "negotiable", "missing_info", "confirmation"
+
+2. **savingsOpportunities** - Array of objects with EXACTLY these field names:
+   - "whatMightBeReduced": string (what could be lowered)
+   - "whyNegotiable": string (explanation of why it's negotiable)
+   - "savingsContext": string (optional - potential dollar savings)
+   - "additionalInfoNeeded": string (optional - what info patient needs)
+
+3. **pondNextSteps** - Array of objects with EXACTLY these field names:
+   - "step": string (the action to take)
+   - "isUrgent": boolean
+
+4. **charges** - Array with:
+   - "code": string (prefer 5-digit CPT over 4-digit revenue code)
+   - "amount": NUMBER (not a string, e.g., 2579.90 not "$2,579.90")
+
+5. All dollar amounts must be NUMBERS without $ signs or commas.
+
+Generate 2-4 items for thingsWorthReviewing and 2-4 items for savingsOpportunities based on the bill contents.`;
 
 interface Charge {
   code?: string;
@@ -114,6 +131,39 @@ interface Charge {
   date?: string | null;
 }
 
+interface ReviewItem {
+  whatToReview?: string;
+  whyItMatters?: string;
+  issueType?: string;
+  // Alternative field names the AI might use
+  title?: string;
+  description?: string;
+  issue?: string;
+  reason?: string;
+  type?: string;
+}
+
+interface SavingsItem {
+  whatMightBeReduced?: string;
+  whyNegotiable?: string;
+  savingsContext?: string;
+  additionalInfoNeeded?: string;
+  // Alternative field names
+  title?: string;
+  description?: string;
+  opportunity?: string;
+  reason?: string;
+}
+
+interface NextStep {
+  step?: string;
+  isUrgent?: boolean;
+  // Alternative field names
+  action?: string;
+  title?: string;
+  description?: string;
+}
+
 interface AnalysisResult {
   billFormat?: string;
   charges?: Charge[];
@@ -124,9 +174,12 @@ interface AnalysisResult {
   atAGlance?: {
     visitSummary?: string;
     totalBilled?: number;
+    amountYouMayOwe?: number | null;
     status?: string;
     statusExplanation?: string;
   };
+  thingsWorthReviewing?: ReviewItem[];
+  savingsOpportunities?: SavingsItem[];
   conversationScripts?: {
     firstCallScript?: string;
     ifTheyPushBack?: string;
@@ -137,10 +190,8 @@ interface AnalysisResult {
     comparisons?: unknown[];
     fallbackMessage?: string;
   };
+  pondNextSteps?: NextStep[];
   closingReassurance?: string;
-  thingsWorthReviewing?: unknown[];
-  savingsOpportunities?: unknown[];
-  pondNextSteps?: unknown[];
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -177,7 +228,6 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("[analyze-document] Starting analysis, MIME:", mimeType);
 
-    // Use Gemini 2.5 Pro for vision tasks (best for image analysis)
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -230,23 +280,20 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("[analyze-document] Received AI response, length:", content.length);
 
-    // Parse JSON - handle potential markdown code blocks
+    // Parse JSON - handle markdown code blocks
     let jsonContent = content;
-
-    // Remove markdown code blocks if present
     if (jsonContent.includes("```json")) {
       jsonContent = jsonContent.replace(/```json\n?/g, "").replace(/```\n?/g, "");
     } else if (jsonContent.includes("```")) {
       jsonContent = jsonContent.replace(/```\n?/g, "");
     }
-
     jsonContent = jsonContent.trim();
 
     let parsedResult: AnalysisResult;
     try {
       parsedResult = JSON.parse(jsonContent);
     } catch (_parseError) {
-      console.error("[analyze-document] JSON parse error. Content preview:", jsonContent.substring(0, 200));
+      console.error("[analyze-document] JSON parse error. Preview:", jsonContent.substring(0, 300));
       return new Response(JSON.stringify({ error: "Failed to parse AI response as JSON" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -255,7 +302,7 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("[analyze-document] Bill format:", parsedResult.billFormat);
 
-    // Post-process charges
+    // ========== POST-PROCESS CHARGES ==========
     if (parsedResult.charges && Array.isArray(parsedResult.charges)) {
       console.log("[analyze-document] Processing", parsedResult.charges.length, "charges");
 
@@ -268,7 +315,6 @@ serve(async (req: Request): Promise<Response> => {
         let codeType = charge.codeType || "unknown";
         let revenueCode = charge.revenueCode ? String(charge.revenueCode).trim() : null;
 
-        // Validate code type based on pattern
         if (/^\d{5}$/.test(code)) {
           codeType = "cpt";
           cptCount++;
@@ -281,7 +327,6 @@ serve(async (req: Request): Promise<Response> => {
           revenueCount++;
         }
 
-        // Normalize amount to number
         let amount: number | null = null;
         const rawAmount = charge.amount ?? charge.billedAmount ?? charge.billed ?? charge.total;
 
@@ -297,50 +342,115 @@ serve(async (req: Request): Promise<Response> => {
 
         console.log(`[analyze-document] Charge ${idx}: code=${code}, type=${codeType}, amount=${amount}`);
 
-        return {
-          ...charge,
-          code,
-          codeType,
-          revenueCode,
-          amount,
-          units: charge.units || 1,
-        };
+        return { ...charge, code, codeType, revenueCode, amount, units: charge.units || 1 };
       });
 
       console.log(`[analyze-document] Summary: CPT=${cptCount}, HCPCS=${hcpcsCount}, Revenue=${revenueCount}`);
 
-      // Calculate line items sum
       const lineItemsSum = parsedResult.charges.reduce(
         (sum: number, c: Charge) => sum + (typeof c.amount === "number" ? c.amount : 0),
         0,
       );
-      console.log(`[analyze-document] Line items sum: $${lineItemsSum.toFixed(2)}`);
 
       if (!parsedResult.extractedTotals) {
         parsedResult.extractedTotals = {};
       }
       parsedResult.extractedTotals.lineItemsSum = lineItemsSum;
-
-      if (revenueCount > 0 && cptCount === 0 && hcpcsCount === 0) {
-        console.log("[analyze-document] WARNING: Only revenue codes found - bill may have CPT codes that were missed");
-      }
     }
 
-    // Ensure defaults exist
+    // ========== NORMALIZE thingsWorthReviewing ==========
+    if (parsedResult.thingsWorthReviewing && Array.isArray(parsedResult.thingsWorthReviewing)) {
+      parsedResult.thingsWorthReviewing = parsedResult.thingsWorthReviewing.map((item: ReviewItem) => {
+        // Map from various possible field names to the expected ones
+        const whatToReview = item.whatToReview || item.title || item.issue || item.description || "Review this item";
+        const whyItMatters = item.whyItMatters || item.reason || item.description || "This may affect your bill";
+        const issueType = item.issueType || item.type || "negotiable";
+
+        console.log(`[analyze-document] ReviewItem: ${whatToReview.substring(0, 50)}...`);
+
+        return {
+          whatToReview,
+          whyItMatters,
+          issueType,
+        };
+      });
+      console.log(`[analyze-document] thingsWorthReviewing: ${parsedResult.thingsWorthReviewing.length} items`);
+    } else {
+      // Provide defaults if empty
+      parsedResult.thingsWorthReviewing = [
+        {
+          whatToReview: "Review all charges for accuracy",
+          whyItMatters: "Medical bills can contain errors. Verify each charge matches services received.",
+          issueType: "confirmation",
+        },
+      ];
+    }
+
+    // ========== NORMALIZE savingsOpportunities ==========
+    if (parsedResult.savingsOpportunities && Array.isArray(parsedResult.savingsOpportunities)) {
+      parsedResult.savingsOpportunities = parsedResult.savingsOpportunities.map((item: SavingsItem) => {
+        const whatMightBeReduced =
+          item.whatMightBeReduced || item.title || item.opportunity || item.description || "Potential savings";
+        const whyNegotiable = item.whyNegotiable || item.reason || item.description || "This may be negotiable";
+
+        console.log(`[analyze-document] SavingsItem: ${whatMightBeReduced.substring(0, 50)}...`);
+
+        return {
+          whatMightBeReduced,
+          whyNegotiable,
+          savingsContext: item.savingsContext,
+          additionalInfoNeeded: item.additionalInfoNeeded,
+        };
+      });
+      console.log(`[analyze-document] savingsOpportunities: ${parsedResult.savingsOpportunities.length} items`);
+    } else {
+      // Provide defaults if empty
+      parsedResult.savingsOpportunities = [
+        {
+          whatMightBeReduced: "Ask about self-pay discounts",
+          whyNegotiable: "Most providers offer 10-40% discounts for prompt payment or self-pay patients.",
+          savingsContext: "Could save 10-40%",
+        },
+        {
+          whatMightBeReduced: "Inquire about payment plans",
+          whyNegotiable: "Many providers offer interest-free payment plans that make bills more manageable.",
+        },
+      ];
+    }
+
+    // ========== NORMALIZE pondNextSteps ==========
+    if (parsedResult.pondNextSteps && Array.isArray(parsedResult.pondNextSteps)) {
+      parsedResult.pondNextSteps = parsedResult.pondNextSteps.map((item: NextStep) => {
+        const step = item.step || item.action || item.title || item.description || "Review your bill";
+
+        return {
+          step,
+          isUrgent: item.isUrgent || false,
+        };
+      });
+      console.log(`[analyze-document] pondNextSteps: ${parsedResult.pondNextSteps.length} items`);
+    } else {
+      parsedResult.pondNextSteps = [
+        { step: "Request an itemized bill if you haven't received one", isUrgent: false },
+        { step: "Call billing to discuss charges and payment options", isUrgent: false },
+      ];
+    }
+
+    // ========== ENSURE OTHER DEFAULTS ==========
     if (!parsedResult.atAGlance) {
       parsedResult.atAGlance = {
         visitSummary: "Medical services",
         totalBilled: parsedResult.extractedTotals?.lineItemsSum || 0,
         status: "worth_reviewing",
-        statusExplanation: "Please review this bill.",
+        statusExplanation: "Please review this bill carefully.",
       };
     }
 
     if (!parsedResult.conversationScripts) {
       parsedResult.conversationScripts = {
-        firstCallScript: "Hi, I'm calling about my bill and would like to understand the charges.",
-        ifTheyPushBack: "I'd like to speak with a billing supervisor.",
-        whoToAskFor: "Billing department",
+        firstCallScript: "Hi, I'm calling about my bill and have some questions about the charges.",
+        ifTheyPushBack: "I'd like to speak with a billing supervisor or patient advocate.",
+        whoToAskFor: "Billing department or Patient Financial Services",
       };
     }
 
@@ -348,15 +458,18 @@ serve(async (req: Request): Promise<Response> => {
       parsedResult.priceContext = {
         hasBenchmarks: false,
         comparisons: [],
-        fallbackMessage: "Price comparison will be calculated.",
+        fallbackMessage: "Medicare price comparison will be calculated based on your location.",
       };
     }
 
     if (!parsedResult.closingReassurance) {
-      parsedResult.closingReassurance = "Medical bills are often negotiable. You have the right to question charges.";
+      parsedResult.closingReassurance =
+        "Medical bills are often negotiable. Many patients reduce their bills significantly by asking questions. You have every right to understand and challenge charges.";
     }
 
     console.log("[analyze-document] Analysis complete");
+    console.log("[analyze-document] Final thingsWorthReviewing count:", parsedResult.thingsWorthReviewing?.length);
+    console.log("[analyze-document] Final savingsOpportunities count:", parsedResult.savingsOpportunities?.length);
 
     return new Response(JSON.stringify({ analysis: parsedResult }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
