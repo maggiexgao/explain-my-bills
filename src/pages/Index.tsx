@@ -394,17 +394,65 @@ const Index = () => {
           status: "worth_reviewing" as const,
           statusExplanation: "Review this bill for accuracy before paying.",
         },
+        // ============================================================
+        // FIXED CODE FOR src/pages/Index.tsx
+        // ============================================================
+        //
+        // Replace lines 397-435 (approximately) with this code.
+        // The key fix is adding fallback field names that the AI might use.
+        //
+        // FIND THE SECTION STARTING WITH:
+        //   thingsWorthReviewing: ensureArray(ai.thingsWorthReviewing).map((r: any) => ({
+        //
+        // AND ENDING AROUND:
+        //   isUrgent: s.isUrgent,
+        //   })),
+        //
+        // REPLACE THAT ENTIRE SECTION WITH THE CODE BELOW:
+        // ============================================================
+
         thingsWorthReviewing: ensureArray(ai.thingsWorthReviewing).map((r: any) => ({
-          whatToReview: r.whatToReview || "",
-          whyItMatters: r.whyItMatters || "",
-          issueType: r.issueType || "confirmation",
+          whatToReview:
+            r.whatToReview ||
+            r.title ||
+            r.issue ||
+            r.item ||
+            r.charge ||
+            r.name ||
+            (typeof r.description === "string" && r.description.length < 100 ? r.description : "") ||
+            "Review this item",
+          whyItMatters:
+            r.whyItMatters ||
+            r.reason ||
+            r.explanation ||
+            r.details ||
+            r.matter ||
+            r.importance ||
+            (typeof r.description === "string" && r.description.length >= 100 ? r.description : "") ||
+            "This may affect your bill",
+          issueType: r.issueType || r.type || r.severity || r.level || "negotiable",
         })),
         reviewSectionNote: ai.reviewSectionNote,
         savingsOpportunities: ensureArray(ai.savingsOpportunities).map((s: any) => ({
-          whatMightBeReduced: s.whatMightBeReduced || "",
-          whyNegotiable: s.whyNegotiable || "",
-          additionalInfoNeeded: s.additionalInfoNeeded,
-          savingsContext: s.savingsContext,
+          whatMightBeReduced:
+            s.whatMightBeReduced ||
+            s.title ||
+            s.opportunity ||
+            s.item ||
+            s.name ||
+            s.saving ||
+            (typeof s.description === "string" && s.description.length < 100 ? s.description : "") ||
+            "Potential savings opportunity",
+          whyNegotiable:
+            s.whyNegotiable ||
+            s.reason ||
+            s.explanation ||
+            s.details ||
+            s.rationale ||
+            (typeof s.description === "string" && s.description.length >= 100 ? s.description : "") ||
+            "This may be negotiable",
+          additionalInfoNeeded: s.additionalInfoNeeded || s.info || s.needed || s.requirements,
+          savingsContext: s.savingsContext || s.savings || s.amount || s.estimate || s.context,
         })),
         conversationScripts: ai.conversationScripts || {
           firstCallScript: "Hi, I'm calling about my bill. I'd like to understand the charges before making payment.",
@@ -430,8 +478,18 @@ const Index = () => {
             "Price comparison data isn't available yet, but this category is commonly reviewed or negotiated.",
         },
         pondNextSteps: ensureArray(ai.pondNextSteps || ai.nextSteps).map((s: any) => ({
-          step: typeof s === "string" ? s : s.step || "",
-          isUrgent: s.isUrgent,
+          step:
+            typeof s === "string"
+              ? s
+              : s.step ||
+                s.action ||
+                s.title ||
+                s.instruction ||
+                s.task ||
+                s.text ||
+                s.description ||
+                "Review your bill",
+          isUrgent: s.isUrgent || s.urgent || s.priority === "high" || false,
         })),
         closingReassurance:
           ai.closingReassurance ||
