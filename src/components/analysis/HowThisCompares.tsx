@@ -70,6 +70,10 @@ import { computeComparisonReadiness, formatReadinessForUI, ReadinessResult } fro
 import { normalizeAndDeriveTotals, StructuredTotals } from "@/lib/totals/normalizeTotals";
 import { UnmatchedCodesCard } from "./UnmatchedCodesCard";
 import { buildBilledAmountByCode } from "@/lib/billedAmountByCode";
+import { BillTotalsGrid } from "./BillTotalsGrid";
+import { ServiceDetailsTable } from "./ServiceDetailsTable";
+import { NegotiabilityCategorySection } from "./NegotiabilityCategorySection";
+import { CommonlyAskedQuestionsSection } from "./CommonlyAskedQuestionsSection";
 
 // ============= Props =============
 
@@ -1471,87 +1475,28 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
 
   return (
     <div className="space-y-6">
-      {/* Summary Card */}
-      <SummaryCard output={output} totalsReconciliation={totalsReconciliation} readinessResult={readinessResult} />
+      {/* Bill Totals Grid - New 2-row layout */}
+      <BillTotalsGrid
+        totalBilled={output.totals.billedTotal || null}
+        insurancePaid={totalsReconciliation?.rawValues?.insurancePaid || null}
+        youMayOwe={totalsReconciliation?.rawValues?.patientResponsibility || null}
+        matchedCharges={output.matchedItemsComparison.matchedBilledTotal || 0}
+        medicareReference={output.matchedItemsComparison.matchedMedicareTotal || 0}
+        matchedCount={output.matchedItemsComparison.matchedItemsCount || 0}
+        totalCount={output.matchedItemsComparison.totalItemsCount || output.lineItems.length}
+      />
 
-      {/* Partial match notice */}
-      {output.status === "partial" && (
-        <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-          <p className="text-sm text-muted-foreground flex items-start gap-2">
-            <Info className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
-            Some services on this bill could not be matched to Medicare reference prices. The comparison above covers
-            only the matched items.
-          </p>
-        </div>
-      )}
+      {/* Service Details Table - Default collapsed, full descriptions, status column */}
+      <ServiceDetailsTable
+        lineItems={output.lineItems}
+        defaultExpanded={false}
+      />
 
-      {/* Line Item Details */}
-      <div>
-        {/* Approximate Comparison Warning - Refined UI */}
-        {(() => {
-          const hasInferredCodes = output?.lineItems?.some((item) =>
-            item.notes?.some(
-              (note) =>
-                note.toLowerCase().includes("inferred") ||
-                note.toLowerCase().includes("reverse search") ||
-                note.toLowerCase().includes("estimated"),
-            ),
-          );
+      {/* Negotiability by Category - NEW */}
+      <NegotiabilityCategorySection lineItems={output.lineItems} />
 
-          const hasGenericDescriptions = output?.lineItems?.some((item) => {
-            const desc = item.description?.toLowerCase() || "";
-            return (
-              desc.includes("pharmacy") ||
-              desc.includes("supplies") ||
-              desc.includes("emergency room") ||
-              desc.includes("emergency dept") ||
-              desc.includes("laboratory") ||
-              desc.includes("radiology") ||
-              desc === "services"
-            );
-          });
-
-          const showReverseSearchWarning = hasInferredCodes || hasGenericDescriptions;
-
-          return showReverseSearchWarning ? (
-            <div className="mb-4 p-3 rounded-lg bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Approximate Comparison</p>
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
-                    Some service descriptions are generic. We've matched to comparable Medicare codes, but actual rates
-                    may vary.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : null;
-        })()}
-
-        {/* Service-by-Service Header */}
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-foreground">Service Details ({output.lineItems.length})</h4>
-          {output.lineItems.length > 5 && (
-            <Button variant="ghost" size="sm" onClick={() => setShowAllItems(!showAllItems)} className="text-xs h-7">
-              {showAllItems ? "Show Less" : `Show All ${output.lineItems.length}`}
-            </Button>
-          )}
-        </div>
-
-        {/* Compact Line Items */}
-        <div className="space-y-1.5">
-          {displayItems.map((item, idx) => (
-            <LineItemCard key={`${item.hcpcs}-${idx}`} item={item} />
-          ))}
-        </div>
-      </div>
-
-      {/* Codes that exist but have no Medicare price */}
-      <CodesExistsNotPricedSection items={output.lineItems} />
-
-      {/* Codes not found in MPFS at all */}
-      <CodesMissingSection codes={output.codesNotFound} />
+      {/* Commonly Asked Questions - NEW */}
+      <CommonlyAskedQuestionsSection lineItems={output.lineItems} />
 
       {/* Educational Footer */}
       <EducationalFooter />
