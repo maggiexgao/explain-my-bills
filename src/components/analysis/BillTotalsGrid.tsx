@@ -17,6 +17,7 @@ interface BillTotalsGridProps {
   medicareReference: number;
   matchedCount: number;
   totalCount: number;
+  careSetting?: 'office' | 'facility';
 }
 
 function formatCurrency(amount: number): string {
@@ -120,11 +121,30 @@ export function BillTotalsGrid({
   medicareReference,
   matchedCount,
   totalCount,
+  careSetting = 'office',
 }: BillTotalsGridProps) {
   const matchPercent = totalCount > 0 ? Math.round((matchedCount / totalCount) * 100) : 0;
+  const isFacility = careSetting === 'facility';
   
   return (
     <div className="space-y-4">
+      {/* Rate Type Indicator */}
+      <div className={cn(
+        "flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-xs font-medium",
+        isFacility 
+          ? "bg-primary/10 text-primary border border-primary/20" 
+          : "bg-muted/50 text-muted-foreground border border-border/30"
+      )}>
+        <Badge variant={isFacility ? "default" : "secondary"} className="text-[10px] px-2 py-0">
+          {isFacility ? 'OPPS' : 'MPFS'}
+        </Badge>
+        <span>
+          {isFacility 
+            ? 'Using OPPS Hospital Rates' 
+            : 'Using MPFS Physician Rates'}
+        </span>
+      </div>
+
       {/* Row 1: Bill Overview */}
       <div className="grid grid-cols-3 gap-3">
         <TotalsBox
@@ -188,8 +208,18 @@ export function BillTotalsGrid({
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            <strong>Note:</strong> Medicare <em>physician fees</em> are shown above. Hospital <em>facility fees</em> are typically higher. 
-            Commercial insurance usually pays 150–300% of Medicare rates. A high multiple doesn't necessarily mean you're being overcharged—hospital pricing differs from Medicare physician rates.
+            {isFacility ? (
+              <>
+                <strong>Note:</strong> Using OPPS (Outpatient Prospective Payment System) hospital facility rates. 
+                These are the Medicare rates paid to hospital outpatient departments. 
+                Commercial insurance typically pays 150–300% of Medicare facility rates.
+              </>
+            ) : (
+              <>
+                <strong>Note:</strong> Medicare <em>physician fees</em> (MPFS) are shown above. Hospital <em>facility fees</em> are typically higher. 
+                Commercial insurance usually pays 150–300% of Medicare rates. A high multiple doesn't necessarily mean you're being overcharged—hospital pricing differs from Medicare physician rates.
+              </>
+            )}
           </p>
         </div>
       </div>

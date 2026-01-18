@@ -1490,6 +1490,7 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
         medicareReference={output.matchedItemsComparison.matchedMedicareTotal || 0}
         matchedCount={output.matchedItemsComparison.matchedItemsCount || 0}
         totalCount={output.matchedItemsComparison.totalItemsCount || output.lineItems.length}
+        careSetting={careSetting}
       />
 
       {/* Service Details Table - Default collapsed, full descriptions, status column */}
