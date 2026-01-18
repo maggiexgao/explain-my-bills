@@ -30,6 +30,54 @@ const ensureArray = (value: any): any[] => {
   return [value];
 };
 
+// Auto-detect if bill is from a hospital/facility based on bill characteristics
+function detectCareSetting(analysis: AnalysisResult): CareSetting {
+  // Check issuer/provider name for hospital keywords
+  const issuer = (analysis.issuer || '').toLowerCase();
+  const facilityKeywords = [
+    'hospital', 'medical center', 'health system', 'health care',
+    'regional medical', 'community health', 'mercy', 'baptist',
+    'methodist', 'presbyterian', 'memorial', 'general hospital',
+    'university hospital', 'children\'s', 'atrium', 'kaiser',
+    'emergency room', 'emergency department', 'er ', ' ed '
+  ];
+  
+  if (facilityKeywords.some(kw => issuer.includes(kw))) {
+    console.log('[CareSetting] Detected facility from issuer:', issuer);
+    return 'facility';
+  }
+  
+  // Check for ER visit codes (99281-99285)
+  const charges = analysis.charges || [];
+  const lineItems = (analysis as any).lineItems || [];
+  const allCodes = [
+    ...charges.map(c => c.code || ''),
+    ...lineItems.map((l: any) => l.code || '')
+  ];
+  
+  const erCodes = ['99281', '99282', '99283', '99284', '99285'];
+  if (allCodes.some(code => erCodes.includes(code))) {
+    console.log('[CareSetting] Detected facility from ER codes');
+    return 'facility';
+  }
+  
+  // Check for revenue codes (4-digit codes starting with 0, like 0450, 0260)
+  const revenueCodePattern = /^0\d{3}$/;
+  if (allCodes.some(code => revenueCodePattern.test(code))) {
+    console.log('[CareSetting] Detected facility from revenue codes');
+    return 'facility';
+  }
+  
+  // Check for hospital place of service
+  if ((analysis as any).placeOfService === '22' || (analysis as any).placeOfService === '23') {
+    console.log('[CareSetting] Detected facility from place of service');
+    return 'facility';
+  }
+  
+  // Default to office for physician/clinic bills
+  return 'office';
+}
+
 const INTRO_SHOWN_KEY = "pond_intro_shown";
 
 const Index = () => {
@@ -536,7 +584,16 @@ const Index = () => {
         rawEobPatientResp: ai.eobData?.patientResponsibility,
       });
 
-      setState((prev) => ({ ...prev, isAnalyzing: false, analysisResult }));
+      // Auto-detect care setting based on bill characteristics
+      const detectedCareSetting = detectCareSetting(analysisResult);
+      console.log('[CareSetting] Final detected setting:', detectedCareSetting);
+
+      setState((prev) => ({ 
+        ...prev, 
+        isAnalyzing: false, 
+        analysisResult,
+        careSetting: detectedCareSetting, // Update care setting based on detection
+      }));
     } catch (error) {
       console.error("Analysis error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to analyze document.");
