@@ -74,21 +74,9 @@ import { BillTotalsGrid } from "./BillTotalsGrid";
 import { ServiceDetailsTable } from "./ServiceDetailsTable";
 import { NegotiabilityCategorySection } from "./NegotiabilityCategorySection";
 import { CommonlyAskedQuestionsSection } from "./CommonlyAskedQuestionsSection";
+import { supabase } from "@/integrations/supabase/client";
 
 // ============= Props =============
-// Add this check to verify OPPS data exists
-useEffect(() => {
-  const checkOppsData = async () => {
-    const { count, error } = await supabase.from("opps_addendum_b").select("*", { count: "exact", head: true });
-
-    console.log(`[OPPS Check] Table has ${count} rows. Error: ${error?.message || "none"}`);
-
-    if (count === 0 || count === null) {
-      console.warn("[OPPS Check] WARNING: opps_addendum_b table is EMPTY! OPPS rates will not work.");
-    }
-  };
-  checkOppsData();
-}, []);
 interface HowThisComparesProps {
   analysis: AnalysisResult;
   state: string;
@@ -1224,6 +1212,19 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
   const [totalsReconciliation, setTotalsReconciliation] = useState<TotalsReconciliation | null>(null);
   const [structuredTotals, setStructuredTotals] = useState<StructuredTotals | null>(null);
   const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
+
+  // Check OPPS data availability on mount
+  useEffect(() => {
+    const checkOppsData = async () => {
+      const { count, error } = await supabase.from("opps_addendum_b").select("*", { count: "exact", head: true });
+      console.log(`[OPPS Check] Table has ${count} rows. Error: ${error?.message || "none"}`);
+      if (count === 0 || count === null) {
+        console.warn("[OPPS Check] WARNING: opps_addendum_b table is EMPTY! OPPS rates will not work.");
+      }
+    };
+    checkOppsData();
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
