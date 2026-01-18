@@ -213,18 +213,45 @@ function SavingsRow({ opportunity }: { opportunity: SavingsOpportunity }) {
   );
 }
 
+// Filter out action items - keep only actual cost drivers
+function filterToActualCostDrivers(reviewItems: ReviewItem[]): ReviewItem[] {
+  const actionKeywords = [
+    'question the',
+    'negotiate',
+    'ask for',
+    'request',
+    'call',
+    'contact',
+    'discount',
+    'self-pay',
+    'prompt-pay',
+    'payment plan',
+    'appeal',
+    'dispute',
+  ];
+  
+  return reviewItems.filter(item => {
+    const text = (item.whatToReview || '').toLowerCase();
+    // Keep if it doesn't start with action keywords
+    return !actionKeywords.some(keyword => text.startsWith(keyword));
+  });
+}
+
 export function CostDriversGroup({ reviewItems, savingsOpportunities, reviewSectionNote, charges }: CostDriversGroupProps) {
-  const totalItems = reviewItems.length + savingsOpportunities.length;
+  // Filter to only show actual cost drivers, not action items
+  const costDriverItems = filterToActualCostDrivers(reviewItems);
+  
+  // Don't show savings opportunities here - they're action items too
+  const totalItems = costDriverItems.length;
   const hasItems = totalItems > 0;
   
   // Determine what verdict badges to show
-  const errorCount = reviewItems.filter(i => i.issueType === 'error').length;
-  const warningCount = reviewItems.filter(i => i.issueType === 'negotiable').length;
+  const errorCount = costDriverItems.filter(i => i.issueType === 'error').length;
   
   return (
     <CollapsibleGroup
       title="What's Driving the Cost"
-      subtitle={hasItems ? `${totalItems} item${totalItems > 1 ? 's' : ''} identified` : "Nothing unusual found"}
+      subtitle={hasItems ? `${totalItems} high-cost item${totalItems > 1 ? 's' : ''} identified` : "No unusual charges found"}
       icon={<AlertTriangle className="h-4 w-4" />}
       iconClassName={hasItems ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}
       badge={
@@ -235,11 +262,6 @@ export function CostDriversGroup({ reviewItems, savingsOpportunities, reviewSect
                 {errorCount} issue{errorCount > 1 ? 's' : ''}
               </Badge>
             )}
-            {savingsOpportunities.length > 0 && (
-              <Badge className="bg-success/10 text-success text-[10px] px-1.5 py-0">
-                {savingsOpportunities.length} saving{savingsOpportunities.length > 1 ? 's' : ''}
-              </Badge>
-            )}
           </div>
         ) : (
           <Badge className="bg-success/10 text-success text-[10px] px-1.5 py-0">
@@ -247,20 +269,15 @@ export function CostDriversGroup({ reviewItems, savingsOpportunities, reviewSect
           </Badge>
         )
       }
-      defaultOpen={hasItems && (errorCount > 0 || savingsOpportunities.length > 0)}
+      defaultOpen={hasItems && errorCount > 0}
       isEmpty={!hasItems && !reviewSectionNote}
-      emptyMessage="This bill looks straightforward. Request an itemized bill to confirm accuracy."
-      infoTooltip="High-cost line items, duplicate charges, and areas where costs might be reduced"
+      emptyMessage="No unusually high charges detected. The costs appear consistent with typical hospital pricing."
+      infoTooltip="High-cost line items and charges that stand out"
     >
       <div className="space-y-1">
-        {/* Review items with issues */}
-        {reviewItems.map((item, idx) => (
+        {/* Review items with issues - only cost drivers, not actions */}
+        {costDriverItems.map((item, idx) => (
           <ReviewItemRow key={`review-${idx}`} item={item} charges={charges} />
-        ))}
-        
-        {/* Savings opportunities */}
-        {savingsOpportunities.map((opp, idx) => (
-          <SavingsRow key={`savings-${idx}`} opportunity={opp} />
         ))}
         
         {/* Note if nothing found */}

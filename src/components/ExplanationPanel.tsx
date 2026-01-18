@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { AnalysisResult, CareSetting } from '@/types';
 import { BillSummaryHero } from '@/components/analysis/BillSummaryHero';
 import { CostDriversGroup } from '@/components/analysis/CostDriversGroup';
-import { PriceComparisonGroup } from '@/components/analysis/PriceComparisonGroup';
+// import { PriceComparisonGroup } from '@/components/analysis/PriceComparisonGroup'; // Removed - redundant
 import { ActionGroup } from '@/components/analysis/ActionGroup';
 import { DeepDiveSection } from '@/components/analysis/DeepDiveSection';
 import { HowThisCompares } from '@/components/analysis/HowThisCompares';
@@ -201,11 +201,7 @@ export function ExplanationPanel({
             charges={analysis.charges}
           />
           
-          {/* Group 2: How This Compares */}
-          <PriceComparisonGroup 
-            priceContext={priceContext}
-            negotiability={negotiability}
-          />
+          {/* REMOVED: PriceComparisonGroup - redundant with HowThisCompares section above */}
           
           {/* Group 3: What You Can Do */}
           <ActionGroup 
