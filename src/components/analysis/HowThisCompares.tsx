@@ -76,7 +76,19 @@ import { NegotiabilityCategorySection } from "./NegotiabilityCategorySection";
 import { CommonlyAskedQuestionsSection } from "./CommonlyAskedQuestionsSection";
 
 // ============= Props =============
+// Add this check to verify OPPS data exists
+useEffect(() => {
+  const checkOppsData = async () => {
+    const { count, error } = await supabase.from("opps_addendum_b").select("*", { count: "exact", head: true });
 
+    console.log(`[OPPS Check] Table has ${count} rows. Error: ${error?.message || "none"}`);
+
+    if (count === 0 || count === null) {
+      console.warn("[OPPS Check] WARNING: opps_addendum_b table is EMPTY! OPPS rates will not work.");
+    }
+  };
+  checkOppsData();
+}, []);
 interface HowThisComparesProps {
   analysis: AnalysisResult;
   state: string;
@@ -1475,9 +1487,10 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
 
   // Extract insurance paid and patient responsibility from totals reconciliation
   const insurancePaid = totalsReconciliation?.structuredTotals?.insurancePaid?.value ?? null;
-  const patientResponsibility = totalsReconciliation?.comparisonTotal?.type === 'patient_responsibility'
-    ? totalsReconciliation.comparisonTotal.value
-    : (totalsReconciliation?.structuredTotals?.patientResponsibility?.value ?? null);
+  const patientResponsibility =
+    totalsReconciliation?.comparisonTotal?.type === "patient_responsibility"
+      ? totalsReconciliation.comparisonTotal.value
+      : (totalsReconciliation?.structuredTotals?.patientResponsibility?.value ?? null);
 
   return (
     <div className="space-y-6">
