@@ -182,6 +182,17 @@ export function BillTotalsGrid({
           </div>
         </div>
       )}
+
+      {/* Medicare Context Note */}
+      <div className="p-3 rounded-lg bg-info/5 border border-info/20">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <strong>Note:</strong> Medicare <em>physician fees</em> are shown above. Hospital <em>facility fees</em> are typically higher. 
+            Commercial insurance usually pays 150–300% of Medicare rates. A high multiple doesn't necessarily mean you're being overcharged—hospital pricing differs from Medicare physician rates.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

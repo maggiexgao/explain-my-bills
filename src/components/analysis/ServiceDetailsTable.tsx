@@ -28,6 +28,118 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+// Helper: Generate "what it typically involves" based on code type
+function getTypicalInvolvement(hcpcs: string, description: string): string | null {
+  const code = hcpcs?.toUpperCase() || '';
+  const desc = description?.toLowerCase() || '';
+  
+  // ER visits
+  if (code.startsWith('9928') || desc.includes('emergency')) {
+    if (code.includes('4') || desc.includes('level 4')) {
+      return 'A Level 4 ER visit typically involves a detailed history, examination of multiple body systems, and moderate complexity medical decision-making. This is one of the higher ER levels.';
+    }
+    if (code.includes('5') || desc.includes('level 5')) {
+      return 'A Level 5 ER visit is the highest complexity level, involving comprehensive evaluation and high-complexity decision-making, often for life-threatening conditions.';
+    }
+    if (code.includes('3') || desc.includes('level 3')) {
+      return 'A Level 3 ER visit involves an expanded problem-focused history and examination with low complexity medical decision-making.';
+    }
+    return 'Emergency department visits are categorized by complexity. Higher levels indicate more evaluation time and medical decision-making.';
+  }
+  
+  // Lab tests
+  if (code.startsWith('8') || desc.includes('lab') || desc.includes('panel') || desc.includes('blood')) {
+    if (desc.includes('comprehensive') || desc.includes('cmp')) {
+      return 'A comprehensive metabolic panel is a blood test that measures 14 different substances including glucose, calcium, and kidney/liver function markers.';
+    }
+    if (desc.includes('cbc') || desc.includes('complete blood count')) {
+      return 'A complete blood count measures red blood cells, white blood cells, and platelets to assess overall health and detect disorders like anemia or infection.';
+    }
+    return 'Laboratory tests involve collecting samples (blood, urine, etc.) and analyzing them to check for diseases or monitor health conditions.';
+  }
+  
+  // IV therapy
+  if (desc.includes('iv') || desc.includes('infusion') || desc.includes('hydration')) {
+    return 'IV (intravenous) therapy involves administering fluids, medications, or nutrients directly into the bloodstream through a vein.';
+  }
+  
+  // Imaging
+  if (desc.includes('x-ray') || desc.includes('xray')) {
+    return 'X-rays use radiation to create images of structures inside the body, commonly used to check for fractures, infections, or abnormalities.';
+  }
+  if (desc.includes('ct') || desc.includes('computed tomography')) {
+    return 'CT scans combine X-rays from multiple angles to create detailed cross-sectional images, providing more detail than standard X-rays.';
+  }
+  if (desc.includes('mri') || desc.includes('magnetic resonance')) {
+    return 'MRI uses magnetic fields and radio waves to create detailed images of organs and tissues, particularly useful for soft tissue imaging.';
+  }
+  
+  // Drugs (J-codes)
+  if (code.startsWith('J')) {
+    return 'This is a medication administered during your visit. J-codes are used to bill for drugs that are injected or infused.';
+  }
+  
+  // S-codes (private payer)
+  if (code.startsWith('S')) {
+    return 'This is a private payer code used for services not covered by standard Medicare codes. Pricing varies by insurance.';
+  }
+  
+  return null;
+}
+
+// Helper: Generate "why this appears on your bill"
+function getWhyOnBill(hcpcs: string, description: string): string {
+  const code = hcpcs?.toUpperCase() || '';
+  const desc = description?.toLowerCase() || '';
+  
+  // ER visits
+  if (code.startsWith('9928') || desc.includes('emergency')) {
+    return 'Emergency room visits include a facility fee for using the ER space and resources, plus a separate physician fee. The level is determined by the complexity of your case as documented by the provider.';
+  }
+  
+  // Lab tests
+  if (code.startsWith('8') || desc.includes('lab') || desc.includes('panel') || desc.includes('blood')) {
+    return 'Each lab test is typically billed separately, even if multiple tests are run from a single blood draw. Hospitals often charge more than independent labs for the same tests.';
+  }
+  
+  // IV therapy
+  if (desc.includes('iv') || desc.includes('infusion') || desc.includes('hydration')) {
+    return 'IV therapy charges include the supplies, pharmacy preparation, and nursing time to administer fluids or medications.';
+  }
+  
+  // Imaging
+  if (desc.includes('x-ray') || desc.includes('xray') || desc.includes('ct') || desc.includes('mri')) {
+    return 'Imaging studies include a technical fee (for the equipment and technician) and often a professional fee (for the radiologist who reads the images).';
+  }
+  
+  // Drugs
+  if (code.startsWith('J')) {
+    return 'Injectable medications are billed separately from the administration fee. Hospital drug prices are often significantly higher than retail pharmacy prices.';
+  }
+  
+  // Supplies
+  if (desc.includes('supply') || desc.includes('kit') || desc.includes('dressing')) {
+    return 'Medical supplies are commonly itemized separately. Some supplies have significant markups compared to retail prices.';
+  }
+  
+  // Default
+  return 'This service was documented during your visit. Each billable service is assigned a code that determines how it gets charged.';
+}
+
+// Component: Show typical involvement info
+function ServiceTypicalInfo({ hcpcs, description }: { hcpcs: string; description: string }) {
+  const info = getTypicalInvolvement(hcpcs, description);
+  
+  if (!info) return null;
+  
+  return (
+    <div>
+      <p className="text-xs font-medium text-foreground mb-1">What it typically involves:</p>
+      <p className="text-sm text-muted-foreground leading-relaxed">{info}</p>
+    </div>
+  );
+}
+
 // Status configuration
 type StatusType = 'very_high' | 'high' | 'fair' | 'bundled' | 'no_ref' | 'drug' | 's_code' | 'unknown';
 
@@ -184,53 +296,39 @@ function ServiceRow({
         </div>
       </button>
       
-      {/* Expanded Content */}
+      {/* Expanded Content - Educational info about the SERVICE, not pricing */}
       {isExpanded && hasExpandableContent && (
         <div className="px-3 pb-3 pt-0">
           <div className="ml-[92px] p-3 rounded-lg bg-muted/20 border border-border/30 space-y-3">
-            {/* CPT Code Explanation */}
+            {/* What this service is */}
             {meaning && (
               <div>
-                <p className="text-xs font-medium text-foreground mb-1">What this means:</p>
+                <p className="text-xs font-medium text-foreground mb-1">What this service is:</p>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {meaning.explanation}
                 </p>
               </div>
             )}
             
-            {/* Notes from benchmark */}
-            {item.notes.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-foreground mb-1">Why the price may differ:</p>
-                {item.notes.map((note, idx) => (
-                  <p key={idx} className="text-sm text-muted-foreground leading-relaxed">
-                    {note}
-                  </p>
-                ))}
-              </div>
-            )}
+            {/* What it typically involves - generated from code type */}
+            <ServiceTypicalInfo hcpcs={item.hcpcs} description={item.description} />
             
-            {/* Common billing issues */}
-            {meaning?.commonBillingIssues && meaning.commonBillingIssues.length > 0 && (
-              <div className="p-2 rounded bg-warning/10 border border-warning/20">
-                <p className="text-xs font-medium text-warning-foreground mb-1">Things to check:</p>
-                <ul className="text-xs text-muted-foreground space-y-0.5">
-                  {meaning.commonBillingIssues.map((issue, idx) => (
-                    <li key={idx} className="flex items-start gap-1">
-                      <span className="text-warning">•</span>
-                      {issue}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Common reasons this appears on bills */}
+            <div>
+              <p className="text-xs font-medium text-foreground mb-1">Why this might appear on your bill:</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {getWhyOnBill(item.hcpcs, item.description)}
+              </p>
+            </div>
             
             {/* Bundled/packaged explanation */}
             {item.isBundled && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Package className="h-3 w-3" />
-                This service is typically bundled with a primary procedure
-              </p>
+              <div className="p-2 rounded bg-info/10 border border-info/20">
+                <p className="text-xs text-info-foreground flex items-center gap-1">
+                  <Package className="h-3 w-3" />
+                  This service is typically bundled with another procedure, meaning it may already be included in another charge.
+                </p>
+              </div>
             )}
           </div>
         </div>
