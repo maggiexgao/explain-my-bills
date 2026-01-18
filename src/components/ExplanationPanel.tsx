@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { AnalysisResult, CareSetting } from '@/types';
 import { BillSummaryHero } from '@/components/analysis/BillSummaryHero';
+import { BillOverviewSection } from '@/components/analysis/BillOverviewSection';
 import { CostDriversGroup } from '@/components/analysis/CostDriversGroup';
-// import { PriceComparisonGroup } from '@/components/analysis/PriceComparisonGroup'; // Removed - redundant
 import { ActionGroup } from '@/components/analysis/ActionGroup';
 import { DeepDiveSection } from '@/components/analysis/DeepDiveSection';
 import { HowThisCompares } from '@/components/analysis/HowThisCompares';
@@ -162,6 +162,9 @@ export function ExplanationPanel({
   return (
     <div className="h-full overflow-auto">
       <div className="p-6 space-y-4">
+        {/* ========== BILL OVERVIEW (Top context) ========== */}
+        <BillOverviewSection analysis={analysis} />
+
         {/* ========== LAYER 1: TOP SUMMARY (Always Visible) ========== */}
         <BillSummaryHero 
           atAGlance={analysis.atAGlance}
@@ -170,25 +173,14 @@ export function ExplanationPanel({
         />
 
         {/* ========== HOW THIS COMPARES (Medicare Pricing Analysis) ========== */}
+        {/* Renders directly without extra CollapsibleGroup wrapper - HowThisCompares handles its own layout */}
         {selectedState && (
-          <CollapsibleGroup
-            title="How This Compares"
-            subtitle={medicareBenchmark?.multipleOfMedicare 
-              ? `${medicareBenchmark.multipleOfMedicare}× Medicare reference` 
-              : 'Medicare benchmark comparison'
-            }
-            icon={<TrendingUp className="h-4 w-4" />}
-            iconClassName="bg-primary/20 text-primary"
-            defaultOpen={true}
-            infoTooltip="Compare your charges to CMS Medicare reference prices, often used by insurers and employers as benchmarks"
-          >
-            <HowThisCompares
-              analysis={analysis}
-              state={selectedState}
-              zipCode={zipCode}
-              careSetting={careSetting}
-            />
-          </CollapsibleGroup>
+          <HowThisCompares
+            analysis={analysis}
+            state={selectedState}
+            zipCode={zipCode}
+            careSetting={careSetting}
+          />
         )}
 
         {/* ========== LAYER 2: SUPPORTING EVIDENCE (Collapsed Groups) ========== */}
