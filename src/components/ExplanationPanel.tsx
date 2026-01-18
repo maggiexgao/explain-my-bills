@@ -214,8 +214,7 @@ export function ExplanationPanel({
           />
         </div>
 
-        {/* ========== LAYER 3: DEEP DIVE & METHODOLOGY (Hidden by Default) ========== */}
-        <DeepDiveSection chargeMeanings={chargeMeanings} />
+        {/* REMOVED: DeepDiveSection with "Charge Details & CPT Codes" - now consolidated into Service Details */}
 
         {/* ========== DEBUG: How This Was Calculated ========== */}
         {debugData && (
