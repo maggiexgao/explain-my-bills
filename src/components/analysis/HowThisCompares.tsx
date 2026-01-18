@@ -1473,13 +1473,19 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
   // Determine how many items to show
   const displayItems = showAllItems ? output.lineItems : output.lineItems.slice(0, 5);
 
+  // Extract insurance paid and patient responsibility from totals reconciliation
+  const insurancePaid = totalsReconciliation?.structuredTotals?.insurancePaid?.value ?? null;
+  const patientResponsibility = totalsReconciliation?.comparisonTotal?.type === 'patient_responsibility'
+    ? totalsReconciliation.comparisonTotal.value
+    : (totalsReconciliation?.structuredTotals?.patientResponsibility?.value ?? null);
+
   return (
     <div className="space-y-6">
       {/* Bill Totals Grid - New 2-row layout */}
       <BillTotalsGrid
         totalBilled={output.totals.billedTotal || null}
-        insurancePaid={totalsReconciliation?.rawValues?.insurancePaid || null}
-        youMayOwe={totalsReconciliation?.rawValues?.patientResponsibility || null}
+        insurancePaid={insurancePaid}
+        youMayOwe={patientResponsibility}
         matchedCharges={output.matchedItemsComparison.matchedBilledTotal || 0}
         medicareReference={output.matchedItemsComparison.matchedMedicareTotal || 0}
         matchedCount={output.matchedItemsComparison.matchedItemsCount || 0}
@@ -1489,6 +1495,7 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
       {/* Service Details Table - Default collapsed, full descriptions, status column */}
       <ServiceDetailsTable
         lineItems={output.lineItems}
+        chargeMeanings={analysis.chargeMeanings}
         defaultExpanded={false}
       />
 

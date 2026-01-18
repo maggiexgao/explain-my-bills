@@ -198,6 +198,7 @@ export function ExplanationPanel({
             reviewItems={reviewItems}
             savingsOpportunities={savingsOpportunities}
             reviewSectionNote={analysis.reviewSectionNote}
+            charges={analysis.charges}
           />
           
           {/* Group 2: How This Compares */}
