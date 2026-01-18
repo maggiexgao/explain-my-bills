@@ -261,11 +261,22 @@ function ServiceRow({
           </p>
         </div>
         
-        {/* Medicare Reference - Fixed width */}
-        <div className="text-right">
+        {/* Medicare Reference - Fixed width with source badge */}
+        <div className="text-right space-y-0.5">
           <p className="text-sm text-muted-foreground">
             {item.medicareReferenceTotal ? formatCurrency(item.medicareReferenceTotal) : '—'}
           </p>
+          {/* Show data source badge based on feeSource */}
+          {item.feeSource && (
+            <span className={cn(
+              "text-[10px] px-1.5 py-0.5 rounded font-medium",
+              "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+            )}>
+              {item.feeSource === 'rvu_calc_local' ? 'MPFS (Local)' : 
+               item.feeSource === 'rvu_calc_national' ? 'MPFS' :
+               item.feeSource === 'direct_fee' ? 'MPFS' : ''}
+            </span>
+          )}
         </div>
         
         {/* Status Column - Fixed width */}
