@@ -255,6 +255,18 @@ const NON_PAYABLE_STATUS_CODES = ['B', 'I', 'N', 'R', 'X'];
 // Cache for latest MPFS year (per request)
 let cachedLatestMpfsYear: number | null = null;
 
+// Hardcoded OPPS rates for common ER codes - fallback if database lookup fails
+const OPPS_ER_FALLBACK_RATES: Record<string, { payment_rate: number; status_indicator: string; apc: string }> = {
+  '99281': { payment_rate: 88.05, status_indicator: 'J2', apc: '5021' },
+  '99282': { payment_rate: 158.36, status_indicator: 'J2', apc: '5022' },
+  '99283': { payment_rate: 276.89, status_indicator: 'J2', apc: '5023' },
+  '99284': { payment_rate: 425.82, status_indicator: 'J2', apc: '5024' },
+  '99285': { payment_rate: 613.10, status_indicator: 'J2', apc: '5025' },
+};
+
+// OPPS year constant
+const OPPS_YEAR = 2025;
+
 // ============= Code Normalization =============
 
 /**
@@ -558,6 +570,73 @@ async function fetchMpfsBenchmarkWithFallback(
   };
 }
 
+// ============= OPPS Lookup for Facility Settings =============
+
+interface OppsRow {
+  hcpcs: string;
+  apc: string | null;
+  status_indicator: string | null;
+  payment_rate: number | null;
+  relative_weight: number | null;
+  short_desc: string | null;
+  year: number;
+}
+
+/**
+ * Lookup OPPS (Hospital Outpatient PPS) rate for a code
+ * Used for facility-based settings (hospital, ER, ambulatory surgery centers)
+ */
+async function lookupOppsRate(hcpcs: string): Promise<{ 
+  rate: number | null; 
+  source: 'opps_db' | 'opps_fallback' | null;
+  description: string | null;
+}> {
+  const normalizedCode = hcpcs.trim().toUpperCase();
+  console.log(`[OPPS Lookup] === Starting lookup for ${normalizedCode} ===`);
+  
+  // Step 1: Try database lookup
+  try {
+    const { data, error } = await supabase
+      .from('opps_addendum_b')
+      .select('*')
+      .eq('hcpcs', normalizedCode)
+      .eq('year', OPPS_YEAR)
+      .limit(1)
+      .maybeSingle();
+    
+    if (error) {
+      console.error(`[OPPS Lookup] Database error:`, error.message);
+    }
+    
+    if (data && data.payment_rate !== null && data.payment_rate > 0) {
+      console.log(`[OPPS Lookup] SUCCESS from database: ${normalizedCode} = $${data.payment_rate}`);
+      return { 
+        rate: data.payment_rate, 
+        source: 'opps_db',
+        description: data.short_desc || null
+      };
+    } else {
+      console.log(`[OPPS Lookup] Database returned no valid data for ${normalizedCode}`);
+    }
+  } catch (err) {
+    console.error(`[OPPS Lookup] Exception during database lookup:`, err);
+  }
+  
+  // Step 2: Try hardcoded fallback for ER codes
+  if (OPPS_ER_FALLBACK_RATES[normalizedCode]) {
+    const fallback = OPPS_ER_FALLBACK_RATES[normalizedCode];
+    console.log(`[OPPS Lookup] SUCCESS from FALLBACK: ${normalizedCode} = $${fallback.payment_rate}`);
+    return { 
+      rate: fallback.payment_rate, 
+      source: 'opps_fallback',
+      description: 'Emergency department visit'
+    };
+  }
+  
+  console.log(`[OPPS Lookup] FAILED: No data found for ${normalizedCode}`);
+  return { rate: null, source: null, description: null };
+}
+
 // ============= STEP 4: Fee Calculation =============
 
 /**
@@ -723,6 +802,11 @@ export async function calculateMedicareBenchmarks(
   state: string,
   zipCode?: string
 ): Promise<MedicareBenchmarkOutput> {
+  console.log('========== MEDICARE BENCHMARK SERVICE START ==========');
+  console.log('[Benchmark] lineItems count:', lineItems.length);
+  console.log('[Benchmark] lineItems:', lineItems.map(i => `${i.hcpcs} (isFacility: ${i.isFacility})`).join(', '));
+  console.log('[Benchmark] state:', state, 'zipCode:', zipCode);
+  
   // Clear cache at start of new calculation
   clearMpfsYearCache();
   
@@ -866,6 +950,68 @@ export async function calculateMedicareBenchmarks(
       requestedYears.push(yearToRequest);
     }
     
+    // Check if this is a facility-based item
+    const isFacility = item.isFacility === true;
+    console.log(`[Benchmark] Processing ${normalized.hcpcs}, isFacility: ${isFacility}`);
+    
+    // === OPPS LOOKUP FOR FACILITY SETTINGS ===
+    // For facility-based items (hospital, ER, ASC), try OPPS first
+    if (isFacility) {
+      console.log(`[Benchmark] >>> Taking FACILITY path for ${normalized.hcpcs} (will try OPPS first)`);
+      
+      const oppsResult = await lookupOppsRate(normalized.hcpcs);
+      
+      if (oppsResult.rate !== null && oppsResult.rate > 0) {
+        // SUCCESS: Found OPPS rate
+        console.log(`[Benchmark] SUCCESS: Using OPPS rate $${oppsResult.rate} for ${normalized.hcpcs}`);
+        
+        codesMatched.push(normalized.hcpcs);
+        
+        const units = item.units > 0 ? item.units : 1;
+        const totalReference = oppsResult.rate * units;
+        
+        const multiple = (item.billedAmount !== null && item.billedAmount > 0) 
+          ? item.billedAmount / totalReference 
+          : null;
+        const percentOfMedicare = multiple !== null ? Math.round(multiple * 100) : null;
+        const status = percentOfMedicare !== null ? determineStatus(percentOfMedicare) : 'unknown';
+        
+        hasAnyBenchmark = true;
+        totalMedicareReference += totalReference;
+        
+        const notes: string[] = [`Using OPPS hospital outpatient rate ($${oppsResult.rate.toFixed(2)})`];
+        if (oppsResult.source === 'opps_fallback') {
+          notes.push('Rate from hardcoded ER fallback table');
+        }
+        
+        results.push({
+          hcpcs: normalized.hcpcs,
+          modifier: normalized.modifier,
+          description: oppsResult.description || item.description || null,
+          billedAmount: item.billedAmount,
+          units,
+          medicareReferencePerUnit: oppsResult.rate,
+          medicareReferenceTotal: totalReference,
+          multiple: multiple !== null ? Math.round(multiple * 100) / 100 : null,
+          status,
+          matchStatus: 'matched',
+          benchmarkYearUsed: OPPS_YEAR,
+          requestedYear: yearToRequest,
+          notes,
+          gpciAdjusted: false,
+          feeSource: 'direct_fee',
+          notPricedReason: null
+        });
+        
+        continue; // Move to next item
+      }
+      
+      console.log(`[Benchmark] OPPS not found for ${normalized.hcpcs}, falling back to MPFS`);
+    } else {
+      console.log(`[Benchmark] >>> Taking OFFICE path for ${normalized.hcpcs} (will use MPFS)`);
+    }
+    
+    // === MPFS LOOKUP (office setting, or facility fallback) ===
     // Fetch MPFS benchmark with fallback
     const { row: benchmark, yearUsed, usedFallback, modifierFallback, queries } = 
       await fetchMpfsBenchmarkWithFallback(
@@ -912,7 +1058,7 @@ export async function calculateMedicareBenchmarks(
     const { fee: feePerUnit, feeSource, notPricedReason, gpciApplied } = calculateMedicareFee(
       benchmark, 
       gpci, 
-      item.isFacility,
+      isFacility,
       confidence
     );
     
@@ -1033,6 +1179,15 @@ export async function calculateMedicareBenchmarks(
       notPricedReason: null
     });
   }
+
+  // Debug summary
+  console.log('========== MEDICARE BENCHMARK SERVICE COMPLETE ==========');
+  console.log('[Benchmark] Results summary:');
+  results.forEach(r => {
+    console.log(`  ${r.hcpcs}: $${r.medicareReferencePerUnit} (${r.matchStatus}), feeSource: ${r.feeSource || 'none'}`);
+  });
+  console.log(`[Benchmark] Matched: ${codesMatched.length}, Missing: ${codesMissing.length}, ExistsNotPriced: ${codesExistsNotPriced.length}`);
+  console.log('=========================================================');
 
   // === MATCHED-ITEMS COMPARISON (prevents scope mismatch) ===
   // Only sum billed amounts for items that have BOTH a billed amount AND a Medicare reference
