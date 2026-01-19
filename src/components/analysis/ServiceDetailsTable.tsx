@@ -270,9 +270,16 @@ function ServiceRow({
           {item.feeSource && (
             <span className={cn(
               "text-[10px] px-1.5 py-0.5 rounded font-medium",
-              "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+              item.feeSource === 'opps_rate' || item.feeSource === 'opps_fallback' 
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                : item.feeSource === 'clfs_rate'
+                ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
             )}>
-              {item.feeSource === 'rvu_calc_local' ? 'MPFS (Local)' : 
+              {item.feeSource === 'opps_rate' ? 'OPPS' :
+               item.feeSource === 'opps_fallback' ? 'OPPS' :
+               item.feeSource === 'clfs_rate' ? 'CLFS' :
+               item.feeSource === 'rvu_calc_local' ? 'MPFS (Local)' : 
                item.feeSource === 'rvu_calc_national' ? 'MPFS' :
                item.feeSource === 'direct_fee' ? 'MPFS' : ''}
             </span>
