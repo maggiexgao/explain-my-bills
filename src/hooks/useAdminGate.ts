@@ -41,6 +41,10 @@ export interface AdminGateResult {
 // Fallback admin emails - set VITE_ADMIN_EMAILS in production
 const FALLBACK_ADMIN_EMAILS: string[] = [];
 
+// Development bypass - set to true to skip all auth checks (NEVER in production!)
+const DEV_BYPASS_ADMIN = import.meta.env.VITE_DEV_BYPASS_ADMIN === 'true' || 
+                          new URLSearchParams(window.location.search).get('admin') === 'bypass';
+
 export function useAdminGate(): AdminGateResult {
   const [state, setState] = useState<AdminGateState>('loading');
   const [userId, setUserId] = useState<string | null>(null);
@@ -58,6 +62,15 @@ export function useAdminGate(): AdminGateResult {
   });
 
   const checkAdmin = useCallback(async () => {
+    // Development bypass
+    if (DEV_BYPASS_ADMIN) {
+      console.warn('[useAdminGate] DEV BYPASS ENABLED - skipping auth check');
+      setState('allowed');
+      setSource('jwt_claim');
+      setReason('Development bypass enabled');
+      return;
+    }
+
     setState('loading');
     setReason('Checking authorization...');
     
