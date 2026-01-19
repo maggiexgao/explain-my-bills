@@ -87,7 +87,15 @@ function formatDate(dateStr: string | undefined): string | null {
 }
 
 export function BillOverviewSection({ analysis }: BillOverviewProps) {
-  const issuer = analysis.issuer || 'a healthcare provider';
+  // Try multiple sources for issuer/provider name
+  const issuer = analysis.issuer && analysis.issuer !== 'Unknown Provider' 
+    ? analysis.issuer 
+    : (analysis as any).providerName 
+    || (analysis as any).facilityName 
+    || (analysis as any).providerContactInfo?.providerName
+    || (analysis as any).providerAssistance?.providerName
+    || 'a healthcare provider';
+  
   const dateOfService = analysis.dateOfService;
   const formattedDate = formatDate(dateOfService);
   

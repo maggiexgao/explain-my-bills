@@ -276,7 +276,13 @@ const Index = () => {
       if (!ai) throw new Error("No analysis data returned from server");
       const analysisResult: AnalysisResult = {
         documentType: (ai?.documentType?.toLowerCase() as any) || "unknown",
-        issuer: ai?.issuer || "Unknown Provider",
+        // FIX 1 & 7: Enhanced issuer extraction with multiple fallbacks
+        issuer: ai?.issuer 
+          || ai?.providerName 
+          || ai?.facilityName 
+          || ai?.providerContactInfo?.providerName 
+          || ai?.providerAssistance?.providerName
+          || "Unknown Provider",
         dateOfService: ai?.dateOfService || "Not specified",
         documentPurpose: ai.documentPurpose || "Medical billing document",
         charges: ensureArray(ai.charges || ai.lineItems || []).map((item: any, idx: number) => {
@@ -537,8 +543,9 @@ const Index = () => {
                 s.text ||
                 s.description ||
                 "Review your bill",
+          details: typeof s === "object" ? (s.details || s.description || s.explanation || "") : "",
           isUrgent: s.isUrgent || s.urgent || s.priority === "high" || false,
-        })),
+        })) as any, // Cast to any since details may not be in type
         closingReassurance:
           ai.closingReassurance ||
           "Medical bills are often negotiable, and asking questions is normal. You're not being difficult — you're being careful.",
