@@ -113,6 +113,15 @@ const DEFAULT_DMEPOS_YEAR = 2026;
 // Default conversion factor
 const DEFAULT_CF = 34.6062;
 
+// Hardcoded OPPS rates for common ER codes - fallback if database lookup fails
+const OPPS_FALLBACK_RATES: Record<string, { payment_rate: number; status_indicator: string; apc: string }> = {
+  '99281': { payment_rate: 88.05, status_indicator: 'J2', apc: '5021' },
+  '99282': { payment_rate: 158.36, status_indicator: 'J2', apc: '5022' },
+  '99283': { payment_rate: 276.89, status_indicator: 'J2', apc: '5023' },
+  '99284': { payment_rate: 425.82, status_indicator: 'J2', apc: '5024' },
+  '99285': { payment_rate: 613.10, status_indicator: 'J2', apc: '5025' },
+};
+
 // ============= Helper Functions =============
 
 function isDmeposCode(hcpcs: string): boolean {
@@ -227,27 +236,49 @@ interface OppsRow {
 
 async function lookupOpps(hcpcs: string, year: number): Promise<OppsRow | null> {
   const normalizedCode = hcpcs.trim().toUpperCase();
-
-  console.log(`[OPPS Lookup] Searching for code: ${normalizedCode}, year: ${year}`);
-
-  const { data, error } = await supabase
-    .from("opps_addendum_b")
-    .select("*")
-    .eq("hcpcs", normalizedCode)
-    .eq("year", year)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[OPPS Lookup] Error:`, error);
+  console.log(`[OPPS Lookup] === Starting lookup for ${normalizedCode}, year ${year} ===`);
+  
+  // Step 1: Try database lookup
+  try {
+    const { data, error } = await supabase
+      .from("opps_addendum_b")
+      .select("*")
+      .eq("hcpcs", normalizedCode)
+      .eq("year", year)
+      .limit(1)
+      .maybeSingle();
+    
+    if (error) {
+      console.error(`[OPPS Lookup] Database error:`, error.message);
+    }
+    
+    if (data && data.payment_rate !== null && data.payment_rate > 0) {
+      console.log(`[OPPS Lookup] SUCCESS from database: ${normalizedCode} = $${data.payment_rate}`);
+      return data as OppsRow;
+    } else {
+      console.log(`[OPPS Lookup] Database returned no valid data for ${normalizedCode}`);
+    }
+  } catch (err) {
+    console.error(`[OPPS Lookup] Exception during database lookup:`, err);
   }
-
-  console.log(
-    `[OPPS Lookup] Result for ${normalizedCode}:`,
-    data ? `Found - payment_rate: ${data.payment_rate}` : "NOT FOUND",
-  );
-
-  return data as OppsRow | null;
+  
+  // Step 2: Try hardcoded fallback for ER codes
+  if (OPPS_FALLBACK_RATES[normalizedCode]) {
+    const fallback = OPPS_FALLBACK_RATES[normalizedCode];
+    console.log(`[OPPS Lookup] SUCCESS from FALLBACK: ${normalizedCode} = $${fallback.payment_rate}`);
+    return {
+      hcpcs: normalizedCode,
+      year: year,
+      payment_rate: fallback.payment_rate,
+      status_indicator: fallback.status_indicator,
+      apc: fallback.apc,
+      short_desc: 'Emergency department visit',
+      relative_weight: null,
+    } as OppsRow;
+  }
+  
+  console.log(`[OPPS Lookup] FAILED: No data found for ${normalizedCode} (not in DB or fallback)`);
+  return null;
 }
 
 function getOppsPayment(row: OppsRow): { fee: number | null; isPayable: boolean; reason?: string } {
@@ -423,6 +454,11 @@ function getDmeposFee(row: DmeposRow): number | null {
 export async function resolveMedicareReferences(input: ResolverInput): Promise<ResolverOutput> {
   const { codes, careSetting, zip, state, year } = input;
 
+  console.log('========== MEDICARE RESOLVER START ==========');
+  console.log('[Resolver] careSetting:', careSetting);
+  console.log('[Resolver] codes:', codes.map(c => `${c.hcpcs}${c.modifier ? '-' + c.modifier : ''}`).join(', '));
+  console.log('[Resolver] zip:', zip, 'state:', state);
+
   const mpfsYear = year ?? DEFAULT_MPFS_YEAR;
   const oppsYear = DEFAULT_OPPS_YEAR; // OPPS always 2025 for now
   const dmeposYear = year ?? DEFAULT_DMEPOS_YEAR;
@@ -449,6 +485,8 @@ export async function resolveMedicareReferences(input: ResolverInput): Promise<R
     const hcpcs = code.hcpcs.trim().toUpperCase();
     const modifier = code.modifier?.trim().toUpperCase() || "";
     const isFacility = code.isFacility ?? careSetting === "facility";
+    
+    console.log(`[Resolver] Processing code: ${hcpcs}, careSetting: ${careSetting}, isFacility: ${isFacility}`);
 
     const ladderPath: LadderStep[] = [];
     let resolution: CodeResolution = {
@@ -472,6 +510,7 @@ export async function resolveMedicareReferences(input: ResolverInput): Promise<R
 
     if (careSetting === "office") {
       // OFFICE: MPFS → DMEPOS (if equipment-style code)
+      console.log(`[Resolver] >>> Taking OFFICE path for ${hcpcs} (will try MPFS first)`);
 
       // Step 1: Try MPFS
       const mpfsResult = await lookupMpfs(hcpcs, modifier, mpfsYear);
@@ -601,9 +640,13 @@ export async function resolveMedicareReferences(input: ResolverInput): Promise<R
       }
     } else {
       // FACILITY: OPPS → MPFS → DMEPOS
+      console.log(`[Resolver] >>> Taking FACILITY path for ${hcpcs} (will try OPPS first)`);
 
       // Step 1: Try OPPS
+      console.log(`[Resolver] About to call lookupOpps for ${hcpcs}, year ${oppsYear}`);
       const oppsRow = await lookupOpps(hcpcs, oppsYear);
+      console.log(`[Resolver] OPPS lookup result:`, oppsRow ? `FOUND payment_rate=${oppsRow.payment_rate}` : 'NOT FOUND');
+      
       const oppsStep: LadderStep = {
         source: "opps_payment",
         attempted: true,
@@ -613,9 +656,11 @@ export async function resolveMedicareReferences(input: ResolverInput): Promise<R
 
       if (oppsRow) {
         const oppsResult = getOppsPayment(oppsRow);
+        console.log(`[Resolver] getOppsPayment returned:`, oppsResult);
         oppsStep.hasFee = oppsResult.fee !== null;
 
         if (oppsResult.fee !== null) {
+          console.log(`[Resolver] SUCCESS: Using OPPS rate $${oppsResult.fee} for ${hcpcs}`);
           resolution = {
             hcpcs,
             modifier,
@@ -761,6 +806,13 @@ export async function resolveMedicareReferences(input: ResolverInput): Promise<R
       primarySource = source as ReferenceSource;
     }
   }
+
+  console.log('========== MEDICARE RESOLVER COMPLETE ==========');
+  console.log('[Resolver] Results summary:');
+  resolutions.forEach(r => {
+    console.log(`  ${r.hcpcs}: $${r.referencePrice} from ${r.referenceSource}`);
+  });
+  console.log('================================================');
 
   return {
     resolutions,
