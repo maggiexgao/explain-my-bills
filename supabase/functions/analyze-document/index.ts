@@ -8,6 +8,22 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `You are a medical bill analysis expert. Extract data and provide helpful analysis.
 
+## ISSUER/PROVIDER EXTRACTION (CRITICAL)
+
+You MUST extract the hospital or provider name from the bill. Look for:
+- Hospital/clinic name in the header or letterhead
+- "Statement from:" or "Bill from:" labels
+- Provider name at the top of the document
+- Examples: "Atrium Health", "Mercy Hospital", "Kaiser Permanente"
+Set this in the "issuer" field. NEVER leave issuer empty.
+
+## DATE OF SERVICE EXTRACTION
+
+Extract the date of service from the bill. Look for:
+- "Date of Service:", "Service Date:", "Visit Date:"
+- Date ranges if multiple services
+Set this in the "dateOfService" field.
+
 ## BILL FORMAT DETECTION
 
 Look at column headers:
@@ -25,6 +41,8 @@ Return this EXACT JSON structure:
 
 {
   "billFormat": "rev_plus_cpt",
+  "issuer": "Atrium Health",
+  "dateOfService": "01/15/2024",
   "charges": [
     {
       "code": "99284",
@@ -81,9 +99,9 @@ Return this EXACT JSON structure:
     "whoToAskFor": "Patient Financial Services or a Billing Supervisor"
   },
   "pondNextSteps": [
-    { "step": "Request an itemized bill if not received", "isUrgent": false },
-    { "step": "Call billing to ask about discounts", "isUrgent": false },
-    { "step": "Review each charge against your records", "isUrgent": false }
+    { "step": "Request an itemized bill if not received", "details": "Get a detailed breakdown of all charges to verify accuracy", "isUrgent": false },
+    { "step": "Call billing to ask about discounts", "details": "Many hospitals offer 20-50% off for prompt payment or self-pay", "isUrgent": false },
+    { "step": "Review each charge against your records", "details": "Make sure you received all billed services", "isUrgent": false }
   ],
   "priceContext": {
     "hasBenchmarks": false,
@@ -157,6 +175,7 @@ interface SavingsItem {
 
 interface NextStep {
   step?: string;
+  details?: string;
   isUrgent?: boolean;
   // Alternative field names
   action?: string;
@@ -422,17 +441,20 @@ serve(async (req: Request): Promise<Response> => {
     if (parsedResult.pondNextSteps && Array.isArray(parsedResult.pondNextSteps)) {
       parsedResult.pondNextSteps = parsedResult.pondNextSteps.map((item: NextStep) => {
         const step = item.step || item.action || item.title || item.description || "Review your bill";
+        const details = item.details || item.description || "";
 
         return {
           step,
+          details,
           isUrgent: item.isUrgent || false,
         };
       });
       console.log(`[analyze-document] pondNextSteps: ${parsedResult.pondNextSteps.length} items`);
     } else {
       parsedResult.pondNextSteps = [
-        { step: "Request an itemized bill if you haven't received one", isUrgent: false },
-        { step: "Call billing to discuss charges and payment options", isUrgent: false },
+        { step: "Request an itemized bill", details: "Get a detailed breakdown of all charges to verify accuracy", isUrgent: false },
+        { step: "Call billing to ask about discounts", details: "Many providers offer 20-50% off for prompt payment or self-pay", isUrgent: false },
+        { step: "Review each charge against your records", details: "Make sure you received all billed services", isUrgent: false },
       ];
     }
 

@@ -33,6 +33,7 @@ interface PreScanResult {
   extractedText?: string;
   error?: string;
   candidatesConsidered?: number;
+  facilityType?: 'office' | 'facility' | null;
 }
 
 // Derive state from ZIP prefix (fallback method)
@@ -66,6 +67,35 @@ function deriveStateFromZipPrefix(zip5: string): string | null {
   return null;
 }
 
+// Detect facility type from text
+function detectFacilityType(text: string): 'office' | 'facility' | null {
+  const lowerText = text.toLowerCase();
+  
+  const facilityKeywords = [
+    'hospital', 'medical center', 'health system', 'emergency room',
+    'emergency department', 'inpatient', 'outpatient department',
+    'atrium', 'mercy', 'baptist', 'methodist', 'regional medical',
+    'children\'s hospital', 'university hospital', 'memorial hospital',
+    'community health', 'health care system', 'kaiser'
+  ];
+  
+  if (facilityKeywords.some(kw => lowerText.includes(kw))) {
+    return 'facility';
+  }
+  
+  const officeKeywords = [
+    'family practice', 'family medicine', 'pediatrics', 'internal medicine',
+    'physician office', 'medical group', 'primary care', 'dermatology',
+    'cardiology', 'orthopedic', 'psychiatry', 'psychology'
+  ];
+  
+  if (officeKeywords.some(kw => lowerText.includes(kw))) {
+    return 'office';
+  }
+  
+  return null;
+}
+
 // Extract location from extracted text using regex patterns
 function extractLocationFromText(text: string): { 
   zip5?: string; 
@@ -73,12 +103,19 @@ function extractLocationFromText(text: string): {
   evidence: string[];
   stateSource?: 'text_pattern' | 'zip_prefix' | 'zip_lookup';
   candidatesConsidered: number;
+  facilityType?: 'office' | 'facility' | null;
 } {
   const evidence: string[] = [];
   let bestZip: string | undefined;
   let bestState: string | undefined;
   let stateSource: 'text_pattern' | 'zip_prefix' | undefined;
   let candidatesConsidered = 0;
+  
+  // Detect facility type
+  const facilityType = detectFacilityType(text);
+  if (facilityType) {
+    evidence.push(`Facility type: ${facilityType}`);
+  }
   
   // PATTERN 1: City, ST ZIP pattern (highest confidence)
   const cityStateZipPattern = /([A-Za-z\s]+),?\s+([A-Z]{2})\s+(\d{5})(?:-\d{4})?/g;
@@ -164,7 +201,7 @@ function extractLocationFromText(text: string): {
     }
   }
   
-  return { zip5: bestZip, stateAbbr: bestState, evidence, stateSource, candidatesConsidered };
+  return { zip5: bestZip, stateAbbr: bestState, evidence, stateSource, candidatesConsidered, facilityType };
 }
 
 serve(async (req) => {
@@ -280,7 +317,7 @@ Keep response under 400 characters. Only output addresses found, nothing else.`
     console.log('[pre-scan-location] Extracted text:', extractedText.substring(0, 200));
     
     // Parse the extracted text for ZIP and state
-    const { zip5, stateAbbr, evidence, stateSource, candidatesConsidered } = extractLocationFromText(extractedText);
+    const { zip5, stateAbbr, evidence, stateSource, candidatesConsidered, facilityType } = extractLocationFromText(extractedText);
     
     // If we found a ZIP but no state, try to look it up in the database
     let confirmedState = stateAbbr;
@@ -330,6 +367,7 @@ Keep response under 400 characters. Only output addresses found, nothing else.`
       ran: true,
       extractedText: extractedText.substring(0, 300),
       candidatesConsidered,
+      facilityType,
     };
     
     console.log('[pre-scan-location] Result:', JSON.stringify(result));
