@@ -30,6 +30,9 @@ export type FeeSource =
   | 'direct_fee'          // Used pre-calculated fee from MPFS
   | 'rvu_calc_national'   // Computed from RVUs without GPCI
   | 'rvu_calc_local'      // Computed from RVUs with GPCI adjustment
+  | 'opps_rate'           // OPPS hospital outpatient rate from database
+  | 'opps_fallback'       // OPPS rate from hardcoded fallback table
+  | 'clfs_rate'           // Clinical Lab Fee Schedule rate
   | null;                 // Fee could not be determined
 
 // Reason why a code exists but has no price
@@ -255,13 +258,22 @@ const NON_PAYABLE_STATUS_CODES = ['B', 'I', 'N', 'R', 'X'];
 // Cache for latest MPFS year (per request)
 let cachedLatestMpfsYear: number | null = null;
 
-// Hardcoded OPPS rates for common ER codes - fallback if database lookup fails
-const OPPS_ER_FALLBACK_RATES: Record<string, { payment_rate: number; status_indicator: string; apc: string }> = {
-  '99281': { payment_rate: 88.05, status_indicator: 'J2', apc: '5021' },
-  '99282': { payment_rate: 158.36, status_indicator: 'J2', apc: '5022' },
-  '99283': { payment_rate: 276.89, status_indicator: 'J2', apc: '5023' },
-  '99284': { payment_rate: 425.82, status_indicator: 'J2', apc: '5024' },
-  '99285': { payment_rate: 613.10, status_indicator: 'J2', apc: '5025' },
+// Hardcoded OPPS rates for common hospital codes - fallback if database lookup fails
+const OPPS_FALLBACK_RATES: Record<string, { payment_rate: number; status_indicator: string; apc: string; short_desc?: string }> = {
+  // ER visit codes
+  '99281': { payment_rate: 88.05, status_indicator: 'J2', apc: '5021', short_desc: 'ED visit level 1' },
+  '99282': { payment_rate: 158.36, status_indicator: 'J2', apc: '5022', short_desc: 'ED visit level 2' },
+  '99283': { payment_rate: 276.89, status_indicator: 'J2', apc: '5023', short_desc: 'ED visit level 3' },
+  '99284': { payment_rate: 425.82, status_indicator: 'J2', apc: '5024', short_desc: 'ED visit level 4' },
+  '99285': { payment_rate: 613.10, status_indicator: 'J2', apc: '5025', short_desc: 'ED visit level 5' },
+  // IV therapy codes
+  '96360': { payment_rate: 142.00, status_indicator: 'T', apc: '5691', short_desc: 'IV infusion hydration initial' },
+  '96361': { payment_rate: 45.00, status_indicator: 'N', apc: '5691', short_desc: 'IV infusion hydration addl' },
+  '96365': { payment_rate: 172.00, status_indicator: 'T', apc: '5692', short_desc: 'IV infusion therapy initial' },
+  '96374': { payment_rate: 85.00, status_indicator: 'S', apc: '5693', short_desc: 'IV push single drug' },
+  '96375': { payment_rate: 28.00, status_indicator: 'N', apc: '5693', short_desc: 'IV push addl drug' },
+  // Critical care
+  '99291': { payment_rate: 684.00, status_indicator: 'S', apc: '5046', short_desc: 'Critical care first hour' },
 };
 
 // OPPS year constant
@@ -622,19 +634,117 @@ async function lookupOppsRate(hcpcs: string): Promise<{
     console.error(`[OPPS Lookup] Exception during database lookup:`, err);
   }
   
-  // Step 2: Try hardcoded fallback for ER codes
-  if (OPPS_ER_FALLBACK_RATES[normalizedCode]) {
-    const fallback = OPPS_ER_FALLBACK_RATES[normalizedCode];
+  // Step 2: Try hardcoded fallback for common hospital codes
+  if (OPPS_FALLBACK_RATES[normalizedCode]) {
+    const fallback = OPPS_FALLBACK_RATES[normalizedCode];
     console.log(`[OPPS Lookup] SUCCESS from FALLBACK: ${normalizedCode} = $${fallback.payment_rate}`);
     return { 
       rate: fallback.payment_rate, 
       source: 'opps_fallback',
-      description: 'Emergency department visit'
+      description: fallback.short_desc || 'Hospital outpatient service'
     };
   }
   
   console.log(`[OPPS Lookup] FAILED: No data found for ${normalizedCode}`);
   return { rate: null, source: null, description: null };
+}
+
+// ============= CLFS Lookup for Lab Codes =============
+
+/**
+ * Check if a code is a Clinical Lab Fee Schedule code (80000-89999)
+ */
+function isClfsCode(hcpcs: string): boolean {
+  if (!hcpcs || hcpcs.length < 5) return false;
+  const numericPart = parseInt(hcpcs.substring(0, 5), 10);
+  return !isNaN(numericPart) && numericPart >= 80000 && numericPart <= 89999;
+}
+
+/**
+ * Lookup CLFS (Clinical Lab Fee Schedule) rate for a lab code
+ */
+async function lookupClfsRate(hcpcs: string): Promise<{ rate: number | null; source: 'clfs_rate' | null; description: string | null }> {
+  const normalizedCode = hcpcs.trim().toUpperCase();
+  console.log(`[CLFS Lookup] === Starting lookup for ${normalizedCode} ===`);
+  
+  try {
+    const { data, error } = await supabase
+      .from('clfs_fee_schedule')
+      .select('*')
+      .eq('hcpcs', normalizedCode)
+      .order('year', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (error) {
+      console.error(`[CLFS Lookup] Database error:`, error.message);
+      return { rate: null, source: null, description: null };
+    }
+    
+    if (data && data.payment_amount !== null && data.payment_amount > 0) {
+      console.log(`[CLFS Lookup] SUCCESS: ${normalizedCode} = $${data.payment_amount}`);
+      return { 
+        rate: data.payment_amount, 
+        source: 'clfs_rate',
+        description: data.short_desc || data.long_desc || null
+      };
+    }
+    
+    console.log(`[CLFS Lookup] No valid data for ${normalizedCode}`);
+  } catch (err) {
+    console.error(`[CLFS Lookup] Exception:`, err);
+  }
+  
+  return { rate: null, source: null, description: null };
+}
+
+// ============= Better Explanations for Unmatched Codes =============
+
+/**
+ * Generate explanation for why a code couldn't be benchmarked
+ */
+function getUnmatchedCodeExplanation(hcpcs: string, matchStatus: MatchStatus, notPricedReason: NotPricedReason, isFacility: boolean): string {
+  const code = hcpcs?.toUpperCase() || '';
+  
+  // J-codes (drugs)
+  if (code.startsWith('J')) {
+    return 'Drug code - hospital markup typically 3-5× Medicare ASP (Average Sales Price). Drug prices vary significantly by facility.';
+  }
+  
+  // S-codes (private payer)
+  if (code.startsWith('S')) {
+    return 'Private payer code - no Medicare benchmark available. These codes are used only by commercial insurers.';
+  }
+  
+  // C-codes (hospital outpatient specific)
+  if (code.startsWith('C')) {
+    return 'Hospital outpatient code - used exclusively for facility billing. May be packaged into other services.';
+  }
+  
+  // Bundled/packaged under OPPS
+  if (isFacility && (notPricedReason === 'status_indicator_nonpayable' || matchStatus === 'exists_not_priced')) {
+    return 'Packaged into facility fee under hospital billing - typically included in another charge.';
+  }
+  
+  // Revenue codes (4 digits)
+  if (/^\d{4}$/.test(code)) {
+    return 'Revenue code - hospital billing category, not a service code. Used for facility tracking.';
+  }
+  
+  // Default for missing
+  if (matchStatus === 'missing') {
+    return 'This code is not in our Medicare reference dataset. It may be facility-specific or newly created.';
+  }
+  
+  // Default for exists but not priced
+  if (matchStatus === 'exists_not_priced') {
+    if (notPricedReason === 'rvus_zero_or_missing') {
+      return 'Medicare does not assign a national rate to this code - it may be carrier-priced or bundled with other services.';
+    }
+    return 'This code exists in Medicare tables but doesn\'t have a payable reference rate.';
+  }
+  
+  return 'No Medicare benchmark available for this code.';
 }
 
 // ============= STEP 4: Fee Calculation =============
@@ -999,7 +1109,7 @@ export async function calculateMedicareBenchmarks(
           requestedYear: yearToRequest,
           notes,
           gpciAdjusted: false,
-          feeSource: 'direct_fee',
+          feeSource: oppsResult.source === 'opps_fallback' ? 'opps_fallback' : 'opps_rate',
           notPricedReason: null
         });
         
@@ -1009,6 +1119,56 @@ export async function calculateMedicareBenchmarks(
       console.log(`[Benchmark] OPPS not found for ${normalized.hcpcs}, falling back to MPFS`);
     } else {
       console.log(`[Benchmark] >>> Taking OFFICE path for ${normalized.hcpcs} (will use MPFS)`);
+    }
+    
+    // === CLFS LOOKUP FOR LAB CODES (80000-89999) ===
+    // Check Clinical Lab Fee Schedule before MPFS for lab codes
+    if (isClfsCode(normalized.hcpcs)) {
+      console.log(`[Benchmark] Code ${normalized.hcpcs} is a lab code - trying CLFS first`);
+      const clfsResult = await lookupClfsRate(normalized.hcpcs);
+      
+      if (clfsResult.rate !== null && clfsResult.rate > 0) {
+        console.log(`[Benchmark] SUCCESS: Using CLFS rate $${clfsResult.rate} for ${normalized.hcpcs}`);
+        
+        codesMatched.push(normalized.hcpcs);
+        
+        const units = item.units > 0 ? item.units : 1;
+        const totalReference = clfsResult.rate * units;
+        
+        const multiple = (item.billedAmount !== null && item.billedAmount > 0) 
+          ? item.billedAmount / totalReference 
+          : null;
+        const percentOfMedicare = multiple !== null ? Math.round(multiple * 100) : null;
+        const status = percentOfMedicare !== null ? determineStatus(percentOfMedicare) : 'unknown';
+        
+        hasAnyBenchmark = true;
+        totalMedicareReference += totalReference;
+        
+        const notes: string[] = [`Using Clinical Lab Fee Schedule rate ($${clfsResult.rate.toFixed(2)})`];
+        
+        results.push({
+          hcpcs: normalized.hcpcs,
+          modifier: normalized.modifier,
+          description: clfsResult.description || item.description || null,
+          billedAmount: item.billedAmount,
+          units,
+          medicareReferencePerUnit: clfsResult.rate,
+          medicareReferenceTotal: totalReference,
+          multiple: multiple !== null ? Math.round(multiple * 100) / 100 : null,
+          status,
+          matchStatus: 'matched',
+          benchmarkYearUsed: 2026,
+          requestedYear: yearToRequest,
+          notes,
+          gpciAdjusted: false,
+          feeSource: 'clfs_rate',
+          notPricedReason: null
+        });
+        
+        continue; // Move to next item
+      }
+      
+      console.log(`[Benchmark] CLFS not found for ${normalized.hcpcs}, falling back to MPFS`);
     }
     
     // === MPFS LOOKUP (office setting, or facility fallback) ===
@@ -1033,6 +1193,7 @@ export async function calculateMedicareBenchmarks(
     // CASE 1: No MPFS row found at all -> missing_from_dataset
     if (!benchmark) {
       codesMissing.push(normalized.hcpcs);
+      const explanation = getUnmatchedCodeExplanation(normalized.hcpcs, 'missing', null, isFacility);
       results.push({
         hcpcs: normalized.hcpcs,
         modifier: normalized.modifier,
@@ -1046,7 +1207,7 @@ export async function calculateMedicareBenchmarks(
         matchStatus: 'missing',
         benchmarkYearUsed: null,
         requestedYear: yearToRequest,
-        notes: ['We couldn\'t find this code in our Medicare dataset.'],
+        notes: [explanation],
         exclusionReason: 'not_in_mpfs',
         feeSource: null,
         notPricedReason: null
@@ -1066,17 +1227,8 @@ export async function calculateMedicareBenchmarks(
     if (feePerUnit === null || feePerUnit <= 0) {
       codesExistsNotPriced.push(normalized.hcpcs);
       
-      // Build explanation based on reason
-      let explanation = 'This code appears in Medicare\'s physician fee schedule tables, but a payable Medicare reference amount isn\'t available in our dataset for it';
-      if (notPricedReason === 'rvus_zero_or_missing') {
-        explanation += ' (often because it\'s carrier-priced, bundled, or not paid under MPFS).';
-      } else if (notPricedReason === 'status_indicator_nonpayable') {
-        explanation += ' (status indicator shows this code is not separately payable).';
-      } else if (notPricedReason === 'conversion_factor_missing') {
-        explanation += ' (conversion factor not available).';
-      } else {
-        explanation += '.';
-      }
+      // Use the improved explanation generator
+      const explanation = getUnmatchedCodeExplanation(normalized.hcpcs, 'exists_not_priced', notPricedReason, isFacility);
       
       results.push({
         hcpcs: normalized.hcpcs,
