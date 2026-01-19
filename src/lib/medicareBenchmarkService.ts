@@ -261,19 +261,38 @@ let cachedLatestMpfsYear: number | null = null;
 // Hardcoded OPPS rates for common hospital codes - fallback if database lookup fails
 const OPPS_FALLBACK_RATES: Record<string, { payment_rate: number; status_indicator: string; apc: string; short_desc?: string }> = {
   // ER visit codes
-  '99281': { payment_rate: 88.05, status_indicator: 'J2', apc: '5021', short_desc: 'ED visit level 1' },
-  '99282': { payment_rate: 158.36, status_indicator: 'J2', apc: '5022', short_desc: 'ED visit level 2' },
-  '99283': { payment_rate: 276.89, status_indicator: 'J2', apc: '5023', short_desc: 'ED visit level 3' },
-  '99284': { payment_rate: 425.82, status_indicator: 'J2', apc: '5024', short_desc: 'ED visit level 4' },
-  '99285': { payment_rate: 613.10, status_indicator: 'J2', apc: '5025', short_desc: 'ED visit level 5' },
+  '99281': { payment_rate: 88.05, status_indicator: 'J2', apc: '5021', short_desc: 'ER visit level 1' },
+  '99282': { payment_rate: 158.36, status_indicator: 'J2', apc: '5022', short_desc: 'ER visit level 2' },
+  '99283': { payment_rate: 276.89, status_indicator: 'J2', apc: '5023', short_desc: 'ER visit level 3' },
+  '99284': { payment_rate: 425.82, status_indicator: 'J2', apc: '5024', short_desc: 'ER visit level 4' },
+  '99285': { payment_rate: 613.10, status_indicator: 'J2', apc: '5025', short_desc: 'ER visit level 5' },
   // IV therapy codes
   '96360': { payment_rate: 142.00, status_indicator: 'T', apc: '5691', short_desc: 'IV infusion hydration initial' },
   '96361': { payment_rate: 45.00, status_indicator: 'N', apc: '5691', short_desc: 'IV infusion hydration addl' },
   '96365': { payment_rate: 172.00, status_indicator: 'T', apc: '5692', short_desc: 'IV infusion therapy initial' },
+  '96366': { payment_rate: 35.00, status_indicator: 'N', apc: '5692', short_desc: 'IV infusion therapy addl' },
   '96374': { payment_rate: 85.00, status_indicator: 'S', apc: '5693', short_desc: 'IV push single drug' },
   '96375': { payment_rate: 28.00, status_indicator: 'N', apc: '5693', short_desc: 'IV push addl drug' },
   // Critical care
   '99291': { payment_rate: 684.00, status_indicator: 'S', apc: '5046', short_desc: 'Critical care first hour' },
+  '99292': { payment_rate: 110.00, status_indicator: 'S', apc: '5046', short_desc: 'Critical care addl 30 min' },
+  // Observation
+  'G0378': { payment_rate: 45.00, status_indicator: 'N', apc: '8011', short_desc: 'Hospital observation per hr' },
+  'G0379': { payment_rate: 0.00, status_indicator: 'N', apc: '8011', short_desc: 'Direct admit to observation' },
+};
+
+// Common drug ASP (Average Sales Price) fallback rates
+const DRUG_ASP_FALLBACK: Record<string, { asp: number; desc: string; unit: string }> = {
+  'J2405': { asp: 0.50, desc: 'Ondansetron', unit: 'per 1mg' },
+  'J2550': { asp: 0.25, desc: 'Promethazine', unit: 'per 50mg' },
+  'J1100': { asp: 3.00, desc: 'Dexamethasone', unit: 'per 1mg' },
+  'J2270': { asp: 2.50, desc: 'Morphine', unit: 'per 10mg' },
+  'J1885': { asp: 4.00, desc: 'Ketorolac', unit: 'per 15mg' },
+  'J3010': { asp: 2.00, desc: 'Fentanyl', unit: 'per 0.1mg' },
+  'J2175': { asp: 1.50, desc: 'Meperidine', unit: 'per 100mg' },
+  'J0170': { asp: 5.00, desc: 'Epinephrine', unit: 'per 1mg' },
+  'J1200': { asp: 0.50, desc: 'Diphenhydramine', unit: 'per 50mg' },
+  'J2765': { asp: 1.00, desc: 'Metoclopramide', unit: 'per 10mg' },
 };
 
 // OPPS year constant
@@ -651,13 +670,31 @@ async function lookupOppsRate(hcpcs: string): Promise<{
 
 // ============= CLFS Lookup for Lab Codes =============
 
+// CLFS lab code ranges - includes numeric lab codes, PLA codes, and specific G/P codes
+const CLFS_CODE_PATTERNS = [
+  /^8[0-9]{4}$/,           // 80000-89999 - Standard lab codes
+  /^0[0-9]{3}U$/,          // 0001U-0999U - PLA codes
+  /^G010[3-4]$/,           // G0103-G0104 - PSA screening
+  /^G012[3-4]$/,           // G0123-G0124 - Pap smear
+  /^G014[1-8]$/,           // G0141-G0148 - Pap smear related
+  /^P[2-9][0-9]{3}$/,      // P2028-P9615 - Pathology codes
+];
+
 /**
- * Check if a code is a Clinical Lab Fee Schedule code (80000-89999)
+ * Check if a code is a Clinical Lab Fee Schedule code
  */
 function isClfsCode(hcpcs: string): boolean {
-  if (!hcpcs || hcpcs.length < 5) return false;
-  const numericPart = parseInt(hcpcs.substring(0, 5), 10);
-  return !isNaN(numericPart) && numericPart >= 80000 && numericPart <= 89999;
+  if (!hcpcs) return false;
+  const normalized = hcpcs.trim().toUpperCase();
+  return CLFS_CODE_PATTERNS.some(pattern => pattern.test(normalized));
+}
+
+/**
+ * Check if a code is a J-code (drug/injection)
+ */
+function isJCode(hcpcs: string): boolean {
+  if (!hcpcs) return false;
+  return hcpcs.trim().toUpperCase().startsWith('J');
 }
 
 /**
@@ -706,9 +743,13 @@ async function lookupClfsRate(hcpcs: string): Promise<{ rate: number | null; sou
 function getUnmatchedCodeExplanation(hcpcs: string, matchStatus: MatchStatus, notPricedReason: NotPricedReason, isFacility: boolean): string {
   const code = hcpcs?.toUpperCase() || '';
   
-  // J-codes (drugs)
+  // J-codes (drugs) - check if we have ASP data
   if (code.startsWith('J')) {
-    return 'Drug code - hospital markup typically 3-5× Medicare ASP (Average Sales Price). Drug prices vary significantly by facility.';
+    const aspData = DRUG_ASP_FALLBACK[code];
+    if (aspData) {
+      return `Drug code (${aspData.desc}) - Medicare ASP reference: ~$${aspData.asp.toFixed(2)} ${aspData.unit}. Hospital markup typically 3-5× this rate.`;
+    }
+    return 'Drug code - Medicare pays ASP + 6%. Hospital markup on drugs typically ranges 200-500% of Medicare rates.';
   }
   
   // S-codes (private payer)
