@@ -83,7 +83,8 @@ export function ImportCard({
 
     // Check for dev bypass (matches useAdminGate.ts and isAdmin.ts behavior)
     const urlParams = new URLSearchParams(window.location.search);
-    const isDevBypass = urlParams.get('bypass') === 'admin123' || urlParams.get('admin') === 'bypass';
+    const bypassToken = urlParams.get('bypass') || urlParams.get('admin') === 'bypass' ? 'admin123' : null;
+    const isDevBypass = bypassToken === 'admin123';
 
     // Get auth token (optional if dev bypass is active)
     const { data: { session } } = await supabase.auth.getSession();
@@ -117,19 +118,21 @@ export function ImportCard({
       // Get the Supabase URL from the client
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       
-      // Build URL with bypass params if in dev mode
+      // Build URL - always append bypass token as query param if in dev mode
+      // Query param is more reliable than headers (no CORS preflight issues)
       let importUrl = `${supabaseUrl}/functions/v1/admin-import`;
-      if (isDevBypass) {
-        importUrl += '?bypass=admin123';
+      if (isDevBypass && bypassToken) {
+        importUrl += `?bypass=${bypassToken}`;
       }
       
-      // Build headers - include auth token if available, dev bypass header otherwise
+      // Build headers - include auth token if available
       const headers: Record<string, string> = {};
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
-      if (isDevBypass) {
-        headers['X-Dev-Bypass'] = 'admin123';
+      // Also send bypass token in header as backup
+      if (isDevBypass && bypassToken) {
+        headers['X-Dev-Bypass'] = bypassToken;
       }
       
       // Call edge function
