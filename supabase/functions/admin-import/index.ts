@@ -26,16 +26,36 @@ import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-dev-bypass",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
+
+/**
+ * Check if bypass is allowed based on origin (dev/preview environments)
+ */
+function isDevBypassAllowedByOrigin(req: Request): boolean {
+  const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
+  const allowedPatterns = [
+    'lovable.dev',
+    'lovable.app',
+    'localhost',
+    '127.0.0.1',
+  ];
+  return allowedPatterns.some(pattern => origin.includes(pattern));
+}
 
 // ============================================================================
 // Admin Authentication Helper
 // ============================================================================
 
 async function verifyAdminAuth(req: Request): Promise<{ authorized: boolean; userId?: string; error?: string }> {
-  // DEV BYPASS: Check for development bypass using edge function env vars
-  // Env vars: DEV_BYPASS_ENABLED ("true" to enable), DEV_BYPASS_TOKEN (the secret token)
-  const devBypassEnabled = Deno.env.get('DEV_BYPASS_ENABLED') === 'true';
+  // DEV BYPASS: Check for development bypass
+  // Bypass is enabled when:
+  // 1. DEV_BYPASS_ENABLED env var is explicitly "true", OR
+  // 2. Request comes from lovable.dev/lovable.app/localhost origins (auto-detect dev/preview)
+  const devBypassExplicitlyEnabled = Deno.env.get('DEV_BYPASS_ENABLED') === 'true';
+  const devBypassByOrigin = isDevBypassAllowedByOrigin(req);
+  const devBypassEnabled = devBypassExplicitlyEnabled || devBypassByOrigin;
   const devBypassToken = Deno.env.get('DEV_BYPASS_TOKEN') || 'admin123'; // Default token for dev
   
   if (devBypassEnabled) {
@@ -47,11 +67,13 @@ async function verifyAdminAuth(req: Request): Promise<{ authorized: boolean; use
     const tokenMatches = bypassParam === devBypassToken || devBypassHeader === devBypassToken;
     
     if (tokenMatches) {
-      console.log('[admin-import] DEV BYPASS ACTIVE - allowing admin access without auth');
+      console.log(`[admin-import] DEV BYPASS ACTIVE (explicit=${devBypassExplicitlyEnabled}, origin=${devBypassByOrigin}) - allowing admin access without auth`);
       return { authorized: true, userId: 'dev-bypass' };
     } else {
-      console.log('[admin-import] DEV BYPASS enabled but token mismatch - continuing to normal auth');
+      console.log(`[admin-import] DEV BYPASS enabled (explicit=${devBypassExplicitlyEnabled}, origin=${devBypassByOrigin}) but token mismatch. Expected: ${devBypassToken}, got param=${bypassParam} header=${devBypassHeader}`);
     }
+  } else {
+    console.log('[admin-import] DEV BYPASS not enabled - requiring normal auth');
   }
 
   const authHeader = req.headers.get('Authorization');
