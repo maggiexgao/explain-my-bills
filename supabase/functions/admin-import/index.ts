@@ -33,26 +33,24 @@ const corsHeaders = {
 // ============================================================================
 
 async function verifyAdminAuth(req: Request): Promise<{ authorized: boolean; userId?: string; error?: string }> {
-  // DEV BYPASS: Check for development bypass header or URL param
-  // This matches the frontend admin gate behavior in useAdminGate.ts and isAdmin.ts
-  const url = new URL(req.url);
-  const bypassParam = url.searchParams.get('bypass');
-  const adminParam = url.searchParams.get('admin');
-  const devBypassHeader = req.headers.get('X-Dev-Bypass');
+  // DEV BYPASS: Check for development bypass using edge function env vars
+  // Env vars: DEV_BYPASS_ENABLED ("true" to enable), DEV_BYPASS_TOKEN (the secret token)
+  const devBypassEnabled = Deno.env.get('DEV_BYPASS_ENABLED') === 'true';
+  const devBypassToken = Deno.env.get('DEV_BYPASS_TOKEN') || 'admin123'; // Default token for dev
   
-  const isDevBypass = bypassParam === 'admin123' || adminParam === 'bypass' || devBypassHeader === 'admin123';
-  
-  if (isDevBypass) {
-    // Only allow bypass in non-production environments
-    // Check DENO_DEPLOYMENT_ID - if not set or empty, we're in dev/preview
-    const deploymentId = Deno.env.get('DENO_DEPLOYMENT_ID') || '';
-    const isProduction = deploymentId.includes('prod') || Deno.env.get('ENVIRONMENT') === 'production';
+  if (devBypassEnabled) {
+    const url = new URL(req.url);
+    const bypassParam = url.searchParams.get('bypass');
+    const devBypassHeader = req.headers.get('X-Dev-Bypass');
     
-    if (!isProduction) {
+    // Check if token matches via query param OR header
+    const tokenMatches = bypassParam === devBypassToken || devBypassHeader === devBypassToken;
+    
+    if (tokenMatches) {
       console.log('[admin-import] DEV BYPASS ACTIVE - allowing admin access without auth');
       return { authorized: true, userId: 'dev-bypass' };
     } else {
-      console.warn('[admin-import] DEV BYPASS attempted in production - DENIED');
+      console.log('[admin-import] DEV BYPASS enabled but token mismatch - continuing to normal auth');
     }
   }
 
