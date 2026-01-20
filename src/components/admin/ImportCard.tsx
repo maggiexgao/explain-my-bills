@@ -118,22 +118,43 @@ export function ImportCard({
     });
   };
 
+  // Determine bypass token from various sources
+  const getBypassToken = (): string | null => {
+    const urlParams = new URLSearchParams(window.location.search);
+    // Priority: explicit bypass param > admin=bypass shorthand > localStorage
+    if (urlParams.get('bypass')) return urlParams.get('bypass');
+    if (urlParams.get('admin') === 'bypass') return 'admin123';
+    return localStorage.getItem('admin_bypass_token');
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check for dev bypass (matches useAdminGate.ts and isAdmin.ts behavior)
-    const urlParams = new URLSearchParams(window.location.search);
-    const bypassToken = urlParams.get('bypass') || (urlParams.get('admin') === 'bypass' ? 'admin123' : null);
-    const isDevBypass = bypassToken === 'admin123';
-
-    // Get auth token (optional if dev bypass is active)
+    // Get bypass token and session
+    const bypassToken = getBypassToken();
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token && !isDevBypass) {
+    
+    // Determine auth method
+    const authMethod = session?.access_token ? 'session' : (bypassToken ? 'bypass' : 'none');
+    
+    // Log for debugging
+    console.log('[ImportCard] Auth method:', authMethod, { 
+      hasSession: !!session?.access_token,
+      bypassToken: bypassToken ? `${bypassToken.substring(0, 4)}...` : null,
+      bypassSource: bypassToken ? (
+        new URLSearchParams(window.location.search).get('bypass') ? 'url_param' :
+        new URLSearchParams(window.location.search).get('admin') === 'bypass' ? 'admin_shorthand' :
+        'localStorage'
+      ) : null
+    });
+
+    // Require at least one auth method
+    if (authMethod === 'none') {
       setResult({
         ok: false,
         errorCode: 'AUTH_REQUIRED',
-        message: 'Please sign in to perform imports'
+        message: 'Please sign in or use ?bypass=admin123 for dev mode'
       });
       setStatus('error');
       setDetailsOpen(true);
@@ -170,11 +191,10 @@ export function ImportCard({
       // Get the Supabase URL from the client
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       
-      // Build URL - always append bypass token as query param if in dev mode
-      // Query param is the primary mechanism - avoids CORS preflight issues
+      // Build URL - always append bypass token as query param (primary mechanism)
       let importUrl = `${supabaseUrl}/functions/v1/admin-import`;
-      if (isDevBypass && bypassToken) {
-        importUrl += `?bypass=${bypassToken}`;
+      if (bypassToken) {
+        importUrl += `?bypass=${encodeURIComponent(bypassToken)}`;
       }
       
       // Build headers - always include apikey for Supabase functions
@@ -182,15 +202,22 @@ export function ImportCard({
         'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
       };
       
-      // Include auth token if available
+      // Include auth token if available (NOT mutually exclusive with bypass)
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
       
+      // Also include bypass as header for belt-and-suspenders
+      // Note: This may trigger CORS preflight but provides redundancy
+      if (bypassToken && !session?.access_token) {
+        headers['X-Dev-Bypass'] = bypassToken;
+      }
+      
       console.log('[ImportCard] Calling import:', { 
-        importUrl, 
+        importUrl: importUrl.replace(bypassToken || '', '***'),
+        authMethod,
         hasAuth: !!session?.access_token, 
-        isDevBypass,
+        hasBypassParam: !!bypassToken,
         fileSize: file.size,
         fileName: file.name
       });

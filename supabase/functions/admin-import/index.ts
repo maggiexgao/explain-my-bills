@@ -46,9 +46,10 @@ function isDevBypassAllowedByOrigin(req: Request): boolean {
   const allowedPatterns = [
     'lovable.dev',
     'lovable.app',
+    'lovableproject.com',  // Lovable project preview URLs
     'localhost',
     '127.0.0.1',
-    'preview--',  // Lovable preview URLs
+    'preview--',  // Lovable preview URLs with prefix
   ];
   
   const isAllowed = allowedPatterns.some(pattern => checkSource.toLowerCase().includes(pattern));
@@ -61,38 +62,76 @@ function isDevBypassAllowedByOrigin(req: Request): boolean {
 // Admin Authentication Helper
 // ============================================================================
 
-async function verifyAdminAuth(req: Request): Promise<{ authorized: boolean; userId?: string; error?: string }> {
-  // DEV BYPASS: Check for development bypass
+async function verifyAdminAuth(req: Request): Promise<{ 
+  authorized: boolean; 
+  userId?: string; 
+  error?: string;
+  reason?: string;
+  debugInfo?: Record<string, unknown>;
+}> {
+  // Collect debug info for better error messages
+  const url = new URL(req.url);
+  const bypassParam = url.searchParams.get('bypass');
+  const devBypassHeader = req.headers.get('X-Dev-Bypass');
+  const authHeader = req.headers.get('Authorization');
+  const origin = req.headers.get('Origin') || '';
+  
+  const debugInfo = {
+    hasBypassParam: !!bypassParam,
+    hasBypassHeader: !!devBypassHeader,
+    hasAuthHeader: !!authHeader,
+    origin: origin.substring(0, 100), // Truncate for safety
+  };
+  
+  // DEV BYPASS: Check for development bypass FIRST
   // Bypass is enabled when:
   // 1. DEV_BYPASS_ENABLED env var is explicitly "true", OR
-  // 2. Request comes from lovable.dev/lovable.app/localhost origins (auto-detect dev/preview)
+  // 2. Request comes from lovable.dev/lovable.app/lovableproject.com/localhost origins
   const devBypassExplicitlyEnabled = Deno.env.get('DEV_BYPASS_ENABLED') === 'true';
   const devBypassByOrigin = isDevBypassAllowedByOrigin(req);
   const devBypassEnabled = devBypassExplicitlyEnabled || devBypassByOrigin;
   const devBypassToken = Deno.env.get('DEV_BYPASS_TOKEN') || 'admin123'; // Default token for dev
   
-  if (devBypassEnabled) {
-    const url = new URL(req.url);
-    const bypassParam = url.searchParams.get('bypass');
-    const devBypassHeader = req.headers.get('X-Dev-Bypass');
-    
-    // Check if token matches via query param OR header
-    const tokenMatches = bypassParam === devBypassToken || devBypassHeader === devBypassToken;
-    
-    if (tokenMatches) {
-      console.log(`[admin-import] DEV BYPASS ACTIVE (explicit=${devBypassExplicitlyEnabled}, origin=${devBypassByOrigin}) - allowing admin access without auth`);
-      return { authorized: true, userId: 'dev-bypass' };
-    } else {
-      console.log(`[admin-import] DEV BYPASS enabled (explicit=${devBypassExplicitlyEnabled}, origin=${devBypassByOrigin}) but token mismatch. Expected: ${devBypassToken}, got param=${bypassParam} header=${devBypassHeader}`);
+  // Check bypass token from query param OR header
+  const bypassTokenProvided = bypassParam || devBypassHeader;
+  const tokenMatches = bypassTokenProvided === devBypassToken;
+  
+  if (bypassTokenProvided) {
+    // User is attempting bypass
+    if (!devBypassEnabled) {
+      console.log(`[admin-import] Bypass attempted but not allowed - origin not in allowlist`);
+      return { 
+        authorized: false, 
+        error: 'Bypass not allowed from this origin',
+        reason: 'origin_not_allowed',
+        debugInfo
+      };
     }
-  } else {
-    console.log('[admin-import] DEV BYPASS not enabled - requiring normal auth');
+    
+    if (!tokenMatches) {
+      console.log(`[admin-import] Bypass token mismatch. Expected: ${devBypassToken}, got: ${bypassTokenProvided}`);
+      return { 
+        authorized: false, 
+        error: 'Invalid bypass token',
+        reason: 'bypass_invalid',
+        debugInfo
+      };
+    }
+    
+    // Bypass is valid!
+    console.log(`[admin-import] DEV BYPASS ACTIVE (explicit=${devBypassExplicitlyEnabled}, origin=${devBypassByOrigin}) - allowing admin access without auth`);
+    return { authorized: true, userId: 'dev-bypass', debugInfo };
   }
 
-  const authHeader = req.headers.get('Authorization');
-  
+  // No bypass attempted - check normal auth
   if (!authHeader?.startsWith('Bearer ')) {
-    return { authorized: false, error: 'Missing or invalid authorization header' };
+    console.log('[admin-import] No bypass and no auth header - unauthorized');
+    return { 
+      authorized: false, 
+      error: 'Authentication required. Use ?bypass=token for dev mode or sign in.',
+      reason: 'no_auth',
+      debugInfo
+    };
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -1128,12 +1167,14 @@ serve(async (req) => {
   // Verify admin authentication
   const authResult = await verifyAdminAuth(req);
   if (!authResult.authorized) {
-    console.warn(`[admin-import] Unauthorized access attempt: ${authResult.error}`);
+    console.warn(`[admin-import] Unauthorized access attempt: ${authResult.error} (reason: ${authResult.reason})`);
     return new Response(
       JSON.stringify({ 
         ok: false, 
         errorCode: "UNAUTHORIZED",
-        message: authResult.error || 'Authentication required'
+        message: authResult.error || 'Authentication required',
+        reason: authResult.reason,
+        debugInfo: authResult.debugInfo
       }),
       { 
         status: 401, 
