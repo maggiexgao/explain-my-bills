@@ -2,13 +2,13 @@
  * ImportCard Component
  * 
  * Reusable card for data import operations with:
- * - File upload
+ * - File upload with timeout and cancellation
  * - Dry run toggle
- * - Progress display
+ * - Progress display with elapsed time
  * - Structured error display with expandable details
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -23,12 +23,16 @@ import {
   ChevronDown, 
   ChevronUp,
   Upload,
-  Eye
+  Eye,
+  XCircle,
+  Clock
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 
 type ImportStatus = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
+
+const IMPORT_TIMEOUT_MS = 90000; // 90 seconds
 
 interface ImportDetails {
   totalRowsRead?: number;
@@ -40,6 +44,11 @@ interface ImportDetails {
   columnsDetected?: string[];
   sampleRows?: unknown[];
   skippedReasons?: Record<string, number>;
+  rowsProcessed?: number;
+  batchesCompleted?: number;
+  rawResponse?: string;
+  httpStatus?: number;
+  httpStatusText?: string;
 }
 
 interface ImportResult {
@@ -71,11 +80,43 @@ export function ImportCard({
   onImportComplete
 }: ImportCardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [status, setStatus] = useState<ImportStatus>('idle');
   const [dryRun, setDryRun] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
+
+  // Update elapsed time while processing
+  useEffect(() => {
+    if (!startTime || status === 'idle' || status === 'success' || status === 'error') {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime, status]);
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setStatus('idle');
+    setProgress(0);
+    setElapsedTime(0);
+    setStartTime(null);
+    setResult({
+      ok: false,
+      errorCode: 'CANCELLED',
+      message: 'Import cancelled by user'
+    });
+  };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -104,6 +145,17 @@ export function ImportCard({
     setDetailsOpen(false);
     setStatus('uploading');
     setProgress(10);
+    setElapsedTime(0);
+    setStartTime(Date.now());
+
+    // Create abort controller for timeout
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    // Set timeout
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, IMPORT_TIMEOUT_MS);
 
     try {
       // Create form data
@@ -135,21 +187,60 @@ export function ImportCard({
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
       
-      // Note: We do NOT send X-Dev-Bypass header by default to avoid triggering CORS preflight
-      // The bypass query param is sufficient and doesn't trigger preflight
+      console.log('[ImportCard] Calling import:', { 
+        importUrl, 
+        hasAuth: !!session?.access_token, 
+        isDevBypass,
+        fileSize: file.size,
+        fileName: file.name
+      });
       
-      console.log('[ImportCard] Calling import:', { importUrl, hasAuth: !!session?.access_token, isDevBypass });
-      
-      // Call edge function
+      // Call edge function with abort signal
       const response = await fetch(importUrl, {
         method: 'POST',
         body: formData,
-        headers
+        headers,
+        signal: abortController.signal
       });
 
+      clearTimeout(timeoutId);
       setProgress(80);
 
-      const data: ImportResult = await response.json();
+      // Safely read response
+      let data: ImportResult;
+      const responseText = await response.text();
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        // JSON parse failed - show raw response
+        console.error('[ImportCard] Failed to parse response as JSON:', parseError);
+        data = {
+          ok: false,
+          errorCode: 'INVALID_RESPONSE',
+          message: `Server returned invalid JSON (HTTP ${response.status} ${response.statusText})`,
+          details: {
+            httpStatus: response.status,
+            httpStatusText: response.statusText,
+            rawResponse: responseText.substring(0, 5000) // First 5KB
+          }
+        };
+      }
+
+      // Handle non-OK HTTP responses
+      if (!response.ok && data.ok !== false) {
+        data = {
+          ok: false,
+          errorCode: `HTTP_${response.status}`,
+          message: data.message || `Server error: HTTP ${response.status} ${response.statusText}`,
+          details: {
+            ...data.details,
+            httpStatus: response.status,
+            httpStatusText: response.statusText
+          }
+        };
+      }
+
       setResult(data);
       setProgress(100);
 
@@ -164,15 +255,38 @@ export function ImportCard({
       }
 
     } catch (error) {
-      console.error('[ImportCard] Import network error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setResult({
-        ok: false,
-        errorCode: 'NETWORK_ERROR',
-        message: `Network error: ${errorMessage}. Check browser console for details.`
-      });
+      clearTimeout(timeoutId);
+      console.error('[ImportCard] Import error:', error);
+      
+      // Check if this was an abort (timeout or cancel)
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Check if it was user cancellation or timeout
+        if (abortControllerRef.current?.signal.aborted) {
+          setResult({
+            ok: false,
+            errorCode: 'TIMEOUT',
+            message: `Import timed out after ${IMPORT_TIMEOUT_MS / 1000}s while processing file. The file may be too large for XLSX format.`,
+            details: {
+              rawResponse: 'Consider using CSV format for large OPPS files - it processes much faster.'
+            }
+          });
+        }
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setResult({
+          ok: false,
+          errorCode: 'NETWORK_ERROR',
+          message: `Network error: ${errorMessage}`,
+          details: {
+            rawResponse: 'Check browser console (F12) for more details. Common causes: CORS issues, network timeout, or server error.'
+          }
+        });
+      }
       setStatus('error');
       setDetailsOpen(true);
+    } finally {
+      abortControllerRef.current = null;
+      setStartTime(null);
     }
 
     // Reset file input
@@ -195,7 +309,15 @@ export function ImportCard({
     }
   };
 
+  const formatElapsedTime = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+
   const isProcessing = status === 'uploading' || status === 'processing';
+  const isOpps = dataType === 'opps';
 
   return (
     <Card>
@@ -216,9 +338,26 @@ export function ImportCard({
           </div>
         )}
 
-        {/* Progress */}
+        {/* CSV recommendation for large files */}
+        {isOpps && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-200">
+            <strong>Tip:</strong> CSV format is strongly recommended for large OPPS files (&gt;10k rows). 
+            XLSX parsing can timeout on very large files.
+          </div>
+        )}
+
+        {/* Progress with elapsed time */}
         {isProcessing && (
-          <Progress value={progress} className="h-2" />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Elapsed: {formatElapsedTime(elapsedTime)}
+              </span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
         )}
 
         {/* Result Message */}
@@ -259,6 +398,12 @@ export function ImportCard({
             <CollapsibleContent>
               <div className="mt-2 rounded-md border bg-muted/50 p-3 text-xs space-y-2">
                 <div className="grid grid-cols-2 gap-2">
+                  {result.details.httpStatus !== undefined && (
+                    <>
+                      <span className="text-muted-foreground">HTTP Status:</span>
+                      <span className="font-mono">{result.details.httpStatus} {result.details.httpStatusText}</span>
+                    </>
+                  )}
                   {result.details.sheetName && (
                     <>
                       <span className="text-muted-foreground">Sheet:</span>
@@ -277,6 +422,12 @@ export function ImportCard({
                       <span className="font-mono">{result.details.totalRowsRead.toLocaleString()}</span>
                     </>
                   )}
+                  {result.details.rowsProcessed !== undefined && (
+                    <>
+                      <span className="text-muted-foreground">Rows processed:</span>
+                      <span className="font-mono">{result.details.rowsProcessed.toLocaleString()}</span>
+                    </>
+                  )}
                   {result.details.validRows !== undefined && (
                     <>
                       <span className="text-muted-foreground">Valid rows:</span>
@@ -287,6 +438,12 @@ export function ImportCard({
                     <>
                       <span className="text-muted-foreground">Imported:</span>
                       <span className="font-mono text-green-600">{result.details.imported.toLocaleString()}</span>
+                    </>
+                  )}
+                  {result.details.batchesCompleted !== undefined && (
+                    <>
+                      <span className="text-muted-foreground">Batches:</span>
+                      <span className="font-mono">{result.details.batchesCompleted}</span>
                     </>
                   )}
                   {result.details.skipped !== undefined && result.details.skipped > 0 && (
@@ -301,6 +458,15 @@ export function ImportCard({
                   <div className="pt-2 border-t">
                     <span className="text-muted-foreground">Columns detected: </span>
                     <span className="font-mono">{result.details.columnsDetected.join(', ')}</span>
+                  </div>
+                )}
+                
+                {result.details.rawResponse && (
+                  <div className="pt-2 border-t">
+                    <p className="text-muted-foreground mb-1">Response:</p>
+                    <pre className="text-[10px] overflow-x-auto max-h-40 overflow-y-auto bg-background rounded p-2 whitespace-pre-wrap">
+                      {result.details.rawResponse}
+                    </pre>
                   </div>
                 )}
                 
@@ -349,12 +515,17 @@ export function ImportCard({
           </div>
         </div>
 
-        {/* Upload Button (alternative) */}
+        {/* Processing state with Cancel button */}
         {isProcessing && (
-          <Button disabled className="w-full">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {status === 'uploading' ? 'Uploading...' : 'Processing...'}
-          </Button>
+          <div className="flex gap-2">
+            <Button disabled className="flex-1">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {status === 'uploading' ? 'Uploading...' : 'Processing...'}
+            </Button>
+            <Button variant="destructive" size="icon" onClick={handleCancel} title="Cancel import">
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
