@@ -6,13 +6,13 @@
  * - Dry run toggle
  * - Progress display with elapsed time
  * - Structured error display with expandable details
+ * - Unified admin context for auth
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { 
@@ -24,11 +24,11 @@ import {
   ChevronUp,
   Upload,
   Eye,
-  XCircle,
   Clock
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
+import { useAdminContextStandalone } from '@/hooks/useAdminContext';
 
 type ImportStatus = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
 
@@ -49,6 +49,7 @@ interface ImportDetails {
   rawResponse?: string;
   httpStatus?: number;
   httpStatusText?: string;
+  authMode?: string;
 }
 
 interface ImportResult {
@@ -88,6 +89,9 @@ export function ImportCard({
   const [progress, setProgress] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
+  
+  // Use standalone admin context (works without provider)
+  const adminCtx = useAdminContextStandalone();
 
   // Update elapsed time while processing
   useEffect(() => {
@@ -118,48 +122,28 @@ export function ImportCard({
     });
   };
 
-  // Determine bypass token from various sources
-  const getBypassToken = (): string | null => {
-    const urlParams = new URLSearchParams(window.location.search);
-    // Priority: explicit bypass param > admin=bypass shorthand > localStorage
-    if (urlParams.get('bypass')) return urlParams.get('bypass');
-    if (urlParams.get('admin') === 'bypass') return 'admin123';
-    return localStorage.getItem('admin_bypass_token');
-  };
-
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Get bypass token and session
-    const bypassToken = getBypassToken();
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Determine auth method
-    const authMethod = session?.access_token ? 'session' : (bypassToken ? 'bypass' : 'none');
-    
-    // Log for debugging
-    console.log('[ImportCard] Auth method:', authMethod, { 
-      hasSession: !!session?.access_token,
-      bypassToken: bypassToken ? `${bypassToken.substring(0, 4)}...` : null,
-      bypassSource: bypassToken ? (
-        new URLSearchParams(window.location.search).get('bypass') ? 'url_param' :
-        new URLSearchParams(window.location.search).get('admin') === 'bypass' ? 'admin_shorthand' :
-        'localStorage'
-      ) : null
-    });
-
-    // Require at least one auth method
-    if (authMethod === 'none') {
+    // Check if we have admin access
+    if (!adminCtx.isAdmin) {
       setResult({
         ok: false,
         errorCode: 'AUTH_REQUIRED',
-        message: 'Please sign in or use ?bypass=admin123 for dev mode'
+        message: 'Please sign in or use ?bypass=admin123 for dev mode',
+        details: { authMode: adminCtx.authMode }
       });
       setStatus('error');
       setDetailsOpen(true);
       return;
     }
+
+    // Log auth method for debugging
+    console.log('[ImportCard] Auth method:', adminCtx.authMode, {
+      bypassToken: adminCtx.bypassToken ? `${adminCtx.bypassToken.substring(0, 4)}...` : null,
+      bypassSource: adminCtx.bypassSource
+    });
 
     // Clear previous state
     setResult(null);
@@ -193,8 +177,8 @@ export function ImportCard({
       
       // Build URL - always append bypass token as query param (primary mechanism)
       let importUrl = `${supabaseUrl}/functions/v1/admin-import`;
-      if (bypassToken) {
-        importUrl += `?bypass=${encodeURIComponent(bypassToken)}`;
+      if (adminCtx.authMode === 'bypass' && adminCtx.bypassToken) {
+        importUrl += `?bypass=${encodeURIComponent(adminCtx.bypassToken)}`;
       }
       
       // Build headers - always include apikey for Supabase functions
@@ -202,22 +186,24 @@ export function ImportCard({
         'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
       };
       
-      // Include auth token if available (NOT mutually exclusive with bypass)
+      // Get session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Include auth token if available
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
       
       // Also include bypass as header for belt-and-suspenders
-      // Note: This may trigger CORS preflight but provides redundancy
-      if (bypassToken && !session?.access_token) {
-        headers['X-Dev-Bypass'] = bypassToken;
+      if (adminCtx.authMode === 'bypass' && adminCtx.bypassToken) {
+        headers['X-Dev-Bypass'] = adminCtx.bypassToken;
       }
       
       console.log('[ImportCard] Calling import:', { 
-        importUrl: importUrl.replace(bypassToken || '', '***'),
-        authMethod,
+        importUrl: importUrl.replace(adminCtx.bypassToken || '', '***'),
+        authMode: adminCtx.authMode,
         hasAuth: !!session?.access_token, 
-        hasBypassParam: !!bypassToken,
+        hasBypassParam: !!adminCtx.bypassToken,
         fileSize: file.size,
         fileName: file.name
       });
@@ -266,6 +252,13 @@ export function ImportCard({
             httpStatusText: response.statusText
           }
         };
+      }
+
+      // Add auth mode to result for debugging
+      if (data.details) {
+        data.details.authMode = adminCtx.authMode;
+      } else {
+        data.details = { authMode: adminCtx.authMode };
       }
 
       setResult(data);
@@ -373,6 +366,22 @@ export function ImportCard({
           </div>
         )}
 
+        {/* Auth status indicator */}
+        {!adminCtx.loading && (
+          <div className={`rounded-md p-2 text-xs flex items-center gap-2 ${
+            adminCtx.isAdmin 
+              ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300' 
+              : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'
+          }`}>
+            {adminCtx.isAdmin ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+            <span>
+              {adminCtx.authMode === 'bypass' && `Auth: bypass (${adminCtx.bypassSource})`}
+              {adminCtx.authMode === 'session' && 'Auth: session'}
+              {adminCtx.authMode === 'none' && 'No auth - add ?bypass=admin123 to URL'}
+            </span>
+          </div>
+        )}
+
         {/* Progress with elapsed time */}
         {isProcessing && (
           <div className="space-y-2">
@@ -425,6 +434,12 @@ export function ImportCard({
             <CollapsibleContent>
               <div className="mt-2 rounded-md border bg-muted/50 p-3 text-xs space-y-2">
                 <div className="grid grid-cols-2 gap-2">
+                  {result.details.authMode && (
+                    <>
+                      <span className="text-muted-foreground">Auth Mode:</span>
+                      <span className="font-mono">{result.details.authMode}</span>
+                    </>
+                  )}
                   {result.details.httpStatus !== undefined && (
                     <>
                       <span className="text-muted-foreground">HTTP Status:</span>
@@ -488,20 +503,24 @@ export function ImportCard({
                   </div>
                 )}
                 
-                {result.details.rawResponse && (
+                {result.details.skippedReasons && Object.keys(result.details.skippedReasons).length > 0 && (
                   <div className="pt-2 border-t">
-                    <p className="text-muted-foreground mb-1">Response:</p>
-                    <pre className="text-[10px] overflow-x-auto max-h-40 overflow-y-auto bg-background rounded p-2 whitespace-pre-wrap">
-                      {result.details.rawResponse}
-                    </pre>
+                    <span className="text-muted-foreground block mb-1">Skip reasons:</span>
+                    <ul className="list-disc list-inside text-amber-600">
+                      {Object.entries(result.details.skippedReasons).map(([reason, count]) => (
+                        <li key={reason} className="truncate">
+                          {reason}: {count as number}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
                 
-                {result.details.sampleRows && result.details.sampleRows.length > 0 && (
+                {result.details.rawResponse && (
                   <div className="pt-2 border-t">
-                    <p className="text-muted-foreground mb-1">Sample rows (first {Math.min(result.details.sampleRows.length, 5)}):</p>
-                    <pre className="text-[10px] overflow-x-auto max-h-40 overflow-y-auto bg-background rounded p-2">
-                      {JSON.stringify(result.details.sampleRows.slice(0, 5), null, 2)}
+                    <span className="text-muted-foreground block mb-1">Raw Response:</span>
+                    <pre className="whitespace-pre-wrap break-all bg-muted p-2 rounded text-[10px] max-h-40 overflow-auto">
+                      {result.details.rawResponse}
                     </pre>
                   </div>
                 )}
@@ -510,50 +529,45 @@ export function ImportCard({
           </Collapsible>
         )}
 
-        {/* Dry Run Toggle */}
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <div className="space-y-0.5">
-            <Label htmlFor={`dry-run-${dataType}`} className="font-medium">Validate only (dry run)</Label>
-            <p className="text-xs text-muted-foreground">
-              Parse and validate without writing to database
-            </p>
-          </div>
-          <Switch
-            id={`dry-run-${dataType}`}
-            checked={dryRun}
-            onCheckedChange={setDryRun}
-            disabled={isProcessing}
-          />
-        </div>
-
-        {/* File Upload */}
-        <div className="flex flex-col gap-2">
-          <Label htmlFor={`file-${dataType}`} className="sr-only">Select file</Label>
-          <div className="relative">
-            <Input
-              id={`file-${dataType}`}
-              ref={fileInputRef}
-              type="file"
-              accept={acceptedFileTypes}
-              onChange={handleFileSelect}
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              id={`dry-run-${dataType}`}
+              checked={dryRun}
+              onCheckedChange={setDryRun}
               disabled={isProcessing}
-              className="cursor-pointer"
             />
+            <Label htmlFor={`dry-run-${dataType}`} className="text-sm">
+              Dry run (validate only)
+            </Label>
+          </div>
+
+          <div className="flex-1 flex gap-2 justify-end">
+            {isProcessing ? (
+              <Button variant="destructive" size="sm" onClick={handleCancel}>
+                Cancel
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!adminCtx.isAdmin}
+                size="sm"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Select File
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Processing state with Cancel button */}
-        {isProcessing && (
-          <div className="flex gap-2">
-            <Button disabled className="flex-1">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {status === 'uploading' ? 'Uploading...' : 'Processing...'}
-            </Button>
-            <Button variant="destructive" size="icon" onClick={handleCancel} title="Cancel import">
-              <XCircle className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={acceptedFileTypes}
+          className="hidden"
+          onChange={handleFileSelect}
+        />
       </CardContent>
     </Card>
   );
