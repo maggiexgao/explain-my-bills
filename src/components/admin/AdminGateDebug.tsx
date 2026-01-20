@@ -2,13 +2,15 @@
  * AdminGateDebug - Debug panel for admin authorization
  * 
  * Shows detailed gate state when ?debug=1 is in URL
+ * Also shows import readiness status to help debug import failures
  */
 
 import { useSearchParams } from 'react-router-dom';
 import { AdminGateResult } from '@/hooks/useAdminGate';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, XCircle, Clock, Bug } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Bug, Upload } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface AdminGateDebugProps {
   gate: AdminGateResult;
@@ -17,6 +19,25 @@ interface AdminGateDebugProps {
 export function AdminGateDebug({ gate }: AdminGateDebugProps) {
   const [searchParams] = useSearchParams();
   const showDebug = searchParams.get('debug') === '1' || import.meta.env.DEV;
+
+  // Compute import readiness info
+  const importInfo = useMemo(() => {
+    const bypassToken = searchParams.get('bypass') || (searchParams.get('admin') === 'bypass' ? 'admin123' : null);
+    const isDevBypass = bypassToken === 'admin123';
+    const hasSession = gate.debugInfo.sessionExists;
+    const canImport = hasSession || isDevBypass;
+    
+    return {
+      bypassTokenPresent: !!bypassToken,
+      bypassToken: bypassToken,
+      isDevBypass,
+      hasSession,
+      canImport,
+      reason: canImport 
+        ? (isDevBypass ? 'Bypass token valid' : 'Authenticated session') 
+        : 'No session and no valid bypass token'
+    };
+  }, [searchParams, gate.debugInfo.sessionExists]);
 
   if (!showDebug) return null;
 
@@ -59,6 +80,38 @@ export function AdminGateDebug({ gate }: AdminGateDebugProps) {
           
           <span className="text-muted-foreground">Reason:</span>
           <span>{gate.reason}</span>
+        </div>
+
+        {/* Import Readiness Section */}
+        <div className="border-t border-border/50 pt-2 mt-2">
+          <p className="text-muted-foreground mb-1 flex items-center gap-1">
+            <Upload className="h-3 w-3" />
+            Import Readiness:
+          </p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <span className="text-muted-foreground">Bypass token in URL:</span>
+            <span className={importInfo.bypassTokenPresent ? 'text-success' : 'text-muted-foreground'}>
+              {importInfo.bypassTokenPresent ? `✓ (${importInfo.bypassToken})` : '✗'}
+            </span>
+            
+            <span className="text-muted-foreground">Dev bypass active:</span>
+            <span className={importInfo.isDevBypass ? 'text-success' : 'text-muted-foreground'}>
+              {importInfo.isDevBypass ? '✓' : '✗'}
+            </span>
+            
+            <span className="text-muted-foreground">Session exists:</span>
+            <span className={importInfo.hasSession ? 'text-success' : 'text-muted-foreground'}>
+              {importInfo.hasSession ? '✓' : '✗'}
+            </span>
+            
+            <span className="text-muted-foreground">Can import:</span>
+            <span className={importInfo.canImport ? 'text-success font-bold' : 'text-destructive font-bold'}>
+              {importInfo.canImport ? '✓ YES' : '✗ NO'}
+            </span>
+            
+            <span className="text-muted-foreground">Import auth reason:</span>
+            <span>{importInfo.reason}</span>
+          </div>
         </div>
 
         <div className="border-t border-border/50 pt-2 mt-2">

@@ -83,7 +83,7 @@ export function ImportCard({
 
     // Check for dev bypass (matches useAdminGate.ts and isAdmin.ts behavior)
     const urlParams = new URLSearchParams(window.location.search);
-    const bypassToken = urlParams.get('bypass') || urlParams.get('admin') === 'bypass' ? 'admin123' : null;
+    const bypassToken = urlParams.get('bypass') || (urlParams.get('admin') === 'bypass' ? 'admin123' : null);
     const isDevBypass = bypassToken === 'admin123';
 
     // Get auth token (optional if dev bypass is active)
@@ -119,21 +119,26 @@ export function ImportCard({
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       
       // Build URL - always append bypass token as query param if in dev mode
-      // Query param is more reliable than headers (no CORS preflight issues)
+      // Query param is the primary mechanism - avoids CORS preflight issues
       let importUrl = `${supabaseUrl}/functions/v1/admin-import`;
       if (isDevBypass && bypassToken) {
         importUrl += `?bypass=${bypassToken}`;
       }
       
-      // Build headers - include auth token if available
-      const headers: Record<string, string> = {};
+      // Build headers - always include apikey for Supabase functions
+      const headers: Record<string, string> = {
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      };
+      
+      // Include auth token if available
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
-      // Also send bypass token in header as backup
-      if (isDevBypass && bypassToken) {
-        headers['X-Dev-Bypass'] = bypassToken;
-      }
+      
+      // Note: We do NOT send X-Dev-Bypass header by default to avoid triggering CORS preflight
+      // The bypass query param is sufficient and doesn't trigger preflight
+      
+      console.log('[ImportCard] Calling import:', { importUrl, hasAuth: !!session?.access_token, isDevBypass });
       
       // Call edge function
       const response = await fetch(importUrl, {
@@ -159,11 +164,12 @@ export function ImportCard({
       }
 
     } catch (error) {
-      console.error('Import error:', error);
+      console.error('[ImportCard] Import network error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setResult({
         ok: false,
         errorCode: 'NETWORK_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to connect to server'
+        message: `Network error: ${errorMessage}. Check browser console for details.`
       });
       setStatus('error');
       setDetailsOpen(true);
