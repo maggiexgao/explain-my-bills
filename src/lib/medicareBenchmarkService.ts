@@ -258,6 +258,172 @@ const NON_PAYABLE_STATUS_CODES = ['B', 'I', 'N', 'R', 'X'];
 // Cache for latest MPFS year (per request)
 let cachedLatestMpfsYear: number | null = null;
 
+// ============= In-Memory Rate Cache =============
+// Caches Medicare rate lookups within a session to reduce database round trips
+
+interface CachedRate {
+  rate: number | null;
+  source: FeeSource;
+  description: string | null;
+  notPricedReason?: NotPricedReason;
+}
+
+const rateCache = new Map<string, CachedRate>();
+
+function getCachedRate(code: string, careSetting: string): CachedRate | undefined {
+  const key = `${code.toUpperCase()}-${careSetting}`;
+  return rateCache.get(key);
+}
+
+function setCachedRate(code: string, careSetting: string, cached: CachedRate): void {
+  const key = `${code.toUpperCase()}-${careSetting}`;
+  rateCache.set(key, cached);
+}
+
+/**
+ * Clear rate cache - call at start of new analysis
+ */
+export function clearRateCache(): void {
+  rateCache.clear();
+  console.log('[RateCache] Cache cleared');
+}
+
+// ============= Batch Fetch Functions =============
+// Pre-fetch all codes in a single query to reduce database round trips
+
+interface BatchedMpfsResult {
+  [hcpcs: string]: MpfsBenchmarkRow | null;
+}
+
+/**
+ * Batch fetch MPFS benchmarks for multiple codes
+ * Reduces database round trips from N to 1
+ */
+async function batchFetchMpfsBenchmarks(
+  codes: string[],
+  year: number
+): Promise<BatchedMpfsResult> {
+  if (codes.length === 0) return {};
+  
+  const normalizedCodes = [...new Set(codes.map(c => c.trim().toUpperCase()))];
+  console.log(`[MPFS Batch] Fetching ${normalizedCodes.length} codes for year ${year}`);
+  
+  const { data, error } = await supabase
+    .from('mpfs_benchmarks')
+    .select('*')
+    .in('hcpcs', normalizedCodes)
+    .eq('year', year)
+    .eq('qp_status', 'nonQP')
+    .eq('modifier', '');
+  
+  if (error) {
+    console.error('[MPFS Batch] Error:', error.message);
+    return {};
+  }
+  
+  const result: BatchedMpfsResult = {};
+  for (const row of (data || [])) {
+    result[row.hcpcs] = row as MpfsBenchmarkRow;
+  }
+  
+  console.log(`[MPFS Batch] Found ${Object.keys(result).length} of ${normalizedCodes.length} codes`);
+  return result;
+}
+
+interface BatchedOppsResult {
+  [hcpcs: string]: { payment_rate: number; short_desc: string | null; source: 'opps_db' | 'opps_fallback' } | null;
+}
+
+/**
+ * Batch fetch OPPS rates for multiple codes
+ */
+async function batchFetchOppsRates(codes: string[]): Promise<BatchedOppsResult> {
+  if (codes.length === 0) return {};
+  
+  const normalizedCodes = [...new Set(codes.map(c => c.trim().toUpperCase()))];
+  console.log(`[OPPS Batch] Fetching ${normalizedCodes.length} codes`);
+  
+  const { data, error } = await supabase
+    .from('opps_addendum_b')
+    .select('hcpcs, payment_rate, short_desc')
+    .in('hcpcs', normalizedCodes)
+    .eq('year', OPPS_YEAR);
+  
+  const result: BatchedOppsResult = {};
+  
+  // First, populate from database
+  if (!error && data) {
+    for (const row of data) {
+      if (row.payment_rate && row.payment_rate > 0) {
+        result[row.hcpcs] = { 
+          payment_rate: row.payment_rate, 
+          short_desc: row.short_desc,
+          source: 'opps_db'
+        };
+      }
+    }
+  }
+  
+  // Then, fill in from fallback for codes not found
+  for (const code of normalizedCodes) {
+    if (!result[code] && OPPS_FALLBACK_RATES[code]) {
+      const fallback = OPPS_FALLBACK_RATES[code];
+      result[code] = {
+        payment_rate: fallback.payment_rate,
+        short_desc: fallback.short_desc || null,
+        source: 'opps_fallback'
+      };
+    }
+  }
+  
+  console.log(`[OPPS Batch] Found ${Object.keys(result).length} of ${normalizedCodes.length} codes`);
+  return result;
+}
+
+interface BatchedClfsResult {
+  [hcpcs: string]: { rate: number; desc: string | null } | null;
+}
+
+/**
+ * Batch fetch CLFS rates for multiple lab codes
+ */
+async function batchFetchClfsRates(codes: string[]): Promise<BatchedClfsResult> {
+  if (codes.length === 0) return {};
+  
+  const normalizedCodes = [...new Set(codes.map(c => c.trim().toUpperCase()))];
+  console.log(`[CLFS Batch] Fetching ${normalizedCodes.length} lab codes`);
+  
+  const { data, error } = await supabase
+    .from('clfs_fee_schedule')
+    .select('hcpcs, payment_amount, short_desc')
+    .in('hcpcs', normalizedCodes)
+    .order('year', { ascending: false });
+  
+  const result: BatchedClfsResult = {};
+  
+  // Populate from database (take first/latest year for each code)
+  if (!error && data) {
+    for (const row of data) {
+      if (!result[row.hcpcs] && row.payment_amount && row.payment_amount > 0) {
+        result[row.hcpcs] = { 
+          rate: row.payment_amount, 
+          desc: row.short_desc 
+        };
+      }
+    }
+  }
+  
+  // Fill in from fallback
+  for (const code of normalizedCodes) {
+    if (!result[code] && CLFS_FALLBACK_RATES[code]) {
+      result[code] = CLFS_FALLBACK_RATES[code];
+    }
+  }
+  
+  console.log(`[CLFS Batch] Found ${Object.keys(result).length} of ${normalizedCodes.length} codes`);
+  return result;
+}
+
 // Hardcoded OPPS rates for common hospital codes - fallback if database lookup fails
 const OPPS_FALLBACK_RATES: Record<string, { payment_rate: number; status_indicator: string; apc: string; short_desc?: string }> = {
   // ER visit codes
@@ -1000,8 +1166,9 @@ export async function calculateMedicareBenchmarks(
   console.log('[Benchmark] lineItems:', lineItems.map(i => `${i.hcpcs} (isFacility: ${i.isFacility})`).join(', '));
   console.log('[Benchmark] state:', state, 'zipCode:', zipCode);
   
-  // Clear cache at start of new calculation
+  // Clear caches at start of new calculation
   clearMpfsYearCache();
+  clearRateCache();
   
   const results: BenchmarkLineResult[] = [];
   const rawCodesExtracted: string[] = [];
@@ -1079,6 +1246,44 @@ export async function calculateMedicareBenchmarks(
     notes: geoResolution.notes
   };
 
+  // ============= BATCH PRE-FETCH ALL CODES =============
+  // Collect all codes first, then batch fetch to reduce database round trips
+  console.log('[Benchmark] Pre-fetching all codes in batch...');
+  
+  // Separate codes by type for batch fetching
+  const allCodes: string[] = [];
+  const facilityCodes: string[] = [];
+  const labCodes: string[] = [];
+  const officeCodes: string[] = [];
+  
+  for (const item of lineItems) {
+    const rawCode = item.rawCode || item.hcpcs;
+    const validated = normalizeAndValidateCode(rawCode);
+    if (validated.kind !== 'invalid' && validated.code) {
+      const code = validated.code;
+      allCodes.push(code);
+      
+      if (item.isFacility) {
+        facilityCodes.push(code);
+      }
+      if (isClfsCode(code)) {
+        labCodes.push(code);
+      }
+      if (!item.isFacility) {
+        officeCodes.push(code);
+      }
+    }
+  }
+  
+  // Batch fetch all data in parallel
+  const [batchedMpfs, batchedOpps, batchedClfs] = await Promise.all([
+    batchFetchMpfsBenchmarks([...new Set(allCodes)], latestMpfsYear),
+    batchFetchOppsRates([...new Set(facilityCodes)]),
+    batchFetchClfsRates([...new Set(labCodes)])
+  ]);
+  
+  console.log(`[Benchmark] Batch pre-fetch complete. MPFS: ${Object.keys(batchedMpfs).length}, OPPS: ${Object.keys(batchedOpps).length}, CLFS: ${Object.keys(batchedClfs).length}`);
+
   // Process each line item
   for (const item of lineItems) {
     // Track billed amount (allow null)
@@ -1152,10 +1357,60 @@ export async function calculateMedicareBenchmarks(
     if (isFacility) {
       console.log(`[Benchmark] >>> Taking FACILITY path for ${normalized.hcpcs} (will try OPPS first)`);
       
-      const oppsResult = await lookupOppsRate(normalized.hcpcs);
+      // Check cache first
+      const cached = getCachedRate(normalized.hcpcs, 'facility');
+      if (cached && cached.rate !== null && cached.rate > 0) {
+        console.log(`[Benchmark] CACHE HIT: Using cached OPPS rate $${cached.rate} for ${normalized.hcpcs}`);
+        codesMatched.push(normalized.hcpcs);
+        
+        const units = item.units > 0 ? item.units : 1;
+        const totalReference = cached.rate * units;
+        
+        const multiple = (item.billedAmount !== null && item.billedAmount > 0) 
+          ? item.billedAmount / totalReference 
+          : null;
+        const percentOfMedicare = multiple !== null ? Math.round(multiple * 100) : null;
+        const status = percentOfMedicare !== null ? determineStatus(percentOfMedicare) : 'unknown';
+        
+        hasAnyBenchmark = true;
+        totalMedicareReference += totalReference;
+        
+        results.push({
+          hcpcs: normalized.hcpcs,
+          modifier: normalized.modifier,
+          description: cached.description || item.description || null,
+          billedAmount: item.billedAmount,
+          units,
+          medicareReferencePerUnit: cached.rate,
+          medicareReferenceTotal: totalReference,
+          multiple: multiple !== null ? Math.round(multiple * 100) / 100 : null,
+          status,
+          matchStatus: 'matched',
+          benchmarkYearUsed: OPPS_YEAR,
+          requestedYear: yearToRequest,
+          notes: [`Using OPPS hospital outpatient rate ($${cached.rate.toFixed(2)})`],
+          gpciAdjusted: false,
+          feeSource: cached.source,
+          notPricedReason: null
+        });
+        
+        continue;
+      }
+      
+      // Use batch-fetched data instead of individual query
+      const batchedOppsResult = batchedOpps[normalized.hcpcs];
+      const oppsResult = batchedOppsResult 
+        ? { rate: batchedOppsResult.payment_rate, source: batchedOppsResult.source, description: batchedOppsResult.short_desc }
+        : await lookupOppsRate(normalized.hcpcs); // Fallback to individual lookup if not in batch
       
       if (oppsResult.rate !== null && oppsResult.rate > 0) {
-        // SUCCESS: Found OPPS rate
+        // SUCCESS: Found OPPS rate - cache it
+        setCachedRate(normalized.hcpcs, 'facility', {
+          rate: oppsResult.rate,
+          source: oppsResult.source === 'opps_fallback' ? 'opps_fallback' : 'opps_rate',
+          description: oppsResult.description
+        });
+        
         console.log(`[Benchmark] SUCCESS: Using OPPS rate $${oppsResult.rate} for ${normalized.hcpcs}`);
         
         codesMatched.push(normalized.hcpcs);
@@ -1208,9 +1463,60 @@ export async function calculateMedicareBenchmarks(
     // Check Clinical Lab Fee Schedule before MPFS for lab codes
     if (isClfsCode(normalized.hcpcs)) {
       console.log(`[Benchmark] Code ${normalized.hcpcs} is a lab code - trying CLFS first`);
-      const clfsResult = await lookupClfsRate(normalized.hcpcs);
+      
+      // Check cache first
+      const cached = getCachedRate(normalized.hcpcs, 'lab');
+      if (cached && cached.rate !== null && cached.rate > 0) {
+        console.log(`[Benchmark] CACHE HIT: Using cached CLFS rate $${cached.rate} for ${normalized.hcpcs}`);
+        codesMatched.push(normalized.hcpcs);
+        
+        const units = item.units > 0 ? item.units : 1;
+        const totalReference = cached.rate * units;
+        
+        const multiple = (item.billedAmount !== null && item.billedAmount > 0) 
+          ? item.billedAmount / totalReference 
+          : null;
+        const percentOfMedicare = multiple !== null ? Math.round(multiple * 100) : null;
+        const status = percentOfMedicare !== null ? determineStatus(percentOfMedicare) : 'unknown';
+        
+        hasAnyBenchmark = true;
+        totalMedicareReference += totalReference;
+        
+        results.push({
+          hcpcs: normalized.hcpcs,
+          modifier: normalized.modifier,
+          description: cached.description || item.description || null,
+          billedAmount: item.billedAmount,
+          units,
+          medicareReferencePerUnit: cached.rate,
+          medicareReferenceTotal: totalReference,
+          multiple: multiple !== null ? Math.round(multiple * 100) / 100 : null,
+          status,
+          matchStatus: 'matched',
+          benchmarkYearUsed: 2026,
+          requestedYear: yearToRequest,
+          notes: [`Using Clinical Lab Fee Schedule rate ($${cached.rate.toFixed(2)})`],
+          gpciAdjusted: false,
+          feeSource: 'clfs_rate',
+          notPricedReason: null
+        });
+        
+        continue;
+      }
+      
+      // Use batch-fetched data instead of individual query
+      const batchedClfsResult = batchedClfs[normalized.hcpcs];
+      const clfsResult = batchedClfsResult 
+        ? { rate: batchedClfsResult.rate, source: 'clfs_rate' as const, description: batchedClfsResult.desc }
+        : await lookupClfsRate(normalized.hcpcs); // Fallback to individual lookup if not in batch
       
       if (clfsResult.rate !== null && clfsResult.rate > 0) {
+        // Cache the result
+        setCachedRate(normalized.hcpcs, 'lab', {
+          rate: clfsResult.rate,
+          source: 'clfs_rate',
+          description: clfsResult.description
+        });
         console.log(`[Benchmark] SUCCESS: Using CLFS rate $${clfsResult.rate} for ${normalized.hcpcs}`);
         
         codesMatched.push(normalized.hcpcs);
@@ -1255,14 +1561,36 @@ export async function calculateMedicareBenchmarks(
     }
     
     // === MPFS LOOKUP (office setting, or facility fallback) ===
-    // Fetch MPFS benchmark with fallback
-    const { row: benchmark, yearUsed, usedFallback, modifierFallback, queries } = 
-      await fetchMpfsBenchmarkWithFallback(
+    // Check cache first for MPFS
+    const careSetting = isFacility ? 'mpfs_facility' : 'mpfs_office';
+    const cachedMpfs = getCachedRate(normalized.hcpcs, careSetting);
+    
+    // Try to use batch-fetched MPFS data first
+    let benchmark: MpfsBenchmarkRow | null = null;
+    let yearUsed = latestMpfsYear;
+    let usedFallback = false;
+    let modifierFallback = false;
+    const queries: MpfsQueryAttempt[] = [];
+    
+    // Check if we have batched data for this code
+    const batchedBenchmark = batchedMpfs[normalized.hcpcs];
+    if (batchedBenchmark) {
+      benchmark = batchedBenchmark;
+      console.log(`[Benchmark] Using batch-fetched MPFS data for ${normalized.hcpcs}`);
+    } else {
+      // Fall back to individual fetch if not in batch (different year or with modifier)
+      const fetchResult = await fetchMpfsBenchmarkWithFallback(
         normalized.hcpcs,
         yearToRequest,
         latestMpfsYear,
         normalized.modifier || item.modifier
       );
+      benchmark = fetchResult.row;
+      yearUsed = fetchResult.yearUsed;
+      usedFallback = fetchResult.usedFallback;
+      modifierFallback = fetchResult.modifierFallback;
+      queries.push(...fetchResult.queries);
+    }
     
     // Track all queries
     queriesAttempted.push(...queries);
