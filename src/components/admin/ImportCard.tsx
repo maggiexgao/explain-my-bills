@@ -81,9 +81,13 @@ export function ImportCard({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Get auth token
+    // Check for dev bypass (matches useAdminGate.ts and isAdmin.ts behavior)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isDevBypass = urlParams.get('bypass') === 'admin123' || urlParams.get('admin') === 'bypass';
+
+    // Get auth token (optional if dev bypass is active)
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    if (!session?.access_token && !isDevBypass) {
       setResult({
         ok: false,
         errorCode: 'AUTH_REQUIRED',
@@ -113,13 +117,26 @@ export function ImportCard({
       // Get the Supabase URL from the client
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       
-      // Call edge function with user's auth token
-      const response = await fetch(`${supabaseUrl}/functions/v1/admin-import`, {
+      // Build URL with bypass params if in dev mode
+      let importUrl = `${supabaseUrl}/functions/v1/admin-import`;
+      if (isDevBypass) {
+        importUrl += '?bypass=admin123';
+      }
+      
+      // Build headers - include auth token if available, dev bypass header otherwise
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      if (isDevBypass) {
+        headers['X-Dev-Bypass'] = 'admin123';
+      }
+      
+      // Call edge function
+      const response = await fetch(importUrl, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+        headers
       });
 
       setProgress(80);
