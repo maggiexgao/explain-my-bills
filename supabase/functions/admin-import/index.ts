@@ -11,9 +11,9 @@
  * - ZIP Crosswalk
  * 
  * Features:
- * - Robust column detection with flexible header matching
- * - Batched upserts (500 rows)
- * - Dry run mode for validation
+ * - Memory-efficient cell-based parsing (avoids full sheet materialization)
+ * - Streaming batch upserts during iteration
+ * - CSV fast-path for large files
  * - Structured error responses
  * - Service role for bypassing RLS
  * - JWT authentication required for security
@@ -178,6 +178,8 @@ interface ImportResponse {
     columnsDetected?: string[];
     headerRowIndex?: number;
     sheetName?: string;
+    batchesCompleted?: number;
+    rowsProcessed?: number;
   };
 }
 
@@ -215,75 +217,306 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-// ============================================================================
-// OPPS Parser (Fixed for header at row 4 and strict HCPCS validation)
-// ============================================================================
+/**
+ * Get cell value from sheet using cell address (e.g., "A1")
+ */
+function getCellValue(sheet: XLSX.WorkSheet, col: number, row: number): unknown {
+  const addr = XLSX.utils.encode_cell({ c: col, r: row });
+  const cell = sheet[addr];
+  if (!cell) return null;
+  // Return the formatted value if available, otherwise the raw value
+  return cell.w !== undefined ? cell.w : cell.v;
+}
 
 /**
  * Validate if a value looks like a valid HCPCS code
  * CRITICAL: NEVER use parseInt/Number on HCPCS codes!
- * 
- * Valid patterns:
- * - 5 digits (CPT): 99284, 80053, 00100
- * - 1 letter + 4 digits (HCPCS II): E0114, J1885, A0428, G0378
- * - 4 digits + 1 letter (PLA codes): 0001U
  */
 function isValidHcpcsCode(value: unknown): boolean {
   if (value === null || value === undefined) return false;
-  
-  // CRITICAL: Always treat as string, never as number!
   const str = String(value).trim().toUpperCase();
-  
-  // Must be exactly 5 characters
   if (str.length !== 5) return false;
-  
-  // Valid HCPCS patterns (alphanumeric, 5 chars)
-  // - 5 digits: 99284, 80053
-  // - Letter + 4 digits: E0114, J1885, A0428, G0378
-  // - 4 digits + letter: 0001U
   return /^[A-Z0-9]{5}$/.test(str);
 }
 
 /**
  * Normalize HCPCS code to canonical format
- * Always returns string, never parses as number
  */
 function normalizeHcpcsCode(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  
-  // CRITICAL: Always treat as string!
   const str = String(value).trim().toUpperCase();
-  
   if (str === '' || str.length < 4 || str.length > 7) return null;
-  
-  // If contains spaces, it's likely a description, not a code
   if (str.includes(' ')) return null;
-  
-  // Extract just the first 5 alphanumeric characters
   const cleaned = str.replace(/[^A-Z0-9]/g, '').substring(0, 5);
-  
   if (isValidHcpcsCode(cleaned)) {
     return cleaned;
   }
-  
   return null;
 }
 
-function parseOppsData(data: unknown[][], year: number = 2025): { records: unknown[]; meta: { headerRow: number; columns: string[]; totalRows: number; parsedRows: number; sampleCodes: string[] } } {
-  const records: unknown[] = [];
+// ============================================================================
+// CSV Parser (Memory-efficient for large files)
+// ============================================================================
+
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+    
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        currentField += '"';
+        i++; // Skip next quote
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        currentField += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        currentRow.push(currentField.trim());
+        currentField = '';
+      } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+        currentRow.push(currentField.trim());
+        if (currentRow.length > 0 && currentRow.some(f => f !== '')) {
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentField = '';
+        if (char === '\r') i++; // Skip \n in \r\n
+      } else if (char !== '\r') {
+        currentField += char;
+      }
+    }
+  }
+  
+  // Push last field/row
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some(f => f !== '')) {
+      rows.push(currentRow);
+    }
+  }
+  
+  return rows;
+}
+
+// ============================================================================
+// Memory-Efficient OPPS Parser (Cell-Based Access with Streaming Upserts)
+// ============================================================================
+
+async function parseAndImportOppsStreaming(
+  sheet: XLSX.WorkSheet,
+  supabase: any,
+  year: number,
+  dryRun: boolean
+): Promise<{
+  ok: boolean;
+  totalRows: number;
+  validRows: number;
+  imported: number;
+  skipped: number;
+  headerRow: number;
+  columns: string[];
+  sampleCodes: string[];
+  batchesCompleted: number;
+  errors: string[];
+}> {
+  const BATCH_SIZE = 500;
+  const LOG_INTERVAL = 5000;
+  
+  // Get sheet range
+  const range = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
+  if (!range) {
+    return { ok: false, totalRows: 0, validRows: 0, imported: 0, skipped: 0, headerRow: -1, columns: [], sampleCodes: [], batchesCompleted: 0, errors: ['No data range in sheet'] };
+  }
+  
+  const totalRows = range.e.r - range.s.r + 1;
+  console.log(`[OPPS Parser] Sheet range: ${sheet['!ref']}, total rows: ${totalRows}`);
+  
+  // Find header row by scanning first 50 rows for "HCPCS"
   let headerRowIndex = -1;
   const colMap: ColumnMap = {};
+  
+  for (let r = range.s.r; r <= Math.min(range.s.r + 50, range.e.r); r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const val = getCellValue(sheet, c, r);
+      if (typeof val === 'string') {
+        const upper = val.toUpperCase().trim();
+        if (upper === 'HCPCS' || upper === 'HCPCS CODE' || upper === 'HCPCSCODE') {
+          headerRowIndex = r;
+          console.log(`[OPPS Parser] Found header at row ${r + 1} (0-indexed: ${r})`);
+          
+          // Build column map from this row
+          for (let cc = range.s.c; cc <= range.e.c; cc++) {
+            const headerVal = getCellValue(sheet, cc, r);
+            if (typeof headerVal === 'string') {
+              const normalized = normalizeHeader(headerVal);
+              const upperH = headerVal.toUpperCase().trim();
+              
+              if (upperH === 'HCPCS' || upperH === 'HCPCS CODE') colMap['hcpcs'] = cc;
+              else if (normalized === 'shortdescriptor' || normalized.includes('shortdesc') || upperH === 'SHORT DESCRIPTOR') colMap['short_desc'] = cc;
+              else if (normalized === 'si' || normalized === 'statusindicator' || upperH === 'SI') colMap['status_indicator'] = cc;
+              else if (normalized === 'apc' || upperH === 'APC') colMap['apc'] = cc;
+              else if (normalized.includes('relativeweight') || upperH === 'RELATIVE WEIGHT') colMap['relative_weight'] = cc;
+              else if (normalized.includes('paymentrate') || upperH === 'PAYMENT RATE') colMap['payment_rate'] = cc;
+              else if (normalized.includes('national') && normalized.includes('copay')) colMap['national_copay'] = cc;
+              else if (normalized.includes('minimum') && normalized.includes('copay')) colMap['minimum_copay'] = cc;
+              else if (normalized.includes('long') && normalized.includes('desc')) colMap['long_desc'] = cc;
+            }
+          }
+          break;
+        }
+      }
+    }
+    if (headerRowIndex >= 0) break;
+  }
+  
+  if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
+    return { ok: false, totalRows, validRows: 0, imported: 0, skipped: 0, headerRow: -1, columns: [], sampleCodes: [], batchesCompleted: 0, errors: ['Could not find HCPCS header row'] };
+  }
+  
+  console.log(`[OPPS Parser] Column map:`, JSON.stringify(colMap));
+  
+  // Stream through rows, building batches and upserting
+  let batch: unknown[] = [];
+  let validRows = 0;
+  let skipped = 0;
+  let imported = 0;
+  let batchesCompleted = 0;
+  const errors: string[] = [];
   const sampleCodes: string[] = [];
-
-  console.log(`[OPPS Parser] Starting parse. Total rows in file: ${data.length}`);
-
-  // Find header row by searching for "HCPCS" in ANY cell
-  // The OPPS file has header at row 4 (0-indexed: row 3)
-  for (let i = 0; i < Math.min(50, data.length); i++) {
-    const row = data[i];
-    if (!Array.isArray(row)) continue;
+  
+  for (let r = headerRowIndex + 1; r <= range.e.r; r++) {
+    // Log progress periodically
+    const rowNum = r - headerRowIndex;
+    if (rowNum % LOG_INTERVAL === 0) {
+      console.log(`[OPPS Parser] Processed ${rowNum} rows, ${validRows} valid, ${batchesCompleted} batches completed`);
+    }
     
-    // Look for a cell containing "HCPCS"
+    // Get HCPCS value
+    const rawHcpcs = getCellValue(sheet, colMap['hcpcs'], r);
+    const hcpcs = normalizeHcpcsCode(rawHcpcs);
+    
+    if (!hcpcs) {
+      skipped++;
+      continue;
+    }
+    
+    // Collect sample codes
+    if (sampleCodes.length < 10) {
+      sampleCodes.push(hcpcs);
+    }
+    
+    // Build record
+    const record = {
+      year,
+      hcpcs,
+      apc: parseString(getCellValue(sheet, colMap['apc'], r)),
+      status_indicator: parseString(getCellValue(sheet, colMap['status_indicator'], r)),
+      payment_rate: parseNumeric(getCellValue(sheet, colMap['payment_rate'], r)),
+      relative_weight: parseNumeric(getCellValue(sheet, colMap['relative_weight'], r)),
+      short_desc: parseString(getCellValue(sheet, colMap['short_desc'], r)),
+      long_desc: parseString(getCellValue(sheet, colMap['long_desc'], r)),
+      national_unadjusted_copayment: parseNumeric(getCellValue(sheet, colMap['national_copay'], r)),
+      minimum_unadjusted_copayment: parseNumeric(getCellValue(sheet, colMap['minimum_copay'], r)),
+      source_file: 'opps_addendum_b_' + year
+    };
+    
+    batch.push(record);
+    validRows++;
+    
+    // Upsert when batch is full
+    if (batch.length >= BATCH_SIZE) {
+      if (!dryRun) {
+        const { error } = await supabase
+          .from('opps_addendum_b')
+          .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+        
+        if (error) {
+          errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
+        } else {
+          imported += batch.length;
+        }
+      }
+      batchesCompleted++;
+      batch = [];
+    }
+  }
+  
+  // Upsert remaining batch
+  if (batch.length > 0) {
+    if (!dryRun) {
+      const { error } = await supabase
+        .from('opps_addendum_b')
+        .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+      
+      if (error) {
+        errors.push(`Final batch: ${error.message}`);
+      } else {
+        imported += batch.length;
+      }
+    }
+    batchesCompleted++;
+  }
+  
+  console.log(`[OPPS Parser] Complete: ${validRows} valid, ${imported} imported, ${skipped} skipped, ${batchesCompleted} batches`);
+  console.log(`[OPPS Parser] Sample codes:`, sampleCodes);
+  
+  return {
+    ok: errors.length === 0,
+    totalRows,
+    validRows,
+    imported: dryRun ? 0 : imported,
+    skipped,
+    headerRow: headerRowIndex,
+    columns: Object.keys(colMap),
+    sampleCodes,
+    batchesCompleted,
+    errors
+  };
+}
+
+// ============================================================================
+// CSV-based OPPS Parser (Even more memory efficient for very large files)
+// ============================================================================
+
+async function parseAndImportOppsCSV(
+  csvData: string[][],
+  supabase: any,
+  year: number,
+  dryRun: boolean
+): Promise<{
+  ok: boolean;
+  totalRows: number;
+  validRows: number;
+  imported: number;
+  skipped: number;
+  headerRow: number;
+  columns: string[];
+  sampleCodes: string[];
+  batchesCompleted: number;
+  errors: string[];
+}> {
+  const BATCH_SIZE = 500;
+  const LOG_INTERVAL = 5000;
+  
+  const totalRows = csvData.length;
+  console.log(`[OPPS CSV Parser] Total rows: ${totalRows}`);
+  
+  // Find header row
+  let headerRowIndex = -1;
+  const colMap: ColumnMap = {};
+  
+  for (let i = 0; i < Math.min(50, csvData.length); i++) {
+    const row = csvData[i];
     const hcpcsColIdx = row.findIndex(cell => {
       if (typeof cell === 'string') {
         const upper = cell.toUpperCase().trim();
@@ -294,60 +527,64 @@ function parseOppsData(data: unknown[][], year: number = 2025): { records: unkno
     
     if (hcpcsColIdx >= 0) {
       headerRowIndex = i;
-      console.log(`[OPPS Parser] Found header row at index ${i}, HCPCS column at index ${hcpcsColIdx}`);
+      console.log(`[OPPS CSV Parser] Found header at row ${i + 1}`);
       
-      // Build column map with flexible matching
       row.forEach((cell, idx) => {
         if (typeof cell === 'string') {
           const normalized = normalizeHeader(cell);
           const upper = cell.toUpperCase().trim();
           
-          // Map columns
           if (upper === 'HCPCS' || upper === 'HCPCS CODE') colMap['hcpcs'] = idx;
-          else if (normalized === 'shortdescriptor' || normalized.includes('shortdesc') || upper === 'SHORT DESCRIPTOR') colMap['short_desc'] = idx;
-          else if (normalized === 'si' || normalized === 'statusindicator' || upper === 'SI') colMap['status_indicator'] = idx;
-          else if (normalized === 'apc' || upper === 'APC') colMap['apc'] = idx;
-          else if (normalized.includes('relativeweight') || upper === 'RELATIVE WEIGHT') colMap['relative_weight'] = idx;
-          else if (normalized.includes('paymentrate') || upper === 'PAYMENT RATE') colMap['payment_rate'] = idx;
+          else if (normalized === 'shortdescriptor' || normalized.includes('shortdesc')) colMap['short_desc'] = idx;
+          else if (normalized === 'si' || normalized === 'statusindicator') colMap['status_indicator'] = idx;
+          else if (normalized === 'apc') colMap['apc'] = idx;
+          else if (normalized.includes('relativeweight')) colMap['relative_weight'] = idx;
+          else if (normalized.includes('paymentrate')) colMap['payment_rate'] = idx;
           else if (normalized.includes('national') && normalized.includes('copay')) colMap['national_copay'] = idx;
           else if (normalized.includes('minimum') && normalized.includes('copay')) colMap['minimum_copay'] = idx;
           else if (normalized.includes('long') && normalized.includes('desc')) colMap['long_desc'] = idx;
         }
       });
-      
-      console.log(`[OPPS Parser] Column map:`, JSON.stringify(colMap));
       break;
     }
   }
-
+  
   if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
-    console.error(`[OPPS Parser] FAILED: Could not find HCPCS header row`);
-    return { records: [], meta: { headerRow: -1, columns: [], totalRows: data.length, parsedRows: 0, sampleCodes: [] } };
+    return { ok: false, totalRows, validRows: 0, imported: 0, skipped: 0, headerRow: -1, columns: [], sampleCodes: [], batchesCompleted: 0, errors: ['Could not find HCPCS header row'] };
   }
-
-  // Parse data rows (starting after header)
-  let skippedInvalid = 0;
-  for (let i = headerRowIndex + 1; i < data.length; i++) {
-    const row = data[i];
-    if (!Array.isArray(row)) continue;
+  
+  console.log(`[OPPS CSV Parser] Column map:`, JSON.stringify(colMap));
+  
+  // Stream through rows
+  let batch: unknown[] = [];
+  let validRows = 0;
+  let skipped = 0;
+  let imported = 0;
+  let batchesCompleted = 0;
+  const errors: string[] = [];
+  const sampleCodes: string[] = [];
+  
+  for (let i = headerRowIndex + 1; i < csvData.length; i++) {
+    const row = csvData[i];
+    const rowNum = i - headerRowIndex;
     
-    // Get the HCPCS value - ALWAYS as string, NEVER as number!
-    const rawHcpcs = row[colMap['hcpcs']];
-    const hcpcs = normalizeHcpcsCode(rawHcpcs);
+    if (rowNum % LOG_INTERVAL === 0) {
+      console.log(`[OPPS CSV Parser] Processed ${rowNum} rows, ${validRows} valid`);
+    }
     
+    const hcpcs = normalizeHcpcsCode(row[colMap['hcpcs']]);
     if (!hcpcs) {
-      skippedInvalid++;
+      skipped++;
       continue;
     }
     
-    // Collect sample codes for debugging
     if (sampleCodes.length < 10) {
       sampleCodes.push(hcpcs);
     }
     
-    records.push({
+    const record = {
       year,
-      hcpcs,  // Already normalized to uppercase
+      hcpcs,
       apc: parseString(row[colMap['apc']]),
       status_indicator: parseString(row[colMap['status_indicator']]),
       payment_rate: parseNumeric(row[colMap['payment_rate']]),
@@ -357,21 +594,57 @@ function parseOppsData(data: unknown[][], year: number = 2025): { records: unkno
       national_unadjusted_copayment: parseNumeric(row[colMap['national_copay']]),
       minimum_unadjusted_copayment: parseNumeric(row[colMap['minimum_copay']]),
       source_file: 'opps_addendum_b_' + year
-    });
+    };
+    
+    batch.push(record);
+    validRows++;
+    
+    if (batch.length >= BATCH_SIZE) {
+      if (!dryRun) {
+        const { error } = await supabase
+          .from('opps_addendum_b')
+          .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+        
+        if (error) {
+          errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
+        } else {
+          imported += batch.length;
+        }
+      }
+      batchesCompleted++;
+      batch = [];
+    }
   }
-
-  console.log(`[OPPS Parser] Parse complete: ${records.length} valid records, ${skippedInvalid} skipped (invalid HCPCS)`);
-  console.log(`[OPPS Parser] Sample codes:`, sampleCodes);
-
-  return { 
-    records, 
-    meta: { 
-      headerRow: headerRowIndex, 
-      columns: Object.keys(colMap),
-      totalRows: data.length,
-      parsedRows: records.length,
-      sampleCodes
-    } 
+  
+  // Final batch
+  if (batch.length > 0) {
+    if (!dryRun) {
+      const { error } = await supabase
+        .from('opps_addendum_b')
+        .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+      
+      if (error) {
+        errors.push(`Final batch: ${error.message}`);
+      } else {
+        imported += batch.length;
+      }
+    }
+    batchesCompleted++;
+  }
+  
+  console.log(`[OPPS CSV Parser] Complete: ${validRows} valid, ${imported} imported`);
+  
+  return {
+    ok: errors.length === 0,
+    totalRows,
+    validRows,
+    imported: dryRun ? 0 : imported,
+    skipped,
+    headerRow: headerRowIndex,
+    columns: Object.keys(colMap),
+    sampleCodes,
+    batchesCompleted,
+    errors
   };
 }
 
@@ -847,9 +1120,9 @@ function findBestSheet(workbook: XLSX.WorkBook, hints: string[]): string {
 // ============================================================================
 
 serve(async (req) => {
-  // Handle CORS preflight
+  // Handle CORS preflight - return 200 with all CORS headers
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   // Verify admin authentication
@@ -882,6 +1155,7 @@ serve(async (req) => {
     let dryRun = false;
     let year: number | undefined;
     let fileBuffer: ArrayBuffer | null = null;
+    let fileName = '';
 
     if (contentType.includes("multipart/form-data")) {
       // Handle file upload
@@ -893,6 +1167,7 @@ serve(async (req) => {
       const file = formData.get("file") as File;
       if (file) {
         fileBuffer = await file.arrayBuffer();
+        fileName = file.name.toLowerCase();
       }
     } else {
       // Handle JSON request (for self-test, etc.)
@@ -945,65 +1220,77 @@ serve(async (req) => {
       });
     }
 
-    // Parse Excel file
-    const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
-    
     let response: ImportResponse;
+
+    // Check if this is a CSV file (for OPPS optimization)
+    const isCSV = fileName.endsWith('.csv');
+    
+    console.log(`[admin-import] Processing ${fileName}, dataType=${dataType}, dryRun=${dryRun}, isCSV=${isCSV}`);
 
     // Route to appropriate parser
     switch (dataType) {
       case "opps": {
-        const sheetName = findBestSheet(workbook, ["Addendum B", "AddB"]);
-        const sheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
-        
-        const { records, meta } = parseOppsData(data, year || 2025);
-        
-        if (records.length === 0) {
-          response = {
-            ok: false,
-            errorCode: "OPPS_PARSE_FAILED",
-            message: "Could not detect header row or no valid HCPCS codes found",
-            details: {
-              totalRowsRead: data.length,
-              validRows: 0,
-              imported: 0,
-              skipped: 0,
-              sheetName,
-              headerRowIndex: meta.headerRow,
-              columnsDetected: meta.columns,
-              sampleRows: data.slice(0, 5)
-            }
-          };
-        } else {
-          const { imported, errors } = await batchUpsert(
-            supabase, 
-            "opps_addendum_b", 
-            records, 
-            "year,hcpcs",
-            dryRun
-          );
+        if (isCSV) {
+          // CSV fast-path for OPPS
+          console.log(`[admin-import] Using CSV fast-path for OPPS`);
+          const text = new TextDecoder().decode(new Uint8Array(fileBuffer));
+          const csvData = parseCSV(text);
+          
+          const result = await parseAndImportOppsCSV(csvData, supabase, year || 2025, dryRun);
           
           response = {
-            ok: errors.length === 0,
+            ok: result.ok && result.errors.length === 0,
             message: dryRun 
-              ? `Dry run complete: ${records.length} valid records found`
-              : `Imported ${imported} OPPS records`,
+              ? `Dry run complete: ${result.validRows} valid records found`
+              : `Imported ${result.imported} OPPS records`,
             details: {
-              totalRowsRead: data.length,
-              validRows: records.length,
-              imported: dryRun ? 0 : imported,
-              skipped: records.length - imported,
-              sheetName,
-              headerRowIndex: meta.headerRow,
-              columnsDetected: meta.columns,
-              sampleRows: records.slice(0, 10)
+              totalRowsRead: result.totalRows,
+              validRows: result.validRows,
+              imported: result.imported,
+              skipped: result.skipped,
+              headerRowIndex: result.headerRow,
+              columnsDetected: result.columns,
+              batchesCompleted: result.batchesCompleted,
+              sampleRows: result.sampleCodes.map(code => ({ hcpcs: code }))
             }
           };
           
-          if (errors.length > 0) {
+          if (result.errors.length > 0) {
             response.errorCode = "PARTIAL_IMPORT";
-            response.message = errors.join("; ");
+            response.message = result.errors.join("; ");
+          }
+        } else {
+          // XLSX with memory-efficient cell-based parsing
+          console.log(`[admin-import] Using cell-based XLSX parser for OPPS`);
+          const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
+          const sheetName = findBestSheet(workbook, ["Addendum B", "AddB"]);
+          const sheet = workbook.Sheets[sheetName];
+          
+          console.log(`[admin-import] Selected sheet: ${sheetName}`);
+          
+          const result = await parseAndImportOppsStreaming(sheet, supabase, year || 2025, dryRun);
+          
+          response = {
+            ok: result.ok && result.errors.length === 0,
+            message: dryRun 
+              ? `Dry run complete: ${result.validRows} valid records found`
+              : `Imported ${result.imported} OPPS records`,
+            details: {
+              totalRowsRead: result.totalRows,
+              validRows: result.validRows,
+              imported: result.imported,
+              skipped: result.skipped,
+              sheetName,
+              headerRowIndex: result.headerRow,
+              columnsDetected: result.columns,
+              batchesCompleted: result.batchesCompleted,
+              sampleRows: result.sampleCodes.map(code => ({ hcpcs: code }))
+            }
+          };
+          
+          if (result.errors.length > 0) {
+            response.errorCode = "PARTIAL_IMPORT";
+            response.message = result.errors.join("; ");
           }
         }
         break;
@@ -1011,6 +1298,7 @@ serve(async (req) => {
 
       case "dmepos":
       case "dmepen": {
+        const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
         const sheetName = findBestSheet(workbook, [dataType === "dmepen" ? "DMEPEN" : "DMEPOS"]);
         const sheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
@@ -1071,6 +1359,7 @@ serve(async (req) => {
       }
 
       case "gpci": {
+        const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
         const sheetName = findBestSheet(workbook, ["GPCI", "Locality"]);
         const sheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
@@ -1128,6 +1417,7 @@ serve(async (req) => {
       }
 
       case "zip-crosswalk": {
+        const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
         const sheetName = findBestSheet(workbook, ["ZIP", "Crosswalk"]);
         const sheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
@@ -1185,6 +1475,7 @@ serve(async (req) => {
       }
 
       case "clfs": {
+        const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
         const sheetName = findBestSheet(workbook, ["CLFS", "Lab", "Clinical"]);
         const sheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
@@ -1258,7 +1549,7 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : "Unknown error";
     const stack = error instanceof Error ? error.stack : undefined;
     
-    console.error("Import error:", message, stack);
+    console.error("[admin-import] Import error:", message, stack);
     
     return new Response(JSON.stringify({
       ok: false,
