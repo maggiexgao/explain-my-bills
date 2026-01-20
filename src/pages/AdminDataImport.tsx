@@ -8,6 +8,7 @@ import { DataGapsDiagnosticsCard } from '@/components/admin/DataGapsDiagnosticsC
 import { StrategyAuditCard } from '@/components/admin/StrategyAuditCard';
 import { DatasetValidationCard } from '@/components/admin/DatasetValidationCard';
 import { AdminGateDebug } from '@/components/admin/AdminGateDebug';
+import { VerifyDmeposCard } from '@/components/admin/VerifyDmeposCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
@@ -220,6 +221,19 @@ export default function AdminDataImport() {
             onImportComplete={handleImportComplete}
           />
 
+          {/* CLFS Import */}
+          <ImportCard
+            title="CLFS (Clinical Lab Fee Schedule)"
+            description="Clinical Laboratory Fee Schedule — national payment limits for lab tests"
+            dataType="clfs"
+            sourceInfo={{
+              source: "CMS CLFS 2026 Q1 (CLFS_2026_Q1V1.xlsx)",
+              columns: "HCPCS, Short Description, Payment Amount",
+              purpose: "Medicare reference pricing for lab codes (80000-89999)"
+            }}
+            onImportComplete={handleImportComplete}
+          />
+
           {/* DMEPOS Import */}
           <ImportCard
             title="DMEPOS Fee Schedule (2026)"
@@ -232,6 +246,9 @@ export default function AdminDataImport() {
             }}
             onImportComplete={handleImportComplete}
           />
+
+          {/* Verify DMEPOS */}
+          <VerifyDmeposCard />
 
           {/* DMEPEN Import */}
           <ImportCard

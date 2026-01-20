@@ -52,7 +52,7 @@ interface ImportResult {
 interface ImportCardProps {
   title: string;
   description: string;
-  dataType: 'opps' | 'dmepos' | 'dmepen' | 'gpci' | 'zip-crosswalk';
+  dataType: 'opps' | 'dmepos' | 'dmepen' | 'gpci' | 'zip-crosswalk' | 'clfs';
   acceptedFileTypes?: string;
   sourceInfo?: {
     source: string;
