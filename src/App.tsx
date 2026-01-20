@@ -9,6 +9,7 @@ import { Language } from "@/types";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AdminDataImport from "./pages/AdminDataImport";
+import DownloadData from "./pages/DownloadData";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/admin/data-import" element={<AdminDataImport />} />
+              <Route path="/download-data" element={<DownloadData />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
