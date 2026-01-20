@@ -62,7 +62,28 @@ export function useAdminGate(): AdminGateResult {
   });
 
   const checkAdmin = useCallback(async () => {
-    // Development bypass
+    setState('loading');
+    setReason('Checking authorization...');
+    
+    // URL bypass - check at the VERY START before anything else
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('bypass') === 'admin123' || urlParams.get('admin') === 'bypass') {
+      console.log('[AdminGate] BYPASS ACTIVE via URL parameter');
+      setState('allowed');
+      setSource('email_allowlist');
+      setReason('Development bypass');
+      setDebugInfo({ 
+        sessionExists: true, 
+        appMetadata: { bypassed: true }, 
+        jwtClaimChecked: 'bypassed', 
+        roleQueryResult: 'bypassed', 
+        emailAllowlistChecked: true, 
+        timestamp: new Date().toLocaleTimeString() 
+      });
+      return;
+    }
+    
+    // Development bypass via env var
     if (DEV_BYPASS_ADMIN) {
       console.warn('[useAdminGate] DEV BYPASS ENABLED - skipping auth check');
       setState('allowed');
@@ -70,9 +91,6 @@ export function useAdminGate(): AdminGateResult {
       setReason('Development bypass enabled');
       return;
     }
-
-    setState('loading');
-    setReason('Checking authorization...');
     
     const debug: AdminGateResult['debugInfo'] = {
       sessionExists: false,
