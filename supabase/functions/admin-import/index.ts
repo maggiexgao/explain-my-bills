@@ -34,14 +34,27 @@ const corsHeaders = {
  * Check if bypass is allowed based on origin (dev/preview environments)
  */
 function isDevBypassAllowedByOrigin(req: Request): boolean {
-  const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
+  const origin = req.headers.get('Origin') || '';
+  const referer = req.headers.get('Referer') || '';
+  const host = req.headers.get('Host') || '';
+  
+  // Check all possible sources for origin hints
+  const checkSource = origin || referer || host;
+  
+  console.log(`[admin-import] Origin check - Origin: "${origin}", Referer: "${referer}", Host: "${host}"`);
+  
   const allowedPatterns = [
     'lovable.dev',
     'lovable.app',
     'localhost',
     '127.0.0.1',
+    'preview--',  // Lovable preview URLs
   ];
-  return allowedPatterns.some(pattern => origin.includes(pattern));
+  
+  const isAllowed = allowedPatterns.some(pattern => checkSource.toLowerCase().includes(pattern));
+  console.log(`[admin-import] Origin allowed: ${isAllowed} (source: "${checkSource}")`);
+  
+  return isAllowed;
 }
 
 // ============================================================================
