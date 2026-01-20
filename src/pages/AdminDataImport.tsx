@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { ImportCard } from '@/components/admin/ImportCard';
 import { SelfTestCard } from '@/components/admin/SelfTestCard';
 import { CoverageMetricsCard } from '@/components/admin/CoverageMetricsCard';
@@ -11,46 +11,52 @@ import { AdminGateDebug } from '@/components/admin/AdminGateDebug';
 import { VerifyDmeposCard } from '@/components/admin/VerifyDmeposCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Loader2, RefreshCw, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useAdminGate } from '@/hooks/useAdminGate';
-import { getAuthToken } from '@/lib/isAdmin';
+import { AdminContextProvider, useAdminContext } from '@/hooks/useAdminContext';
+import { supabase } from '@/integrations/supabase/client';
 
-export default function AdminDataImport() {
-  const adminGate = useAdminGate();
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+function AdminDataImportContent() {
+  const adminContext = useAdminContext();
   const [recomputingGpci, setRecomputingGpci] = useState(false);
 
-  const handleImportComplete = () => {
-    setRefreshTrigger(prev => prev + 1);
-  };
+  const handleImportComplete = useCallback(() => {
+    // Trigger global refresh after import
+    adminContext.triggerRefresh();
+    toast.success('Import complete - refreshing stats...');
+  }, [adminContext]);
 
   const handleRecomputeGpciStateAvg = async () => {
-    const token = await getAuthToken();
-    if (!token) {
-      toast.error('Please sign in to perform this action');
-      return;
-    }
-
     setRecomputingGpci(true);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recompute-gpci-state-avg`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      // Build URL with bypass if needed
+      const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recompute-gpci-state-avg`;
+      const url = adminContext.getImportUrl(baseUrl);
+      
+      // Build headers
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...adminContext.getAuthHeaders(),
+      };
+      
+      // Add auth header if session exists
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers
+      });
       
       const result = await response.json();
       
       if (result.ok) {
         toast.success(`Computed GPCI state averages for ${result.rowsComputed} states`);
-        setRefreshTrigger(prev => prev + 1);
+        adminContext.triggerRefresh();
       } else {
         toast.error(result.message || 'Failed to recompute GPCI state averages');
       }
@@ -62,219 +68,225 @@ export default function AdminDataImport() {
     }
   };
 
-  // TEMP: Auth disabled for development - skip auth check entirely
-  // To re-enable: uncomment the loading and access denied checks below
+  const handleGlobalRefresh = () => {
+    adminContext.triggerRefresh();
+    toast.success('Refreshing all stats...');
+  };
 
-  // if (adminGate.loading) {
-  //   return (
-  //     <div className="min-h-screen bg-background flex items-center justify-center">
-  //       <div className="text-center space-y-4">
-  //         <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-  //         <p className="text-muted-foreground">Checking authorization...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
-  // if (!adminGate.isAdmin) {
-  //   return (
-  //     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-  //       <div className="w-full max-w-md space-y-4">
-  //         <Card>
-  //           <CardHeader className="text-center">
-  //             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-  //               <ShieldAlert className="h-6 w-6 text-destructive" />
-  //             </div>
-  //             <CardTitle>Access Denied</CardTitle>
-  //             <CardDescription>
-  //               {adminGate.reason || 'You must be signed in with an admin account to access this page.'}
-  //             </CardDescription>
-  //           </CardHeader>
-  //           <CardContent className="space-y-4">
-  //             {adminGate.suggestion && (
-  //               <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
-  //                 💡 {adminGate.suggestion}
-  //               </div>
-  //             )}
-  //             <div className="text-center">
-  //               <Link to="/">
-  //                 <Button variant="outline" className="gap-2">
-  //                   <ArrowLeft className="h-4 w-4" />
-  //                   Return to Home
-  //                 </Button>
-  //               </Link>
-  //             </div>
-  //           </CardContent>
-  //         </Card>
-  //         <AdminGateDebug gate={adminGate} />
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  // Show loading while determining auth mode
+  if (adminContext.loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+          <p className="text-muted-foreground">Checking authorization...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background overflow-y-auto">
       {/* Sticky Dataset Status Bar */}
-      <DatasetStatusBar refreshTrigger={refreshTrigger} />
+      <DatasetStatusBar refreshTrigger={adminContext.refreshCount} />
       
       {/* Main Content - Scrollable container */}
       <div className="mx-auto max-w-3xl space-y-6 p-4 pb-32">
-          {/* TEMP: Development mode warning banner */}
-          <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg p-3 flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              <span className="font-semibold">Dev Mode:</span> Authentication temporarily disabled. Re-enable in AdminDataImport.tsx before production.
-            </p>
+        {/* Auth Mode Banner */}
+        <div className={`rounded-lg p-3 flex items-center justify-between ${
+          adminContext.authMode === 'bypass' 
+            ? 'bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700' 
+            : adminContext.authMode === 'session'
+              ? 'bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700'
+              : 'bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={
+              adminContext.authMode === 'bypass' ? 'bg-yellow-200 text-yellow-800' :
+              adminContext.authMode === 'session' ? 'bg-green-200 text-green-800' :
+              'bg-red-200 text-red-800'
+            }>
+              {adminContext.authMode === 'bypass' ? '🔓 Bypass' :
+               adminContext.authMode === 'session' ? '✅ Session' :
+               '❌ No Auth'}
+            </Badge>
+            <span className="text-sm text-muted-foreground">
+              {adminContext.authMode === 'bypass' && `via ${adminContext.bypassSource}`}
+              {adminContext.authMode === 'session' && adminContext.sessionEmail}
+              {adminContext.authMode === 'none' && 'Add ?bypass=admin123 or sign in'}
+            </span>
           </div>
-          
-          {/* Admin Gate Debug - shows in dev or with ?debug=1 */}
-          <AdminGateDebug gate={adminGate} />
-          
-          <div className="text-center pt-4">
-            <h1 className="text-3xl font-bold">Medicare Data Import</h1>
-            <p className="mt-2 text-muted-foreground">
-              Import MPFS, GPCI, OPPS, DMEPOS data via server-side processing
-            </p>
+          <div className="flex items-center gap-2">
+            {adminContext.lastRefresh && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {adminContext.lastRefresh.toLocaleTimeString()}
+              </span>
+            )}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleGlobalRefresh}
+              disabled={adminContext.refreshing}
+            >
+              {adminContext.refreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              <span className="ml-1 text-xs">Refresh All</span>
+            </Button>
           </div>
+        </div>
+        
+        {/* Admin Gate Debug - shows in dev or with ?debug=1 */}
+        <AdminGateDebug adminContext={adminContext} />
+        
+        <div className="text-center pt-4">
+          <h1 className="text-3xl font-bold">Medicare Data Import</h1>
+          <p className="mt-2 text-muted-foreground">
+            Import MPFS, GPCI, OPPS, DMEPOS data via server-side processing
+          </p>
+        </div>
 
-          {/* Strategy Audit - Comprehensive Report */}
-          <StrategyAuditCard />
+        {/* Strategy Audit - Comprehensive Report */}
+        <StrategyAuditCard key={`audit-${adminContext.refreshCount}`} />
 
-          {/* Dataset Validation */}
-          <DatasetValidationCard />
+        {/* Dataset Validation */}
+        <DatasetValidationCard key={`validation-${adminContext.refreshCount}`} />
 
-          {/* Data Gap Diagnostics - Live telemetry */}
-          <DataGapsDiagnosticsCard />
+        {/* Data Gap Diagnostics - Live telemetry */}
+        <DataGapsDiagnosticsCard />
 
-          {/* GPCI State Averages Recompute */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <RefreshCw className="h-5 w-5" />
-                Recompute Derived Tables
-              </CardTitle>
-              <CardDescription>
-                Regenerate computed tables from source data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border/30">
-                <div>
-                  <p className="font-medium">GPCI State Averages</p>
-                  <p className="text-sm text-muted-foreground">
-                    Computes state-level GPCI averages from gpci_localities for fallback pricing
-                  </p>
-                </div>
-                <Button 
-                  onClick={handleRecomputeGpciStateAvg} 
-                  disabled={recomputingGpci}
-                  variant="outline"
-                >
-                  {recomputingGpci ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Computing...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Recompute
-                    </>
-                  )}
-                </Button>
+        {/* GPCI State Averages Recompute */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Recompute Derived Tables
+            </CardTitle>
+            <CardDescription>
+              Regenerate computed tables from source data
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border/30">
+              <div>
+                <p className="font-medium">GPCI State Averages</p>
+                <p className="text-sm text-muted-foreground">
+                  Computes state-level GPCI averages from gpci_localities for fallback pricing
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <Button 
+                onClick={handleRecomputeGpciStateAvg} 
+                disabled={recomputingGpci || !adminContext.isAdmin}
+                variant="outline"
+              >
+                {recomputingGpci ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Computing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Recompute
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Self-Test */}
-          <SelfTestCard />
+        {/* Self-Test */}
+        <SelfTestCard />
 
-          {/* Coverage & Gaps Panel */}
-          <CoverageGapsPanel />
+        {/* Coverage & Gaps Panel */}
+        <CoverageGapsPanel />
 
-          {/* Coverage Metrics */}
-          <CoverageMetricsCard refreshTrigger={refreshTrigger} />
+        {/* Coverage Metrics */}
+        <CoverageMetricsCard refreshTrigger={adminContext.refreshCount} />
 
-          {/* GPCI Import */}
-          <ImportCard
-            title="GPCI Localities"
-            description="Geographic Practice Cost Index (2026 by Locality)"
-            dataType="gpci"
-            sourceInfo={{
-              source: "CMS GPCI File (gpci_2026_by_locality.xlsx)",
-              columns: "Locality, State, Work GPCI, PE GPCI, MP GPCI",
-              purpose: "Geographic fee adjustments for MPFS calculations"
-            }}
-            onImportComplete={handleImportComplete}
-          />
+        {/* GPCI Import */}
+        <ImportCard
+          title="GPCI Localities"
+          description="Geographic Practice Cost Index (2026 by Locality)"
+          dataType="gpci"
+          sourceInfo={{
+            source: "CMS GPCI File (gpci_2026_by_locality.xlsx)",
+            columns: "Locality, State, Work GPCI, PE GPCI, MP GPCI",
+            purpose: "Geographic fee adjustments for MPFS calculations"
+          }}
+          onImportComplete={handleImportComplete}
+        />
 
-          {/* OPPS Import */}
-          <ImportCard
-            title="OPPS Addendum B (2025)"
-            description="Hospital Outpatient Prospective Payment System — facility payment rates"
-            dataType="opps"
-            sourceInfo={{
-              source: "CMS OPPS Addendum B (January 2025)",
-              columns: "HCPCS, APC, Status Indicator, Payment Rate",
-              purpose: "Hospital outpatient facility fee reference"
-            }}
-            onImportComplete={handleImportComplete}
-          />
+        {/* OPPS Import */}
+        <ImportCard
+          title="OPPS Addendum B (2025)"
+          description="Hospital Outpatient Prospective Payment System — facility payment rates"
+          dataType="opps"
+          sourceInfo={{
+            source: "CMS OPPS Addendum B (January 2025)",
+            columns: "HCPCS, APC, Status Indicator, Payment Rate",
+            purpose: "Hospital outpatient facility fee reference"
+          }}
+          onImportComplete={handleImportComplete}
+        />
 
-          {/* CLFS Import */}
-          <ImportCard
-            title="CLFS (Clinical Lab Fee Schedule)"
-            description="Clinical Laboratory Fee Schedule — national payment limits for lab tests"
-            dataType="clfs"
-            sourceInfo={{
-              source: "CMS CLFS 2026 Q1 (CLFS_2026_Q1V1.xlsx)",
-              columns: "HCPCS, Short Description, Payment Amount",
-              purpose: "Medicare reference pricing for lab codes (80000-89999)"
-            }}
-            onImportComplete={handleImportComplete}
-          />
+        {/* CLFS Import */}
+        <ImportCard
+          title="CLFS (Clinical Lab Fee Schedule)"
+          description="Clinical Laboratory Fee Schedule — national payment limits for lab tests"
+          dataType="clfs"
+          sourceInfo={{
+            source: "CMS CLFS 2026 Q1 (CLFS_2026_Q1V1.xlsx)",
+            columns: "HCPCS, Short Description, Payment Amount",
+            purpose: "Medicare reference pricing for lab codes (80000-89999)"
+          }}
+          onImportComplete={handleImportComplete}
+        />
 
-          {/* DMEPOS Import */}
-          <ImportCard
-            title="DMEPOS Fee Schedule (2026)"
-            description="Durable Medical Equipment, Prosthetics, Orthotics & Supplies"
-            dataType="dmepos"
-            sourceInfo={{
-              source: "CMS DMEPOS Fee Schedule (January 2026)",
-              columns: "HCPCS, Modifier, State fees (NR/R)",
-              purpose: "Reference pricing for medical equipment (A/E/K/L codes)"
-            }}
-            onImportComplete={handleImportComplete}
-          />
+        {/* DMEPOS Import */}
+        <ImportCard
+          title="DMEPOS Fee Schedule (2026)"
+          description="Durable Medical Equipment, Prosthetics, Orthotics & Supplies"
+          dataType="dmepos"
+          sourceInfo={{
+            source: "CMS DMEPOS Fee Schedule (January 2026)",
+            columns: "HCPCS, Modifier, State fees (NR/R)",
+            purpose: "Reference pricing for medical equipment (A/E/K/L codes)"
+          }}
+          onImportComplete={handleImportComplete}
+        />
 
-          {/* Verify DMEPOS */}
-          <VerifyDmeposCard />
+        {/* Verify DMEPOS */}
+        <VerifyDmeposCard />
 
-          {/* DMEPEN Import */}
-          <ImportCard
-            title="DMEPEN Fee Schedule (2026)"
-            description="Enteral and Parenteral Nutrition supplies"
-            dataType="dmepen"
-            sourceInfo={{
-              source: "CMS DMEPEN Fee Schedule (January 2026)",
-              columns: "HCPCS, Modifier, State fees",
-              purpose: "Reference pricing for enteral/parenteral nutrition (B codes)"
-            }}
-            onImportComplete={handleImportComplete}
-          />
+        {/* DMEPEN Import */}
+        <ImportCard
+          title="DMEPEN Fee Schedule (2026)"
+          description="Enteral and Parenteral Nutrition supplies"
+          dataType="dmepen"
+          sourceInfo={{
+            source: "CMS DMEPEN Fee Schedule (January 2026)",
+            columns: "HCPCS, Modifier, State fees",
+            purpose: "Reference pricing for enteral/parenteral nutrition (B codes)"
+          }}
+          onImportComplete={handleImportComplete}
+        />
 
-          {/* ZIP Crosswalk Import */}
-          <ImportCard
-            title="ZIP → Locality Crosswalk"
-            description="CMS ZIP code to Medicare carrier/locality mapping (2026)"
-            dataType="zip-crosswalk"
-            sourceInfo={{
-              source: "CMS ZIP Code to Carrier Locality File (ZIP5_JAN2026.xlsx)",
-              columns: "STATE, ZIP CODE, CARRIER, LOCALITY",
-              purpose: "Maps ZIP codes to Medicare payment localities"
-            }}
-            onImportComplete={handleImportComplete}
-          />
+        {/* ZIP Crosswalk Import */}
+        <ImportCard
+          title="ZIP → Locality Crosswalk"
+          description="CMS ZIP code to Medicare carrier/locality mapping (2026)"
+          dataType="zip-crosswalk"
+          sourceInfo={{
+            source: "CMS ZIP Code to Carrier Locality File (ZIP5_JAN2026.xlsx)",
+            columns: "STATE, ZIP CODE, CARRIER, LOCALITY",
+            purpose: "Maps ZIP codes to Medicare payment localities"
+          }}
+          onImportComplete={handleImportComplete}
+        />
 
         {/* Back Link */}
         <div className="text-center pb-8">
@@ -294,5 +306,13 @@ export default function AdminDataImport() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AdminDataImport() {
+  return (
+    <AdminContextProvider>
+      <AdminDataImportContent />
+    </AdminContextProvider>
   );
 }
