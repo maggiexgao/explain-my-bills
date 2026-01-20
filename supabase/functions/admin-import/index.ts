@@ -160,68 +160,138 @@ function normalizeHeader(header: string): string {
 }
 
 // ============================================================================
-// OPPS Parser
+// OPPS Parser (Fixed for header at row 4 and strict HCPCS validation)
 // ============================================================================
 
-function parseOppsData(data: unknown[][], year: number = 2025): { records: unknown[]; meta: { headerRow: number; columns: string[] } } {
+/**
+ * Validate if a value looks like a valid HCPCS code
+ * CRITICAL: NEVER use parseInt/Number on HCPCS codes!
+ * 
+ * Valid patterns:
+ * - 5 digits (CPT): 99284, 80053, 00100
+ * - 1 letter + 4 digits (HCPCS II): E0114, J1885, A0428, G0378
+ * - 4 digits + 1 letter (PLA codes): 0001U
+ */
+function isValidHcpcsCode(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  
+  // CRITICAL: Always treat as string, never as number!
+  const str = String(value).trim().toUpperCase();
+  
+  // Must be exactly 5 characters
+  if (str.length !== 5) return false;
+  
+  // Valid HCPCS patterns (alphanumeric, 5 chars)
+  // - 5 digits: 99284, 80053
+  // - Letter + 4 digits: E0114, J1885, A0428, G0378
+  // - 4 digits + letter: 0001U
+  return /^[A-Z0-9]{5}$/.test(str);
+}
+
+/**
+ * Normalize HCPCS code to canonical format
+ * Always returns string, never parses as number
+ */
+function normalizeHcpcsCode(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  
+  // CRITICAL: Always treat as string!
+  const str = String(value).trim().toUpperCase();
+  
+  if (str === '' || str.length < 4 || str.length > 7) return null;
+  
+  // If contains spaces, it's likely a description, not a code
+  if (str.includes(' ')) return null;
+  
+  // Extract just the first 5 alphanumeric characters
+  const cleaned = str.replace(/[^A-Z0-9]/g, '').substring(0, 5);
+  
+  if (isValidHcpcsCode(cleaned)) {
+    return cleaned;
+  }
+  
+  return null;
+}
+
+function parseOppsData(data: unknown[][], year: number = 2025): { records: unknown[]; meta: { headerRow: number; columns: string[]; totalRows: number; parsedRows: number; sampleCodes: string[] } } {
   const records: unknown[] = [];
   let headerRowIndex = -1;
   const colMap: ColumnMap = {};
+  const sampleCodes: string[] = [];
 
-  // Find header row - look for row with HCPCS and at least one other expected column
-  const expectedHeaders = ['hcpcs', 'hcpcscode', 'si', 'statusindicator', 'apc', 'paymentrate', 'payment'];
-  
+  console.log(`[OPPS Parser] Starting parse. Total rows in file: ${data.length}`);
+
+  // Find header row by searching for "HCPCS" in ANY cell
+  // The OPPS file has header at row 4 (0-indexed: row 3)
   for (let i = 0; i < Math.min(50, data.length); i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
     
-    let matchCount = 0;
-    row.forEach((cell, idx) => {
+    // Look for a cell containing "HCPCS"
+    const hcpcsColIdx = row.findIndex(cell => {
       if (typeof cell === 'string') {
-        const normalized = normalizeHeader(cell);
-        if (expectedHeaders.includes(normalized) || normalized.includes('hcpcs')) {
-          matchCount++;
-        }
+        const upper = cell.toUpperCase().trim();
+        return upper === 'HCPCS' || upper === 'HCPCS CODE' || upper === 'HCPCSCODE';
       }
+      return false;
     });
     
-    if (matchCount >= 2) {
+    if (hcpcsColIdx >= 0) {
       headerRowIndex = i;
+      console.log(`[OPPS Parser] Found header row at index ${i}, HCPCS column at index ${hcpcsColIdx}`);
       
       // Build column map with flexible matching
       row.forEach((cell, idx) => {
         if (typeof cell === 'string') {
           const normalized = normalizeHeader(cell);
-          if (normalized.includes('hcpcs')) colMap['hcpcs'] = idx;
-          else if (normalized === 'shortdescriptor' || normalized.includes('shortdesc')) colMap['short_desc'] = idx;
-          else if (normalized === 'si' || normalized === 'statusindicator') colMap['status_indicator'] = idx;
-          else if (normalized === 'apc') colMap['apc'] = idx;
-          else if (normalized === 'relativeweight') colMap['relative_weight'] = idx;
-          else if (normalized === 'paymentrate' || normalized === 'payment') colMap['payment_rate'] = idx;
+          const upper = cell.toUpperCase().trim();
+          
+          // Map columns
+          if (upper === 'HCPCS' || upper === 'HCPCS CODE') colMap['hcpcs'] = idx;
+          else if (normalized === 'shortdescriptor' || normalized.includes('shortdesc') || upper === 'SHORT DESCRIPTOR') colMap['short_desc'] = idx;
+          else if (normalized === 'si' || normalized === 'statusindicator' || upper === 'SI') colMap['status_indicator'] = idx;
+          else if (normalized === 'apc' || upper === 'APC') colMap['apc'] = idx;
+          else if (normalized.includes('relativeweight') || upper === 'RELATIVE WEIGHT') colMap['relative_weight'] = idx;
+          else if (normalized.includes('paymentrate') || upper === 'PAYMENT RATE') colMap['payment_rate'] = idx;
           else if (normalized.includes('national') && normalized.includes('copay')) colMap['national_copay'] = idx;
           else if (normalized.includes('minimum') && normalized.includes('copay')) colMap['minimum_copay'] = idx;
           else if (normalized.includes('long') && normalized.includes('desc')) colMap['long_desc'] = idx;
         }
       });
+      
+      console.log(`[OPPS Parser] Column map:`, JSON.stringify(colMap));
       break;
     }
   }
 
   if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
-    return { records: [], meta: { headerRow: -1, columns: [] } };
+    console.error(`[OPPS Parser] FAILED: Could not find HCPCS header row`);
+    return { records: [], meta: { headerRow: -1, columns: [], totalRows: data.length, parsedRows: 0, sampleCodes: [] } };
   }
 
-  // Parse data rows
+  // Parse data rows (starting after header)
+  let skippedInvalid = 0;
   for (let i = headerRowIndex + 1; i < data.length; i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
     
-    const hcpcs = parseString(row[colMap['hcpcs']]);
-    if (!hcpcs || hcpcs.length < 4) continue;
+    // Get the HCPCS value - ALWAYS as string, NEVER as number!
+    const rawHcpcs = row[colMap['hcpcs']];
+    const hcpcs = normalizeHcpcsCode(rawHcpcs);
+    
+    if (!hcpcs) {
+      skippedInvalid++;
+      continue;
+    }
+    
+    // Collect sample codes for debugging
+    if (sampleCodes.length < 10) {
+      sampleCodes.push(hcpcs);
+    }
     
     records.push({
       year,
-      hcpcs: hcpcs.toUpperCase().trim(),
+      hcpcs,  // Already normalized to uppercase
       apc: parseString(row[colMap['apc']]),
       status_indicator: parseString(row[colMap['status_indicator']]),
       payment_rate: parseNumeric(row[colMap['payment_rate']]),
@@ -234,11 +304,17 @@ function parseOppsData(data: unknown[][], year: number = 2025): { records: unkno
     });
   }
 
+  console.log(`[OPPS Parser] Parse complete: ${records.length} valid records, ${skippedInvalid} skipped (invalid HCPCS)`);
+  console.log(`[OPPS Parser] Sample codes:`, sampleCodes);
+
   return { 
     records, 
     meta: { 
       headerRow: headerRowIndex, 
-      columns: Object.keys(colMap) 
+      columns: Object.keys(colMap),
+      totalRows: data.length,
+      parsedRows: records.length,
+      sampleCodes
     } 
   };
 }
