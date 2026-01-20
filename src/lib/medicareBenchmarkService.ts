@@ -33,6 +33,9 @@ export type FeeSource =
   | 'opps_rate'           // OPPS hospital outpatient rate from database
   | 'opps_fallback'       // OPPS rate from hardcoded fallback table
   | 'clfs_rate'           // Clinical Lab Fee Schedule rate
+  | 'asp_drug'            // Average Sales Price for drug J-codes
+  | 'revenue_code'        // Hospital revenue code (billing category)
+  | 's_code'              // Private payer S-code
   | null;                 // Fee could not be determined
 
 // Reason why a code exists but has no price
@@ -447,22 +450,70 @@ const OPPS_FALLBACK_RATES: Record<string, { payment_rate: number; status_indicat
   'G0379': { payment_rate: 0.00, status_indicator: 'N', apc: '8011', short_desc: 'Direct admit to observation' },
 };
 
-// Common drug ASP (Average Sales Price) fallback rates
-const DRUG_ASP_FALLBACK: Record<string, { asp: number; desc: string; unit: string }> = {
-  'J2405': { asp: 0.50, desc: 'Ondansetron', unit: 'per 1mg' },
-  'J2550': { asp: 0.25, desc: 'Promethazine', unit: 'per 50mg' },
-  'J1100': { asp: 3.00, desc: 'Dexamethasone', unit: 'per 1mg' },
-  'J2270': { asp: 2.50, desc: 'Morphine', unit: 'per 10mg' },
-  'J1885': { asp: 4.00, desc: 'Ketorolac', unit: 'per 15mg' },
-  'J3010': { asp: 2.00, desc: 'Fentanyl', unit: 'per 0.1mg' },
-  'J2175': { asp: 1.50, desc: 'Meperidine', unit: 'per 100mg' },
-  'J0170': { asp: 5.00, desc: 'Epinephrine', unit: 'per 1mg' },
-  'J1200': { asp: 0.50, desc: 'Diphenhydramine', unit: 'per 50mg' },
-  'J2765': { asp: 1.00, desc: 'Metoclopramide', unit: 'per 10mg' },
+// Common drug ASP (Average Sales Price) fallback rates with typical dose multipliers
+// Medicare pays ASP + 6% - hospital markups are typically 3-5× the ASP rate
+const DRUG_ASP_FALLBACK: Record<string, { asp: number; desc: string; unit: string; typicalDose: number }> = {
+  'J2405': { asp: 0.12, desc: 'Ondansetron', unit: 'per 1mg', typicalDose: 4 },      // 4mg dose common
+  'J2550': { asp: 0.33, desc: 'Promethazine', unit: 'per 50mg', typicalDose: 1 },    // 25-50mg
+  'J1100': { asp: 0.15, desc: 'Dexamethasone', unit: 'per 1mg', typicalDose: 4 },    // 4mg dose
+  'J2270': { asp: 0.17, desc: 'Morphine', unit: 'per 10mg', typicalDose: 1 },        // 4-10mg
+  'J1885': { asp: 2.50, desc: 'Ketorolac', unit: 'per 15mg', typicalDose: 2 },       // 30mg
+  'J3010': { asp: 0.02, desc: 'Fentanyl', unit: 'per 0.1mg', typicalDose: 1 },       // 50-100mcg
+  'J2175': { asp: 1.50, desc: 'Meperidine', unit: 'per 100mg', typicalDose: 1 },     // 50-100mg
+  'J0170': { asp: 5.00, desc: 'Epinephrine', unit: 'per 1mg', typicalDose: 1 },
+  'J1200': { asp: 0.50, desc: 'Diphenhydramine', unit: 'per 50mg', typicalDose: 1 }, // 25-50mg
+  'J2765': { asp: 1.00, desc: 'Metoclopramide', unit: 'per 10mg', typicalDose: 1 },
+  'J0690': { asp: 0.10, desc: 'Cefazolin', unit: 'per 500mg', typicalDose: 2 },      // 1g dose
+  'J1040': { asp: 0.25, desc: 'Methylprednisolone', unit: 'per 40mg', typicalDose: 3 }, // 125mg
+  'J0129': { asp: 5.00, desc: 'Abatacept', unit: 'per 10mg', typicalDose: 75 },
+  'J3490': { asp: 0.00, desc: 'Unspecified drug', unit: 'N/A', typicalDose: 1 },     // Misc drugs
 };
 
 // OPPS year constant
 const OPPS_YEAR = 2025;
+
+// ============= Revenue Code Handling =============
+
+const REVENUE_CODE_DESCRIPTIONS: Record<string, string> = {
+  '0250': 'Pharmacy (general)',
+  '0252': 'Pharmacy - Generic drugs',
+  '0253': 'Pharmacy - Non-generic drugs',
+  '0254': 'Pharmacy - Drugs requiring specific ID',
+  '0255': 'Pharmacy - Biologicals',
+  '0258': 'Pharmacy - IV solutions',
+  '0260': 'IV Therapy (general)',
+  '0261': 'IV Therapy - Infusion pump',
+  '0262': 'IV Therapy - IV pump supplies',
+  '0263': 'IV Therapy - Supplies',
+  '0264': 'IV Therapy - Admixture',
+  '0270': 'Medical/Surgical Supplies (general)',
+  '0271': 'Medical/Surgical - Non-sterile supply',
+  '0272': 'Medical/Surgical - Sterile supply',
+  '0274': 'Medical/Surgical - Prosthetic devices',
+  '0278': 'Medical/Surgical - Other implants',
+  '0300': 'Lab (general)',
+  '0301': 'Lab - Chemistry',
+  '0302': 'Lab - Immunology',
+  '0305': 'Lab - Hematology',
+  '0306': 'Lab - Blood bank',
+  '0320': 'Radiology - Diagnostic',
+  '0324': 'Radiology - Diagnostic - Nuclear medicine',
+  '0350': 'CT Scan (general)',
+  '0351': 'CT Scan - Head',
+  '0352': 'CT Scan - Body',
+  '0360': 'OR Services (general)',
+  '0370': 'Anesthesia (general)',
+  '0450': 'Emergency Room (general)',
+  '0451': 'Emergency Room - EMTALA',
+  '0456': 'Emergency Room - Urgent care',
+  '0459': 'Emergency Room - Other',
+  '0510': 'Clinic (general)',
+  '0636': 'Drugs requiring specific ID',
+  '0710': 'Recovery Room',
+  '0730': 'EKG/ECG',
+  '0761': 'Treatment Room - Observation',
+  '0762': 'Treatment Room - Other',
+};
 
 // ============= Code Normalization =============
 
@@ -892,6 +943,61 @@ function isClfsCode(hcpcs: string): boolean {
 function isJCode(hcpcs: string): boolean {
   if (!hcpcs) return false;
   return hcpcs.trim().toUpperCase().startsWith('J');
+}
+
+/**
+ * Check if a code is a hospital revenue code (4 digits starting with 0)
+ */
+export function isRevenueCode(code: string): boolean {
+  if (!code) return false;
+  return /^0\d{3}$/.test(code.trim());
+}
+
+/**
+ * Check if a code is an S-code (private payer code)
+ */
+export function isSCode(code: string): boolean {
+  if (!code) return false;
+  return code.trim().toUpperCase().startsWith('S');
+}
+
+/**
+ * Get description for a revenue code
+ */
+function getRevenueCodeDescription(code: string): string {
+  const normalized = code.trim();
+  return REVENUE_CODE_DESCRIPTIONS[normalized] || 'Hospital billing category';
+}
+
+/**
+ * Lookup drug ASP (Average Sales Price) for a J-code
+ * Medicare pays ASP + 6% for separately payable drugs
+ */
+function lookupDrugAsp(hcpcs: string, units: number = 1): { 
+  aspPerUnit: number | null; 
+  totalAsp: number | null;
+  description: string | null;
+  unit: string | null;
+  typicalDose: number;
+} {
+  const normalizedCode = hcpcs.trim().toUpperCase();
+  console.log(`[Drug ASP] Looking up: ${normalizedCode}`);
+  
+  const aspData = DRUG_ASP_FALLBACK[normalizedCode];
+  if (aspData && aspData.asp > 0) {
+    const totalAsp = aspData.asp * aspData.typicalDose;
+    console.log(`[Drug ASP] Found: ${normalizedCode} = $${aspData.asp} ${aspData.unit} × ${aspData.typicalDose} = $${totalAsp.toFixed(2)} (${aspData.desc})`);
+    return {
+      aspPerUnit: aspData.asp,
+      totalAsp,
+      description: aspData.desc,
+      unit: aspData.unit,
+      typicalDose: aspData.typicalDose
+    };
+  }
+  
+  console.log(`[Drug ASP] Not found: ${normalizedCode}`);
+  return { aspPerUnit: null, totalAsp: null, description: null, unit: null, typicalDose: 1 };
 }
 
 /**
@@ -1351,6 +1457,134 @@ export async function calculateMedicareBenchmarks(
     // Check if this is a facility-based item
     const isFacility = item.isFacility === true;
     console.log(`[Benchmark] Processing ${normalized.hcpcs}, isFacility: ${isFacility}`);
+    
+    // === SPECIAL CODE HANDLING (before standard lookup) ===
+    
+    // Handle S-codes (private payer codes - no Medicare equivalent)
+    if (isSCode(normalized.hcpcs)) {
+      console.log(`[Benchmark] S-code detected: ${normalized.hcpcs}`);
+      codesMissing.push(normalized.hcpcs);
+      results.push({
+        hcpcs: normalized.hcpcs,
+        modifier: normalized.modifier,
+        description: item.description || 'Private payer code',
+        billedAmount: item.billedAmount,
+        units: item.units,
+        medicareReferencePerUnit: null,
+        medicareReferenceTotal: null,
+        multiple: null,
+        status: 'unknown',
+        matchStatus: 'missing',
+        benchmarkYearUsed: null,
+        requestedYear: yearToRequest,
+        notes: ['S-codes are private payer codes without Medicare equivalents. This code represents a specific supply or service defined by your insurer.'],
+        exclusionReason: 's_code_no_medicare',
+        feeSource: 's_code',
+        notPricedReason: null
+      });
+      continue;
+    }
+    
+    // Handle revenue codes (hospital billing categories - 4 digits starting with 0)
+    if (isRevenueCode(normalized.hcpcs)) {
+      console.log(`[Benchmark] Revenue code detected: ${normalized.hcpcs}`);
+      const revDesc = getRevenueCodeDescription(normalized.hcpcs);
+      codesMissing.push(normalized.hcpcs);
+      results.push({
+        hcpcs: normalized.hcpcs,
+        modifier: normalized.modifier,
+        description: item.description || revDesc,
+        billedAmount: item.billedAmount,
+        units: item.units,
+        medicareReferencePerUnit: null,
+        medicareReferenceTotal: null,
+        multiple: null,
+        status: 'unknown',
+        matchStatus: 'missing',
+        benchmarkYearUsed: null,
+        requestedYear: yearToRequest,
+        notes: [`Revenue code ${normalized.hcpcs} (${revDesc}) is a billing category. Ask for an itemized bill with CPT codes for specific comparison.`],
+        exclusionReason: 'revenue_code',
+        feeSource: 'revenue_code',
+        notPricedReason: null
+      });
+      continue;
+    }
+    
+    // Handle J-codes (drugs) - use ASP fallback if available
+    if (isJCode(normalized.hcpcs)) {
+      console.log(`[Benchmark] J-code (drug) detected: ${normalized.hcpcs}`);
+      const aspLookup = lookupDrugAsp(normalized.hcpcs, item.units);
+      
+      if (aspLookup.aspPerUnit !== null && aspLookup.totalAsp !== null) {
+        // Found ASP data for this drug
+        const medicarePays = aspLookup.totalAsp * 1.06; // Medicare pays ASP + 6%
+        const units = item.units > 0 ? item.units : 1;
+        
+        // Calculate markup if billed amount is available
+        const markup = (item.billedAmount !== null && item.billedAmount > 0 && medicarePays > 0)
+          ? Math.round((item.billedAmount / medicarePays) * 10) / 10
+          : null;
+        
+        codesMatched.push(normalized.hcpcs);
+        hasAnyBenchmark = true;
+        totalMedicareReference += medicarePays;
+        
+        const notes = [
+          `Drug: ${aspLookup.description}`,
+          `Medicare ASP reference: $${aspLookup.aspPerUnit.toFixed(2)} ${aspLookup.unit}`,
+          `Medicare pays ASP + 6% = $${medicarePays.toFixed(2)}`
+        ];
+        if (markup !== null) {
+          notes.push(`Hospital markup: ${markup}× Medicare rate`);
+          if (markup > 5) {
+            notes.push('⚠️ Drug markup above 500% of Medicare rate is common in hospital settings');
+          }
+        }
+        
+        results.push({
+          hcpcs: normalized.hcpcs,
+          modifier: normalized.modifier,
+          description: aspLookup.description || item.description || 'Injectable drug',
+          billedAmount: item.billedAmount,
+          units,
+          medicareReferencePerUnit: aspLookup.aspPerUnit * 1.06,
+          medicareReferenceTotal: medicarePays,
+          multiple: markup,
+          status: markup !== null && markup > 3 ? 'very_high' : markup !== null && markup > 2 ? 'high' : 'fair',
+          matchStatus: 'matched',
+          benchmarkYearUsed: 2026,
+          requestedYear: yearToRequest,
+          notes,
+          gpciAdjusted: false,
+          feeSource: 'asp_drug',
+          notPricedReason: null
+        });
+        continue;
+      }
+      
+      // No ASP data - still record as drug with explanation
+      codesMissing.push(normalized.hcpcs);
+      results.push({
+        hcpcs: normalized.hcpcs,
+        modifier: normalized.modifier,
+        description: item.description || 'Injectable drug',
+        billedAmount: item.billedAmount,
+        units: item.units,
+        medicareReferencePerUnit: null,
+        medicareReferenceTotal: null,
+        multiple: null,
+        status: 'unknown',
+        matchStatus: 'missing',
+        benchmarkYearUsed: null,
+        requestedYear: yearToRequest,
+        notes: ['Drug code - Medicare pays ASP + 6%. Hospital markup on drugs typically ranges 200-500% of Medicare rates.'],
+        exclusionReason: 'drug_no_asp',
+        feeSource: 'asp_drug',
+        notPricedReason: null
+      });
+      continue;
+    }
     
     // === OPPS LOOKUP FOR FACILITY SETTINGS ===
     // For facility-based items (hospital, ER, ASC), try OPPS first

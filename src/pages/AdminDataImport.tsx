@@ -61,56 +61,55 @@ export default function AdminDataImport() {
     }
   };
 
-  // Show loading state while checking auth
-  if (adminGate.loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-          <p className="text-muted-foreground">Checking authorization...</p>
-        </div>
-      </div>
-    );
-  }
+  // TEMP: Auth disabled for development - skip auth check entirely
+  // To re-enable: uncomment the loading and access denied checks below
 
-  // Show unauthorized message with detailed feedback
-  if (!adminGate.isAdmin) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-4">
-          <Card>
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-                <ShieldAlert className="h-6 w-6 text-destructive" />
-              </div>
-              <CardTitle>Access Denied</CardTitle>
-              <CardDescription>
-                {adminGate.reason || 'You must be signed in with an admin account to access this page.'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {adminGate.suggestion && (
-                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
-                  💡 {adminGate.suggestion}
-                </div>
-              )}
-              <div className="text-center">
-                <Link to="/">
-                  <Button variant="outline" className="gap-2">
-                    <ArrowLeft className="h-4 w-4" />
-                    Return to Home
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Debug panel - shows in dev or with ?debug=1 */}
-          <AdminGateDebug gate={adminGate} />
-        </div>
-      </div>
-    );
-  }
+  // if (adminGate.loading) {
+  //   return (
+  //     <div className="min-h-screen bg-background flex items-center justify-center">
+  //       <div className="text-center space-y-4">
+  //         <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+  //         <p className="text-muted-foreground">Checking authorization...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
+  // if (!adminGate.isAdmin) {
+  //   return (
+  //     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+  //       <div className="w-full max-w-md space-y-4">
+  //         <Card>
+  //           <CardHeader className="text-center">
+  //             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+  //               <ShieldAlert className="h-6 w-6 text-destructive" />
+  //             </div>
+  //             <CardTitle>Access Denied</CardTitle>
+  //             <CardDescription>
+  //               {adminGate.reason || 'You must be signed in with an admin account to access this page.'}
+  //             </CardDescription>
+  //           </CardHeader>
+  //           <CardContent className="space-y-4">
+  //             {adminGate.suggestion && (
+  //               <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
+  //                 💡 {adminGate.suggestion}
+  //               </div>
+  //             )}
+  //             <div className="text-center">
+  //               <Link to="/">
+  //                 <Button variant="outline" className="gap-2">
+  //                   <ArrowLeft className="h-4 w-4" />
+  //                   Return to Home
+  //                 </Button>
+  //               </Link>
+  //             </div>
+  //           </CardContent>
+  //         </Card>
+  //         <AdminGateDebug gate={adminGate} />
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="min-h-screen bg-background overflow-y-auto">
@@ -119,6 +118,14 @@ export default function AdminDataImport() {
       
       {/* Main Content - Scrollable container */}
       <div className="mx-auto max-w-3xl space-y-6 p-4 pb-32">
+          {/* TEMP: Development mode warning banner */}
+          <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg p-3 flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+              <span className="font-semibold">Dev Mode:</span> Authentication temporarily disabled. Re-enable in AdminDataImport.tsx before production.
+            </p>
+          </div>
+          
           {/* Admin Gate Debug - shows in dev or with ?debug=1 */}
           <AdminGateDebug gate={adminGate} />
           

@@ -141,7 +141,7 @@ function ServiceTypicalInfo({ hcpcs, description }: { hcpcs: string; description
 }
 
 // Status configuration
-type StatusType = 'very_high' | 'high' | 'fair' | 'bundled' | 'no_ref' | 'drug' | 's_code' | 'unknown';
+type StatusType = 'very_high' | 'high' | 'fair' | 'bundled' | 'no_ref' | 'drug' | 's_code' | 'rev_code' | 'unknown';
 
 const statusConfig: Record<StatusType, { 
   icon: React.ElementType;
@@ -156,18 +156,39 @@ const statusConfig: Record<StatusType, {
   no_ref: { icon: HelpCircle, label: 'No ref', color: 'text-muted-foreground', bg: 'bg-muted/30' },
   drug: { icon: Pill, label: 'Drug', color: 'text-purple-600', bg: 'bg-purple/10' },
   s_code: { icon: FileQuestion, label: 'S-code', color: 'text-muted-foreground', bg: 'bg-muted/30' },
+  rev_code: { icon: FileQuestion, label: 'Rev code', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
   unknown: { icon: HelpCircle, label: '—', color: 'text-muted-foreground', bg: 'bg-muted/10' },
 };
 
 function getStatusType(item: BenchmarkLineResult): StatusType {
-  // Check for S-codes (private payer codes)
+  // Check feeSource first for specific code types
+  if (item.feeSource === 'revenue_code') {
+    return 'rev_code';
+  }
+  if (item.feeSource === 's_code') {
+    return 's_code';
+  }
+  if (item.feeSource === 'asp_drug') {
+    // If drug has a price, show status based on multiple, otherwise show drug
+    if (item.matchStatus === 'matched' && item.multiple !== null) {
+      if (item.status === 'very_high') return 'very_high';
+      if (item.status === 'high') return 'high';
+      if (item.status === 'fair') return 'fair';
+    }
+    return 'drug';
+  }
+  
+  // Legacy fallback checks for S-codes and J-codes
   if (item.hcpcs?.toUpperCase().startsWith('S')) {
     return 's_code';
   }
-  
-  // Check for J-codes (drugs)
   if (item.hcpcs?.toUpperCase().startsWith('J')) {
     return 'drug';
+  }
+  
+  // Check for revenue codes (4-digit codes starting with 0)
+  if (/^0\d{3}$/.test(item.hcpcs || '')) {
+    return 'rev_code';
   }
   
   // Check match status
@@ -267,18 +288,21 @@ function ServiceRow({
             {item.medicareReferenceTotal ? formatCurrency(item.medicareReferenceTotal) : '—'}
           </p>
           {/* Show data source badge based on feeSource */}
-          {item.feeSource && (
+          {item.feeSource && item.feeSource !== 'revenue_code' && item.feeSource !== 's_code' && (
             <span className={cn(
               "text-[10px] px-1.5 py-0.5 rounded font-medium",
               item.feeSource === 'opps_rate' || item.feeSource === 'opps_fallback' 
                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                 : item.feeSource === 'clfs_rate'
                 ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                : item.feeSource === 'asp_drug'
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                 : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
             )}>
               {item.feeSource === 'opps_rate' ? 'OPPS' :
                item.feeSource === 'opps_fallback' ? 'OPPS' :
                item.feeSource === 'clfs_rate' ? 'CLFS' :
+               item.feeSource === 'asp_drug' ? 'ASP' :
                item.feeSource === 'rvu_calc_local' ? 'MPFS (Local)' : 
                item.feeSource === 'rvu_calc_national' ? 'MPFS' :
                item.feeSource === 'direct_fee' ? 'MPFS' : ''}
