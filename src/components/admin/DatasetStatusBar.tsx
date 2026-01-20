@@ -57,13 +57,28 @@ export function DatasetStatusBar({ refreshTrigger }: DatasetStatusBarProps) {
         supabase.from('dmepen_fee_schedule').select('hcpcs, created_at', { count: 'exact' }).limit(1),
       ]);
 
-      // Get unique code counts
+      // Get unique code counts using proper string handling
+      // CRITICAL: Never use numeric coercion on HCPCS codes!
       const [mpfsUnique, oppsUnique, dmeposUnique, dmepenUnique] = await Promise.all([
-        supabase.from('mpfs_benchmarks').select('hcpcs').limit(20000),
-        supabase.from('opps_addendum_b').select('hcpcs').limit(20000),
-        supabase.from('dmepos_fee_schedule').select('hcpcs').limit(20000),
+        supabase.from('mpfs_benchmarks').select('hcpcs').limit(50000),
+        supabase.from('opps_addendum_b').select('hcpcs').limit(50000),
+        supabase.from('dmepos_fee_schedule').select('hcpcs').limit(100000),
         supabase.from('dmepen_fee_schedule').select('hcpcs').limit(20000),
       ]);
+      
+      // Helper function to count unique codes with proper string normalization
+      const countUniqueCodes = (data: { hcpcs: unknown }[] | null): number => {
+        if (!data) return 0;
+        const uniqueSet = new Set<string>();
+        for (const row of data) {
+          // CRITICAL: Always treat codes as strings, NEVER use Number() or parseInt()!
+          const code = String(row.hcpcs || '').trim().toUpperCase();
+          if (code && code.length >= 4 && code.length <= 5 && /^[A-Z0-9]{4,5}$/.test(code)) {
+            uniqueSet.add(code);
+          }
+        }
+        return uniqueSet.size;
+      };
 
       const getStatus = (count: number | null): 'loaded' | 'partial' | 'missing' => {
         if (!count || count === 0) return 'missing';
@@ -81,7 +96,7 @@ export function DatasetStatusBar({ refreshTrigger }: DatasetStatusBarProps) {
           description: 'Medicare Physician Fee Schedule',
           status: getStatus(mpfsResult.count),
           rowCount: mpfsResult.count || 0,
-          uniqueCodes: new Set(mpfsUnique.data?.map(r => r.hcpcs) || []).size,
+          uniqueCodes: countUniqueCodes(mpfsUnique.data),
           yearsAvailable: '2026',
           lastUpdated: formatDate(mpfsResult.data?.[0]?.created_at)
         },
@@ -108,7 +123,7 @@ export function DatasetStatusBar({ refreshTrigger }: DatasetStatusBarProps) {
           description: 'Hospital Outpatient Payment',
           status: getStatus(oppsResult.count),
           rowCount: oppsResult.count || 0,
-          uniqueCodes: new Set(oppsUnique.data?.map(r => r.hcpcs) || []).size,
+          uniqueCodes: countUniqueCodes(oppsUnique.data),
           yearsAvailable: '2025',
           lastUpdated: formatDate(oppsResult.data?.[0]?.created_at)
         },
@@ -117,7 +132,7 @@ export function DatasetStatusBar({ refreshTrigger }: DatasetStatusBarProps) {
           description: 'Durable Medical Equipment',
           status: getStatus(dmeposResult.count),
           rowCount: dmeposResult.count || 0,
-          uniqueCodes: new Set(dmeposUnique.data?.map(r => r.hcpcs) || []).size,
+          uniqueCodes: countUniqueCodes(dmeposUnique.data),
           yearsAvailable: '2026',
           lastUpdated: formatDate(dmeposResult.data?.[0]?.created_at)
         },
@@ -126,7 +141,7 @@ export function DatasetStatusBar({ refreshTrigger }: DatasetStatusBarProps) {
           description: 'Enteral/Parenteral Nutrition',
           status: getStatus(dmepenResult.count),
           rowCount: dmepenResult.count || 0,
-          uniqueCodes: new Set(dmepenUnique.data?.map(r => r.hcpcs) || []).size,
+          uniqueCodes: countUniqueCodes(dmepenUnique.data),
           yearsAvailable: '2026',
           lastUpdated: formatDate(dmepenResult.data?.[0]?.created_at)
         },
