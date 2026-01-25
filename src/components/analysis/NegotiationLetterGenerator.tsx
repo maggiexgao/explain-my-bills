@@ -60,8 +60,8 @@ export function NegotiationLetterGenerator({
 CPT Code: ${item.cptCode}
 Description: ${item.description || 'Unknown procedure'}
 Amount Billed: $${item.chargedAmount.toLocaleString()}
-Medicare Rate (${localityName}${state ? `, ${state}` : ''}): $${item.medicareFee?.toLocaleString() || 'N/A'}
-Your Charge is: ${item.percentOfMedicare}% of Medicare (vs typical 150-250%)
+Benchmark Rate (${localityName}${state ? `, ${state}` : ''}): $${item.medicareFee?.toLocaleString() || 'N/A'}
+Your Charge is: ${item.percentOfMedicare}% of benchmark (vs typical 150-250%)
 -----------------------------------------`
     ).join('\n');
 
@@ -77,7 +77,7 @@ Date of Service: ${dateOfService}
 
 Dear Billing Department,
 
-I am writing to request an adjustment to charges on my recent medical bill. I have compared my charges to Medicare reimbursement rates for my geographic area and found significant discrepancies.
+I am writing to request an adjustment to charges on my recent medical bill. I have compared my charges to CMS benchmark rates for my geographic area and found significant discrepancies.
 
 CHARGES REQUIRING REVIEW:
 
@@ -85,12 +85,12 @@ ${flaggedSection}
 
 SUMMARY:
 Total Charges: $${summary.totalCharged.toLocaleString()}
-Fair Benchmark (150% of Medicare): ${fairBenchmark ? `$${fairBenchmark.toLocaleString()}` : 'N/A'}
+Fair Benchmark (150% of CMS rate): ${fairBenchmark ? `$${fairBenchmark.toLocaleString()}` : 'N/A'}
 Requested Adjustment: ${requestedAdjustment ? `$${requestedAdjustment.toLocaleString()}` : 'N/A'}
 
-According to the Centers for Medicare & Medicaid Services (CMS) 2026 Physician Fee Schedule, fair commercial reimbursement typically ranges from 150-250% of Medicare rates. Several charges on my bill significantly exceed this standard.
+According to the Centers for Medicare & Medicaid Services (CMS) 2026 Fee Schedule, fair commercial reimbursement typically ranges from 150-250% of benchmark rates. Several charges on my bill significantly exceed this standard.
 
-I respectfully request that you adjust my bill to reflect fair market pricing, specifically reducing the flagged charges to 150% of Medicare rates${fairBenchmark ? `, for a revised total of $${fairBenchmark.toLocaleString()}` : ''}.
+I respectfully request that you adjust my bill to reflect fair market pricing, specifically reducing the flagged charges to 150% of benchmark rates${fairBenchmark ? `, for a revised total of $${fairBenchmark.toLocaleString()}` : ''}.
 
 I value the quality of care I received and want to resolve this matter in good faith. Please contact me at ${phone || '[Phone]'} or ${email || '[Email]'} to discuss this adjustment.
 
@@ -102,9 +102,9 @@ ${patientName || '[Patient Name]'}
 
 ---
 SUPPORTING DATA:
-- Medicare Locality: ${localityName}${state ? `, ${state}` : ''}
+- Locality: ${localityName}${state ? `, ${state}` : ''}
 ${zipCode ? `- ZIP Code: ${zipCode}` : ''}
-- Data Source: CMS Physician Fee Schedule 2026
+- Data Source: CMS Fee Schedule 2026
 - Analysis Date: ${today}`;
   };
 

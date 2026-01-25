@@ -83,10 +83,10 @@ export function UnmatchedCodesCard({ unmatchedCodes, className }: UnmatchedCodes
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <FileQuestion className="h-5 w-5 text-warning" />
-          <CardTitle className="text-base">Codes Without Medicare Pricing</CardTitle>
+          <CardTitle className="text-base">Codes Without Benchmark Pricing</CardTitle>
         </div>
         <CardDescription className="text-sm">
-          These codes were detected but not found in our Medicare fee schedules.
+          These codes were detected but not found in our benchmark fee schedules.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

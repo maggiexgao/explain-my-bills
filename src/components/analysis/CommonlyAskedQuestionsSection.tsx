@@ -116,7 +116,7 @@ const questionTemplates: Array<{
 const generalQuestions: FAQ[] = [
   {
     question: "What should I do first with this bill?",
-    answer: "1) Request an itemized bill if you don't have one. 2) Check for obvious errors like duplicate charges or services you didn't receive. 3) Compare charges to Medicare rates (like we've done here). 4) If the bill seems high, call billing and ask about payment plans, financial assistance, or discounts for paying in full.",
+    answer: "1) Request an itemized bill if you don't have one. 2) Check for obvious errors like duplicate charges or services you didn't receive. 3) Compare charges to benchmark rates (like we've done here). 4) If the bill seems high, call billing and ask about payment plans, financial assistance, or discounts for paying in full.",
     relevance: 'high',
   },
   {

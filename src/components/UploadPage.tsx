@@ -250,7 +250,7 @@ export function UploadPage({
                       </label>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-[220px]">
-                      <p className="text-xs">Medicare rates differ based on setting. Choose "Facility" for hospital/ER visits.</p>
+                      <p className="text-xs">Benchmark rates differ based on setting. Choose "Facility" for hospital/ER visits.</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
