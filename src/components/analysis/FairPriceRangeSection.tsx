@@ -1,11 +1,13 @@
 /**
- * FairPriceRangeSection - Shows estimated fair price ranges based on Medicare reference
+ * FairPriceRangeSection - Shows estimated fair price ranges based on Benchmark reference
  * 
  * Displays where the user's bill falls relative to typical payment ranges:
- * - Medicaid: ~80% of Medicare
- * - Insurance negotiated: 150-300% of Medicare
- * - Self-pay negotiated: 200-350% of Medicare
- * - Chargemaster (sticker price): ~500% of Medicare
+ * - Medicaid: ~80% of Benchmark
+ * - Insurance negotiated: 150-300% of Benchmark
+ * - Self-pay negotiated: 200-350% of Benchmark
+ * - Chargemaster (sticker price): ~500% of Benchmark
+ * 
+ * REBRANDED: "Medicare" → "Benchmark" for clarity with insured users
  */
 
 import { cn } from '@/lib/utils';
@@ -13,7 +15,7 @@ import { DollarSign, TrendingDown, TrendingUp, AlertTriangle, CheckCircle, Info 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface FairPriceRangeProps {
-  medicareTotal: number | null;
+  benchmarkTotal: number | null;
   billedTotal: number | null;
   className?: string;
 }
@@ -35,45 +37,45 @@ interface PriceRange {
   bgColor: string;
 }
 
-function estimateFairPriceRanges(medicareTotal: number): PriceRange[] {
+function estimateFairPriceRanges(benchmarkTotal: number): PriceRange[] {
   return [
     {
       label: 'Medicaid',
-      description: 'State programs pay less than Medicare',
-      low: medicareTotal * 0.75,
-      high: medicareTotal * 0.85,
+      description: 'State programs pay less than benchmark',
+      low: benchmarkTotal * 0.75,
+      high: benchmarkTotal * 0.85,
       color: 'text-emerald-700 dark:text-emerald-400',
       bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     },
     {
-      label: 'Medicare',
-      description: 'Federal reference benchmark',
-      low: medicareTotal * 0.95,
-      high: medicareTotal * 1.05,
+      label: 'Benchmark',
+      description: 'Federal reference benchmark (CMS)',
+      low: benchmarkTotal * 0.95,
+      high: benchmarkTotal * 1.05,
       color: 'text-blue-700 dark:text-blue-400',
       bgColor: 'bg-blue-50 dark:bg-blue-900/20',
     },
     {
       label: 'Insurance Negotiated',
       description: 'Typical insurer contract rates',
-      low: medicareTotal * 1.5,
-      high: medicareTotal * 3.0,
+      low: benchmarkTotal * 1.5,
+      high: benchmarkTotal * 3.0,
       color: 'text-amber-700 dark:text-amber-400',
       bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     },
     {
       label: 'Self-Pay Negotiated',
       description: 'Cash price after negotiation',
-      low: medicareTotal * 2.0,
-      high: medicareTotal * 3.5,
+      low: benchmarkTotal * 2.0,
+      high: benchmarkTotal * 3.5,
       color: 'text-orange-700 dark:text-orange-400',
       bgColor: 'bg-orange-50 dark:bg-orange-900/20',
     },
     {
       label: 'Chargemaster (Sticker)',
       description: 'Full hospital list price - often negotiable',
-      low: medicareTotal * 4.0,
-      high: medicareTotal * 6.0,
+      low: benchmarkTotal * 4.0,
+      high: benchmarkTotal * 6.0,
       color: 'text-red-700 dark:text-red-400',
       bgColor: 'bg-red-50 dark:bg-red-900/20',
     },
@@ -131,13 +133,13 @@ function getBillPosition(billedTotal: number, ranges: PriceRange[]): {
   };
 }
 
-export function FairPriceRangeSection({ medicareTotal, billedTotal, className }: FairPriceRangeProps) {
-  // Don't render if we don't have Medicare reference
-  if (!medicareTotal || medicareTotal <= 0) {
+export function FairPriceRangeSection({ benchmarkTotal, billedTotal, className }: FairPriceRangeProps) {
+  // Don't render if we don't have benchmark reference
+  if (!benchmarkTotal || benchmarkTotal <= 0) {
     return null;
   }
   
-  const ranges = estimateFairPriceRanges(medicareTotal);
+  const ranges = estimateFairPriceRanges(benchmarkTotal);
   const billPosition = billedTotal && billedTotal > 0 
     ? getBillPosition(billedTotal, ranges) 
     : null;

@@ -464,6 +464,7 @@ export interface AtAGlance {
   visitSummary: string;
   totalBilled?: number;
   amountYouMayOwe?: number;
+  benchmarkTotal?: number; // CMS benchmark reference total for comparison
   status: PondStatus;
   statusExplanation: string;
 }

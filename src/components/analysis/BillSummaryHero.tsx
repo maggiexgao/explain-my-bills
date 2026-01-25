@@ -83,6 +83,20 @@ export function BillSummaryHero({ atAGlance, reviewItems, savingsOpportunities }
   const actionStatement = getActionStatement(atAGlance.status, reviewItems, savingsOpportunities);
   const savingsNote = calculatePotentialSavings(savingsOpportunities);
 
+  // Calculate multiple if we have both totals
+  const multiple = atAGlance.totalBilled && atAGlance.benchmarkTotal && atAGlance.benchmarkTotal > 0
+    ? (atAGlance.totalBilled / atAGlance.benchmarkTotal).toFixed(1)
+    : null;
+
+  // Get contextual message based on multiple
+  const getMultipleContext = (mult: number | null): string => {
+    if (!mult) return '';
+    const m = parseFloat(String(mult));
+    if (m > 5) return 'This is higher than typical. You likely have room to negotiate.';
+    if (m > 3) return 'This is within the typical range for hospital pricing.';
+    return 'This is relatively close to benchmark rates.';
+  };
+
   return (
     <div className={cn(
       'p-6 rounded-2xl border-2 transition-all',
@@ -108,22 +122,38 @@ export function BillSummaryHero({ atAGlance, reviewItems, savingsOpportunities }
                 {atAGlance.visitSummary}
               </h2>
               
-              {/* Amounts row */}
-              <div className="flex flex-wrap gap-4 text-sm mt-2">
+              {/* Multiple headline if available */}
+              {multiple && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your bill is <strong className="text-foreground">{multiple}× the national benchmark</strong>
+                  {' '}{getMultipleContext(parseFloat(multiple))}
+                </p>
+              )}
+              
+              {/* Amounts row - Updated to show fair range */}
+              <div className="flex flex-wrap gap-4 text-sm mt-3">
                 {atAGlance.totalBilled !== undefined && atAGlance.totalBilled !== null && (
-                  <div>
-                    <span className="text-muted-foreground">Total billed: </span>
-                    <span className="font-semibold text-foreground">
+                  <div className="p-2 rounded-lg bg-background/50">
+                    <span className="text-muted-foreground text-xs">You were charged</span>
+                    <p className="font-bold text-foreground text-lg">
                       ${atAGlance.totalBilled.toLocaleString()}
-                    </span>
+                    </p>
                   </div>
                 )}
-                {atAGlance.amountYouMayOwe !== undefined && atAGlance.amountYouMayOwe !== null && (
-                  <div>
-                    <span className="text-muted-foreground">You may owe: </span>
-                    <span className="font-semibold text-foreground">
-                      ${atAGlance.amountYouMayOwe.toLocaleString()}
-                    </span>
+                {atAGlance.benchmarkTotal !== undefined && atAGlance.benchmarkTotal !== null && (
+                  <div className="p-2 rounded-lg bg-primary/5">
+                    <span className="text-muted-foreground text-xs">Benchmark rate</span>
+                    <p className="font-bold text-primary text-lg">
+                      ${atAGlance.benchmarkTotal.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+                {atAGlance.benchmarkTotal && (
+                  <div className="p-2 rounded-lg bg-success/5">
+                    <span className="text-muted-foreground text-xs">Fair negotiated range</span>
+                    <p className="font-bold text-success text-lg">
+                      ${Math.round(atAGlance.benchmarkTotal * 1.5).toLocaleString()} - ${Math.round(atAGlance.benchmarkTotal * 2.5).toLocaleString()}
+                    </p>
                   </div>
                 )}
               </div>

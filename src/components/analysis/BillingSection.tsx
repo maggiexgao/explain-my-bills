@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { SubcategoryCard } from './SubcategoryCard';
 import { useTranslation } from '@/i18n/LanguageContext';
-import { MedicareBenchmarkSection } from './MedicareBenchmarkSection';
+import { PricingBenchmarkSection } from './PricingBenchmarkSection';
 
 interface BillingSectionProps {
   analysis: AnalysisResult;
@@ -172,13 +172,13 @@ export function BillingSection({ analysis, hasEOB, selectedState }: BillingSecti
       {hasCptCodes && (
         <SubcategoryCard
           icon={<Activity className="h-5 w-5 text-primary" />}
-          title="Medicare Benchmark"
-          teaser="How your charges compare to Medicare rates"
+          title="Pricing Benchmark"
+          teaser="How your charges compare to benchmark rates"
           badge="New"
           badgeVariant="default"
           defaultOpen={true}
         >
-          <MedicareBenchmarkSection analysis={analysis} state={stateCode} />
+          <PricingBenchmarkSection analysis={analysis} state={stateCode} />
         </SubcategoryCard>
       )}
 
