@@ -74,6 +74,8 @@ import { BillTotalsGrid } from "./BillTotalsGrid";
 import { ServiceDetailsTable } from "./ServiceDetailsTable";
 import { NegotiabilityCategorySection } from "./NegotiabilityCategorySection";
 import { CommonlyAskedQuestionsSection } from "./CommonlyAskedQuestionsSection";
+import { FairPriceEstimateSection } from "./FairPriceEstimateSection";
+import { detectBillType, BillTypeResult } from "@/lib/billTypeDetector";
 import { supabase } from "@/integrations/supabase/client";
 
 // ============= Props =============
@@ -1002,7 +1004,7 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium text-foreground">
-            {existsNotPricedItems.length} service{existsNotPricedItems.length > 1 ? "s" : ""} without Medicare benchmark
+            {existsNotPricedItems.length} service{existsNotPricedItems.length > 1 ? "s" : ""} without benchmark reference
           </span>
         </div>
         {totalBilledNonPriced > 0 && (
@@ -1057,8 +1059,8 @@ function CodesExistsNotPricedSection({ items }: { items: BenchmarkLineResult[] }
       {/* Compact Footer with context */}
       <div className="px-4 py-2.5 bg-muted/20 border-t border-border/30">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <strong>Note:</strong> These services exist in Medicare's database but don't have separate payment rates.
-          Commercial insurance typically pays <span className="font-medium">150-300%</span> of Medicare for similar
+          <strong>Note:</strong> These services exist in CMS databases but don't have separate payment rates.
+          Commercial insurance typically pays <span className="font-medium">150-300%</span> of benchmark for similar
           services.
         </p>
       </div>
@@ -1081,10 +1083,10 @@ function EducationalFooter() {
   return (
     <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
       <p className="text-sm text-muted-foreground leading-relaxed">
-        <strong className="text-foreground">About these comparisons:</strong> Medicare reference prices are set by the
-        federal government and are often used by insurers, employers, and courts as benchmarks. Commercial insurance
-        typically pays 100-300% of Medicare rates. These comparisons help you understand your charges in context — not
-        what you "should" pay, but how they relate to a widely-used reference point.
+        <strong className="text-foreground">About these comparisons:</strong> Benchmark reference prices are set by the
+        federal government (CMS) and are used by insurers, employers, and courts as the foundation for healthcare pricing. Commercial insurance
+        typically pays 150-300% of benchmark rates. These comparisons help you understand your charges in context — not
+        what you "should" pay, but how they relate to a widely-used reference point for negotiation.
       </p>
     </div>
   );
@@ -1108,7 +1110,7 @@ function NoCodesEmptyState({
         <div>
           <p className="text-base font-medium text-foreground mb-2">No CPT/HCPCS codes detected</p>
           <p className="text-sm text-muted-foreground mb-3">
-            We couldn't detect any CPT or HCPCS codes in this bill, so we can't compute Medicare benchmarks yet. This
+            We couldn't detect any CPT or HCPCS codes in this bill, so we can't compute benchmark comparisons yet. This
             might happen if:
           </p>
           <ul className="text-sm text-muted-foreground list-disc ml-4 mb-4 space-y-1">
@@ -1166,9 +1168,9 @@ function NoMatchesEmptyState({ output, rawCodes }: { output: MedicareBenchmarkOu
             <Search className="h-6 w-6 text-warning" />
           </div>
           <div>
-            <p className="text-base font-medium text-foreground mb-2">Codes detected, but no Medicare matches found</p>
+            <p className="text-base font-medium text-foreground mb-2">Codes detected, but no benchmark matches found</p>
             <p className="text-sm text-muted-foreground mb-3">
-              CPT/HCPCS codes were detected, but we couldn't find Medicare reference pricing for them in our current
+              CPT/HCPCS codes were detected, but we couldn't find benchmark reference pricing for them in our current
               dataset.
             </p>
 
@@ -1183,7 +1185,7 @@ function NoMatchesEmptyState({ output, rawCodes }: { output: MedicareBenchmarkOu
 
             <p className="text-sm text-muted-foreground">
               <strong>Possible reasons:</strong> These may be newer codes, DME codes, private payer codes (S-codes), or
-              services outside the Medicare Physician Fee Schedule.
+              services outside the standard fee schedules.
             </p>
           </div>
         </div>
@@ -1212,6 +1214,7 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
   const [totalsReconciliation, setTotalsReconciliation] = useState<TotalsReconciliation | null>(null);
   const [structuredTotals, setStructuredTotals] = useState<StructuredTotals | null>(null);
   const [readinessResult, setReadinessResult] = useState<ReadinessResult | null>(null);
+  const [billTypeResult, setBillTypeResult] = useState<BillTypeResult | null>(null);
 
   // Check OPPS data availability on mount
   useEffect(() => {
@@ -1323,11 +1326,23 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
           console.log("[HowThisCompares] Using", lineItems.length, "codes from analysis.charges");
         }
 
-        // Apply service date to all items if not already set
+        // Detect bill type based on codes and location
+        const extractedCodes = finalLineItems.map((item) => item.hcpcs);
+        const detectedBillType = detectBillType(
+          extractedCodes,
+          analysis.issuer || (analysis as any).providerName || '',
+          undefined,
+          undefined,
+          (analysis as any).rawText
+        );
+        setBillTypeResult(detectedBillType);
+        console.log("[HowThisCompares] Bill type detected:", detectedBillType);
+
+        // Apply service date and facility flag based on detected bill type
         const itemsWithDate = finalLineItems.map((item) => ({
           ...item,
           dateOfService: item.dateOfService || extractedDate || undefined,
-          isFacility: careSetting === "facility" ? true : item.isFacility,
+          isFacility: detectedBillType.recommendedFeeSchedule === 'OPPS' || careSetting === "facility" ? true : item.isFacility,
         }));
 
         const result = await calculateMedicareBenchmarks(itemsWithDate, state, zipCode);
@@ -1377,9 +1392,9 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
           setReadinessResult(readiness);
         }
       } catch (err) {
-        console.error("[HowThisCompares] Medicare benchmark error:", err);
+        console.error("[HowThisCompares] Benchmark error:", err);
         if (!cancelled) {
-          setError("Unable to load Medicare comparison data");
+          setError("Unable to load benchmark comparison data");
         }
       } finally {
         if (!cancelled) {
@@ -1392,7 +1407,7 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
       fetchBenchmarks();
     } else {
       setLoading(false);
-      setError("Select a state to see Medicare comparisons");
+      setError("Select a state to see benchmark comparisons");
     }
 
     return () => {
@@ -1428,7 +1443,7 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
     return (
       <div className="p-6 rounded-xl bg-muted/20 border border-border/30 text-center">
         <HelpCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">Medicare comparison not available</p>
+        <p className="text-sm text-muted-foreground">Benchmark comparison not available</p>
       </div>
     );
   }
@@ -1495,7 +1510,7 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
 
   return (
     <div className="space-y-6">
-      {/* Bill Totals Grid - New 2-row layout */}
+      {/* Bill Totals Grid - New 2-row layout with dynamic bill type message */}
       <BillTotalsGrid
         totalBilled={output.totals.billedTotal || null}
         insurancePaid={insurancePaid}
@@ -1504,7 +1519,15 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
         medicareReference={output.matchedItemsComparison.matchedMedicareTotal || 0}
         matchedCount={output.matchedItemsComparison.matchedItemsCount || 0}
         totalCount={output.matchedItemsComparison.totalItemsCount || output.lineItems.length}
-        careSetting={careSetting}
+        careSetting={billTypeResult?.recommendedFeeSchedule === 'OPPS' ? 'facility' : careSetting}
+        billTypeMessage={billTypeResult?.message}
+      />
+
+      {/* Fair Price Estimate Section - Shows realistic negotiated ranges */}
+      <FairPriceEstimateSection
+        benchmarkTotal={output.matchedItemsComparison.matchedMedicareTotal || 0}
+        billedTotal={output.matchedItemsComparison.matchedBilledTotal || output.totals.billedTotal || 0}
+        matchedItemsOnly={true}
       />
 
       {/* Service Details Table - Default collapsed, full descriptions, status column */}

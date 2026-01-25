@@ -124,7 +124,7 @@ function LineItemRow({ comparison, index }: { comparison: MedicareComparison; in
             </p>
             {comparison.localityName && (
               <p className="text-xs text-muted-foreground">
-                Medicare rate based on: {comparison.localityName}
+                Benchmark rate based on: {comparison.localityName}
               </p>
             )}
           </div>
@@ -147,7 +147,7 @@ export function MedicareLineItemTable({ comparisons }: MedicareLineItemTableProp
           <span className="w-20">CPT Code</span>
           <span className="flex-1">Description</span>
           <span className="w-24 text-right">Charged</span>
-          <span className="w-24 text-right">Medicare</span>
+          <span className="w-24 text-right">Benchmark</span>
           <span className="w-16 text-right">%</span>
           <span className="w-24">Status</span>
           <span className="w-6" />
