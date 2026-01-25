@@ -150,7 +150,7 @@ function ServiceTypeSummaryRow({ summary }: { summary: CptEvaluationSummary["byS
   );
 }
 
-export function MedicareBenchmarkSection({ analysis, state }: MedicareBenchmarkSectionProps) {
+export function PricingBenchmarkSection({ analysis, state }: MedicareBenchmarkSectionProps) {
   const { t } = useTranslation();
   const [evaluation, setEvaluation] = useState<CptEvaluationSummary | null>(null);
   const [loading, setLoading] = useState(true);
