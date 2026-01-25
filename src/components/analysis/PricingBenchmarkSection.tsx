@@ -1,6 +1,7 @@
 /**
- * Medicare Benchmark Section
- * Displays CPT vs Medicare rate comparisons
+ * Pricing Benchmark Section
+ * Displays CPT vs benchmark rate comparisons
+ * REBRANDED: "Medicare" → "Benchmark" for clarity with insured users
  */
 
 import { useState, useEffect } from "react";
@@ -279,7 +280,7 @@ export function PricingBenchmarkSection({ analysis, state }: MedicareBenchmarkSe
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-primary" />
-            <h4 className="font-semibold text-foreground">Overall Medicare Comparison</h4>
+            <h4 className="font-semibold text-foreground">Overall Benchmark Comparison</h4>
           </div>
           <RatioIndicator ratio={evaluation.overallBilledVsMedicare} size="lg" />
         </div>
@@ -339,7 +340,7 @@ export function PricingBenchmarkSection({ analysis, state }: MedicareBenchmarkSe
           <div className="flex items-start gap-2 mb-2">
             <Info className="h-4 w-4 text-muted-foreground mt-0.5" />
             <div>
-              <span className="text-sm font-medium text-muted-foreground">Codes not in Medicare dataset</span>
+              <span className="text-sm font-medium text-muted-foreground">Codes not in benchmark dataset</span>
               <p className="text-xs text-muted-foreground mt-0.5">
                 These specialized codes are not included in our fee schedule data. Look them up at{" "}
                 <a
@@ -366,10 +367,10 @@ export function PricingBenchmarkSection({ analysis, state }: MedicareBenchmarkSe
       {/* Educational Footer */}
       <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <strong>About Medicare Comparisons:</strong> Medicare rates are set by the federal government and serve as a
-          benchmark. Private insurers typically pay 100-300% of Medicare rates. Your actual costs depend on your
-          insurance plan's negotiated rates. This comparison helps you understand how your charges relate to standard
-          government pricing.
+          <strong>About Benchmark Comparisons:</strong> These CMS benchmark rates are set by the federal government and serve as the
+          foundation for all healthcare pricing. Private insurers typically pay 150-300% of benchmark rates. Your actual costs depend on your
+          insurance plan's negotiated rates. This comparison helps you understand how your charges relate to the standard
+          government reference point.
         </p>
       </div>
     </div>

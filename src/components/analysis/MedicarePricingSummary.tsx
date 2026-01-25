@@ -75,7 +75,7 @@ export function MedicarePricingSummary({ summary }: MedicarePricingSummaryProps)
             {config.icon}
           </div>
           <div>
-            <h3 className="font-semibold text-foreground text-lg">Medicare Price Analysis</h3>
+            <h3 className="font-semibold text-foreground text-lg">Benchmark Price Analysis</h3>
             <p className="text-sm text-muted-foreground">{config.description}</p>
           </div>
         </div>
@@ -93,7 +93,7 @@ export function MedicarePricingSummary({ summary }: MedicarePricingSummaryProps)
           </p>
         </div>
         <div className="text-center p-3 rounded-xl bg-background/50">
-          <p className="text-xs text-muted-foreground mb-1">Medicare Benchmark</p>
+          <p className="text-xs text-muted-foreground mb-1">Benchmark Reference</p>
           <p className="text-xl font-bold text-foreground">
             {summary.totalMedicare 
               ? `$${summary.totalMedicare.toLocaleString()}`
@@ -102,7 +102,7 @@ export function MedicarePricingSummary({ summary }: MedicarePricingSummaryProps)
           </p>
         </div>
         <div className="text-center p-3 rounded-xl bg-background/50">
-          <p className="text-xs text-muted-foreground mb-1">% of Medicare</p>
+          <p className="text-xs text-muted-foreground mb-1">× Benchmark</p>
           <p className={cn('text-xl font-bold', config.color)}>
             {summary.percentOfMedicare 
               ? `${summary.percentOfMedicare}%`
@@ -116,7 +116,7 @@ export function MedicarePricingSummary({ summary }: MedicarePricingSummaryProps)
       {summary.percentOfMedicare && (
         <div className="mb-4">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span>100% (Medicare)</span>
+            <span>100% (Benchmark)</span>
             <span>200% (Fair)</span>
             <span>300%+ (High)</span>
           </div>
@@ -149,7 +149,7 @@ export function MedicarePricingSummary({ summary }: MedicarePricingSummaryProps)
                 Potential Savings: ${summary.potentialSavings.toLocaleString()}
               </span>
               <span className="text-muted-foreground ml-1">
-                if negotiated to 150% of Medicare
+                if negotiated to 150% of benchmark
               </span>
             </span>
           </div>
@@ -169,7 +169,7 @@ export function MedicarePricingSummary({ summary }: MedicarePricingSummaryProps)
       {/* CMS Trust Indicator */}
       <div className="mt-4 pt-3 border-t border-border/30">
         <p className="text-xs text-muted-foreground text-center">
-          📊 Based on CMS Physician Fee Schedule 2026 • Fair pricing is typically 150-250% of Medicare
+          📊 Based on CMS 2026 Fee Schedules • Fair pricing is typically 150-250% of benchmark
         </p>
       </div>
     </div>

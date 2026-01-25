@@ -34,8 +34,8 @@ const questionTemplates: Array<{
         relevance: 'high',
       },
       {
-        question: "Why are my lab charges so much higher than the Medicare reference?",
-        answer: "Hospital labs typically price tests at 5-20× what Medicare pays. This is one of the most inflated categories in medical billing. If you're uninsured or underinsured, always ask for 'self-pay' or 'cash' pricing, which is usually 50-80% lower.",
+        question: "Why are my lab charges so much higher than the benchmark reference?",
+        answer: "Hospital labs typically price tests at 5-20× the benchmark rate. This is one of the most inflated categories in medical billing. If you're uninsured or underinsured, always ask for 'self-pay' or 'cash' pricing, which is usually 50-80% lower.",
         relevance: 'medium',
       },
     ],

@@ -282,7 +282,7 @@ function ServiceRow({
           </p>
         </div>
         
-        {/* Medicare Reference - Fixed width with source badge */}
+        {/* Benchmark Reference - Fixed width with source badge */}
         <div className="text-right space-y-0.5">
           <p className="text-sm text-muted-foreground">
             {item.medicareReferenceTotal ? formatCurrency(item.medicareReferenceTotal) : '—'}
@@ -342,6 +342,35 @@ function ServiceRow({
       {isExpanded && hasExpandableContent && (
         <div className="px-3 pb-3 pt-0">
           <div className="ml-[92px] p-3 rounded-lg bg-muted/20 border border-border/30 space-y-3">
+            {/* Why This Difference - Show for high multiples */}
+            {item.multiple && item.multiple > 3 && item.medicareReferenceTotal && (
+              <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
+                <p className="text-xs font-medium text-warning mb-2">
+                  Why is this {item.multiple.toFixed(1)}× the benchmark?
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-2">
+                  Hospital "list prices" (chargemaster) are not regulated and typically range from 
+                  3-20× the actual cost of providing services. This is standard across US hospitals.
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-xs mt-2">
+                  <div className="p-2 rounded bg-background/50">
+                    <span className="text-muted-foreground block">Benchmark</span>
+                    <span className="font-semibold text-foreground">${item.medicareReferenceTotal.toFixed(0)}</span>
+                  </div>
+                  <div className="p-2 rounded bg-background/50">
+                    <span className="text-muted-foreground block">Insurance pays</span>
+                    <span className="font-semibold text-foreground">
+                      ${(item.medicareReferenceTotal * 1.5).toFixed(0)}-${(item.medicareReferenceTotal * 3).toFixed(0)}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-background/50">
+                    <span className="text-muted-foreground block">You were charged</span>
+                    <span className="font-semibold text-foreground">${item.billedAmount?.toFixed(0)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* What this service is */}
             {meaning && (
               <div>
@@ -449,7 +478,7 @@ export function ServiceDetailsTable({
             <span className="text-center">Code</span>
             <span>Service Description</span>
             <span className="text-right">Billed</span>
-            <span className="text-right">Medicare</span>
+            <span className="text-right">Benchmark</span>
             <span className="text-center">Status</span>
             <span></span>
           </div>
