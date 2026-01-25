@@ -52,7 +52,7 @@ const statusConfig = {
     bg: 'bg-muted/15',
     border: 'border-border/40',
     badgeBg: 'bg-muted/10',
-    description: 'Not enough Medicare data available for comparison'
+    description: 'Not enough benchmark data available for comparison'
   }
 };
 

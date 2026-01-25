@@ -469,7 +469,7 @@ function MedicareCalculationSection({ output }: { output?: MedicareBenchmarkOutp
   if (!output) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        Medicare benchmark not calculated. Need valid CPT/HCPCS codes and state selection.
+        Benchmark not calculated. Need valid CPT/HCPCS codes and state selection.
       </div>
     );
   }
@@ -871,7 +871,7 @@ export function DebugCalculationPanel({ data }: DebugCalculationPanelProps) {
           How This Was Calculated
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Step-by-step breakdown of the Medicare benchmark calculation
+          Step-by-step breakdown of the benchmark calculation
         </p>
       </div>
 

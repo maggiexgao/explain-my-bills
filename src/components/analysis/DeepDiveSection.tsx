@@ -107,7 +107,7 @@ export function DeepDiveSection({ chargeMeanings }: DeepDiveSectionProps) {
           <div className="text-xs text-muted-foreground">
             <p className="font-medium mb-1">About this analysis</p>
             <p className="leading-relaxed">
-              This evaluation is based on publicly available Medicare pricing data, common billing practices, 
+              This evaluation is based on publicly available CMS benchmark pricing data, common billing practices, 
               and general healthcare pricing patterns. Actual costs vary by provider, location, and insurance. 
               Always verify with your provider or insurance company.
             </p>

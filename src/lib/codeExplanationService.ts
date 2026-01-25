@@ -160,10 +160,10 @@ function getWhyNotPricedExplanation(code: string, codeSystem: CodeSystem): strin
   
   // Revenue codes
   if (codeSystem === 'revenue_code') {
-    return 'Revenue codes are facility billing codes that indicate where a service was performed. They are not individually priced by Medicare; instead, they group charges under facility fee methodologies.';
+    return 'Revenue codes are facility billing codes that indicate where a service was performed. They are not individually priced in benchmark schedules; instead, they group charges under facility fee methodologies.';
   }
   
-  return 'This code may not be in our Medicare reference datasets. It could be a temporary code, payer-specific code, or may be priced under a different fee schedule.';
+  return 'This code may not be in our benchmark reference datasets. It could be a temporary code, payer-specific code, or may be priced under a different fee schedule.';
 }
 
 // ============= Main Service Functions =============

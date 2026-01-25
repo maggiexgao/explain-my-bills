@@ -18,9 +18,9 @@ export default function DownloadData() {
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Medicare Reference Data Files</h1>
+        <h1 className="text-2xl font-bold mb-6">Benchmark Reference Data Files</h1>
         <p className="text-muted-foreground mb-8">
-          Download source data files used for Medicare benchmark calculations.
+          Download source data files used for benchmark pricing calculations.
         </p>
         
         <ul className="space-y-3">

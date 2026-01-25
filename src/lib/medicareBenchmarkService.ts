@@ -1061,9 +1061,9 @@ function getUnmatchedCodeExplanation(hcpcs: string, matchStatus: MatchStatus, no
   if (code.startsWith('J')) {
     const aspData = DRUG_ASP_FALLBACK[code];
     if (aspData) {
-      return `Drug code (${aspData.desc}) - Medicare ASP reference: ~$${aspData.asp.toFixed(2)} ${aspData.unit}. Hospital markup typically 3-5× this rate.`;
+      return `Drug code (${aspData.desc}) - ASP reference: ~$${aspData.asp.toFixed(2)} ${aspData.unit}. Hospital markup typically 3-5× this rate.`;
     }
-    return 'Drug code - Medicare pays ASP + 6%. Hospital markup on drugs typically ranges 200-500% of Medicare rates.';
+    return 'Drug code - Benchmark pays ASP + 6%. Hospital markup on drugs typically ranges 200-500% of benchmark rates.';
   }
   
   // S-codes (private payer)
@@ -2234,17 +2234,17 @@ export function generateOverallStatus(output: MedicareBenchmarkOutput): {
   if (percentOfMedicare <= 200) {
     return {
       status: 'fair',
-      message: 'Your charges are within the typical range for commercial insurance. Commercial prices are usually 100-200% of Medicare rates.'
+      message: 'Your charges are within the typical range for commercial insurance. Commercial prices are usually 100-200% of benchmark rates.'
     };
   } else if (percentOfMedicare <= 300) {
     return {
       status: 'high',
-      message: 'Commercial prices are often higher than Medicare, but some of these charges may be worth discussing with the billing department.'
+      message: 'Commercial prices are often higher than benchmark, but some of these charges may be worth discussing with the billing department.'
     };
   } else {
     return {
       status: 'very_high',
-      message: 'Commercial prices are often higher than Medicare, but these charges are significantly above typical rates. This may indicate room for negotiation or review.'
+      message: 'Commercial prices are often higher than benchmark, but these charges are significantly above typical rates. This may indicate room for negotiation or review.'
     };
   }
 }
