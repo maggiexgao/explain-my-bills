@@ -62,7 +62,7 @@ interface ImportResult {
 interface ImportCardProps {
   title: string;
   description: string;
-  dataType: 'opps' | 'dmepos' | 'dmepen' | 'gpci' | 'zip-crosswalk' | 'clfs';
+  dataType: 'opps' | 'mpfs' | 'dmepos' | 'dmepen' | 'gpci' | 'zip-crosswalk' | 'clfs';
   acceptedFileTypes?: string;
   sourceInfo?: {
     source: string;
