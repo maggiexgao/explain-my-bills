@@ -74,7 +74,7 @@ import { BillTotalsGrid } from "./BillTotalsGrid";
 import { ServiceDetailsTable } from "./ServiceDetailsTable";
 import { NegotiabilityCategorySection } from "./NegotiabilityCategorySection";
 import { CommonlyAskedQuestionsSection } from "./CommonlyAskedQuestionsSection";
-import { FairPriceEstimateSection } from "./FairPriceEstimateSection";
+import { PaymentFlowSection } from "./PaymentFlowSection";
 import { detectBillType, BillTypeResult } from "@/lib/billTypeDetector";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -1523,11 +1523,10 @@ export function HowThisCompares({ analysis, state, zipCode, careSetting = "offic
         billTypeMessage={billTypeResult?.message}
       />
 
-      {/* Fair Price Estimate Section - Shows realistic negotiated ranges */}
-      <FairPriceEstimateSection
+      {/* Payment Flow Section - Shows HOW bills actually get paid */}
+      <PaymentFlowSection
+        chargemasterTotal={output.matchedItemsComparison.matchedBilledTotal || output.totals.billedTotal || 0}
         benchmarkTotal={output.matchedItemsComparison.matchedMedicareTotal || 0}
-        billedTotal={output.matchedItemsComparison.matchedBilledTotal || output.totals.billedTotal || 0}
-        matchedItemsOnly={true}
       />
 
       {/* Service Details Table - Default collapsed, full descriptions, status column */}
