@@ -19,7 +19,11 @@ serve(async (req) => {
     
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
-      throw new Error("STRIPE_SECRET_KEY is not set");
+      console.error("[CREATE-DISPUTE-PAYMENT] Configuration error: Payment service key missing");
+      return new Response(
+        JSON.stringify({ error: "Payment service temporarily unavailable. Please try again later." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { email, patientName } = await req.json();
