@@ -243,6 +243,27 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+/**
+ * Deduplicate an array of records by a composite key
+ * Keeps the LAST occurrence (which typically has the most recent data)
+ */
+function deduplicateByKey<T>(records: T[], keyFn: (record: T) => string): T[] {
+  const seen = new Map<string, T>();
+  for (const record of records) {
+    const key = keyFn(record);
+    seen.set(key, record); // Overwrites previous, keeping last
+  }
+  return Array.from(seen.values());
+}
+
+/**
+ * Deduplicate a batch of records before upserting
+ * This prevents "ON CONFLICT DO UPDATE command cannot affect row a second time" errors
+ */
+function deduplicateBatch<T>(batch: T[], keyFn: (record: T) => string): T[] {
+  return deduplicateByKey(batch, keyFn);
+}
+
 function getCellValue(sheet: XLSX.WorkSheet, col: number, row: number): unknown {
   const addr = XLSX.utils.encode_cell({ c: col, r: row });
   const cell = sheet[addr];
@@ -485,14 +506,17 @@ async function parseAndImportOppsStreaming(
     
     if (batch.length >= BATCH_SIZE) {
       if (!dryRun) {
+        // Deduplicate batch by year+hcpcs to prevent ON CONFLICT errors
+        const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.year}-${r.hcpcs}`);
+        
         const { error } = await supabase
           .from('opps_addendum_b')
-          .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+          .upsert(dedupedBatch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
         
         if (error) {
           errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
         } else {
-          imported += batch.length;
+          imported += dedupedBatch.length;
         }
       }
       batchesCompleted++;
@@ -503,14 +527,16 @@ async function parseAndImportOppsStreaming(
   // Upsert remaining batch
   if (batch.length > 0) {
     if (!dryRun) {
+      const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.year}-${r.hcpcs}`);
+      
       const { error } = await supabase
         .from('opps_addendum_b')
-        .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+        .upsert(dedupedBatch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
       
       if (error) {
         errors.push(`Final batch: ${error.message}`);
       } else {
-        imported += batch.length;
+        imported += dedupedBatch.length;
       }
     }
     batchesCompleted++;
@@ -655,14 +681,17 @@ async function parseAndImportOppsCSV(
     
     if (batch.length >= BATCH_SIZE) {
       if (!dryRun) {
+        // Deduplicate batch by year+hcpcs to prevent ON CONFLICT errors
+        const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.year}-${r.hcpcs}`);
+        
         const { error } = await supabase
           .from('opps_addendum_b')
-          .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+          .upsert(dedupedBatch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
         
         if (error) {
           errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
         } else {
-          imported += batch.length;
+          imported += dedupedBatch.length;
         }
       }
       batchesCompleted++;
@@ -672,14 +701,16 @@ async function parseAndImportOppsCSV(
   
   if (batch.length > 0) {
     if (!dryRun) {
+      const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.year}-${r.hcpcs}`);
+      
       const { error } = await supabase
         .from('opps_addendum_b')
-        .upsert(batch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
+        .upsert(dedupedBatch, { onConflict: 'year,hcpcs', ignoreDuplicates: false });
       
       if (error) {
         errors.push(`Final batch: ${error.message}`);
       } else {
-        imported += batch.length;
+        imported += dedupedBatch.length;
       }
     }
     batchesCompleted++;
@@ -1280,14 +1311,17 @@ async function parseAndImportMpfsStreaming(
     
     if (batch.length >= BATCH_SIZE) {
       if (!dryRun) {
+        // Deduplicate batch by hcpcs+modifier+year to prevent ON CONFLICT errors
+        const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.hcpcs}-${r.modifier || ''}-${r.year}`);
+        
         const { error } = await supabase
           .from('mpfs_benchmarks')
-          .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+          .upsert(dedupedBatch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
         
         if (error) {
           errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
         } else {
-          imported += batch.length;
+          imported += dedupedBatch.length;
         }
       }
       batchesCompleted++;
@@ -1303,14 +1337,16 @@ async function parseAndImportMpfsStreaming(
   // Upsert remaining batch
   if (batch.length > 0) {
     if (!dryRun) {
+      const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.hcpcs}-${r.modifier || ''}-${r.year}`);
+      
       const { error } = await supabase
         .from('mpfs_benchmarks')
-        .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+        .upsert(dedupedBatch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
       
       if (error) {
         errors.push(`Final batch: ${error.message}`);
       } else {
-        imported += batch.length;
+        imported += dedupedBatch.length;
       }
     }
     batchesCompleted++;
@@ -1474,14 +1510,17 @@ async function parseAndImportMpfsCsv(
     
     if (batch.length >= BATCH_SIZE) {
       if (!dryRun) {
+        // Deduplicate batch by hcpcs+modifier+year to prevent ON CONFLICT errors
+        const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.hcpcs}-${r.modifier || ''}-${r.year}`);
+        
         const { error } = await supabase
           .from('mpfs_benchmarks')
-          .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+          .upsert(dedupedBatch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
         
         if (error) {
           errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
         } else {
-          imported += batch.length;
+          imported += dedupedBatch.length;
         }
       }
       batchesCompleted++;
@@ -1491,14 +1530,16 @@ async function parseAndImportMpfsCsv(
   
   if (batch.length > 0) {
     if (!dryRun) {
+      const dedupedBatch = deduplicateBatch(batch as any[], (r: any) => `${r.hcpcs}-${r.modifier || ''}-${r.year}`);
+      
       const { error } = await supabase
         .from('mpfs_benchmarks')
-        .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+        .upsert(dedupedBatch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
       
       if (error) {
         errors.push(`Final batch: ${error.message}`);
       } else {
-        imported += batch.length;
+        imported += dedupedBatch.length;
       }
     }
     batchesCompleted++;
@@ -1526,21 +1567,34 @@ async function batchUpsert(
   tableName: string,
   records: unknown[],
   conflictColumns: string,
-  dryRun: boolean = false
-): Promise<{ imported: number; errors: string[] }> {
+  dryRun: boolean = false,
+  keyFn?: (record: any) => string
+): Promise<{ imported: number; errors: string[]; dedupedCount: number }> {
   if (dryRun) {
-    return { imported: 0, errors: [] };
+    return { imported: 0, errors: [], dedupedCount: records.length };
+  }
+
+  // If a key function is provided, deduplicate the entire dataset first
+  let dedupedRecords = records;
+  if (keyFn) {
+    dedupedRecords = deduplicateByKey(records as any[], keyFn);
+    console.log(`[batchUpsert] ${tableName}: Deduped ${records.length} -> ${dedupedRecords.length} unique records`);
   }
 
   const BATCH_SIZE = 500;
   let imported = 0;
   const errors: string[] = [];
 
-  for (let i = 0; i < records.length; i += BATCH_SIZE) {
-    const batch = records.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < dedupedRecords.length; i += BATCH_SIZE) {
+    let batch = dedupedRecords.slice(i, i + BATCH_SIZE);
+    
+    // Double-check deduplication within batch (should be redundant but safe)
+    if (keyFn) {
+      batch = deduplicateBatch(batch as any[], keyFn);
+    }
     
     if ((i / BATCH_SIZE) % 10 === 0) {
-      console.log(`[batchUpsert] ${tableName}: Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)}`);
+      console.log(`[batchUpsert] ${tableName}: Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(dedupedRecords.length / BATCH_SIZE)}`);
     }
     
     const { error } = await supabase
@@ -1557,7 +1611,7 @@ async function batchUpsert(
     }
   }
 
-  return { imported, errors };
+  return { imported, errors, dedupedCount: dedupedRecords.length };
 }
 
 // ============================================================================
@@ -1900,13 +1954,17 @@ serve(async (req) => {
             }
           };
         } else {
-          const { imported, errors } = await batchUpsert(
+          // DMEPOS/DMEPEN dedup key: hcpcs + modifier + modifier2 + state_abbr + year + source_file
+          const { imported, errors, dedupedCount } = await batchUpsert(
             supabase, 
             tableName, 
             records, 
             "hcpcs,modifier,modifier2,state_abbr,year,source_file",
-            dryRun
+            dryRun,
+            (r: any) => `${r.hcpcs}-${r.modifier || ''}-${r.modifier2 || ''}-${r.state_abbr || ''}-${r.year}-${r.source_file}`
           );
+          
+          console.log(`[${dataType.toUpperCase()}] Deduped ${records.length} -> ${dedupedCount} unique records`);
           
           response = {
             ok: errors.length === 0,
@@ -1958,13 +2016,17 @@ serve(async (req) => {
             }
           };
         } else {
-          const { imported, errors } = await batchUpsert(
+          // GPCI dedup key: locality_num
+          const { imported, errors, dedupedCount } = await batchUpsert(
             supabase, 
             "gpci_localities", 
             records, 
             "locality_num",
-            dryRun
+            dryRun,
+            (r: any) => `${r.locality_num}`
           );
+          
+          console.log(`[GPCI] Deduped ${records.length} -> ${dedupedCount} unique records`);
           
           response = {
             ok: errors.length === 0,
@@ -2016,13 +2078,17 @@ serve(async (req) => {
             }
           };
         } else {
-          const { imported, errors } = await batchUpsert(
+          // ZIP dedup key: zip5
+          const { imported, errors, dedupedCount } = await batchUpsert(
             supabase, 
             "zip_to_locality", 
             records, 
             "zip5",
-            dryRun
+            dryRun,
+            (r: any) => `${r.zip5}`
           );
+          
+          console.log(`[ZIP] Deduped ${records.length} -> ${dedupedCount} unique records`);
           
           response = {
             ok: errors.length === 0,
@@ -2074,13 +2140,17 @@ serve(async (req) => {
             }
           };
         } else {
-          const { imported, errors } = await batchUpsert(
+          // CLFS dedup key: hcpcs + year
+          const { imported, errors, dedupedCount } = await batchUpsert(
             supabase, 
             "clfs_fee_schedule", 
             records, 
             "hcpcs,year",
-            dryRun
+            dryRun,
+            (r: any) => `${r.hcpcs}-${r.year}`
           );
+          
+          console.log(`[CLFS] Deduped ${records.length} -> ${dedupedCount} unique records`);
           
           response = {
             ok: errors.length === 0,
