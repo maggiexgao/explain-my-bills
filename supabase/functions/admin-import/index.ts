@@ -1130,91 +1130,122 @@ function parseClfsData(data: unknown[][], year: number = 2026): { records: unkno
 }
 
 // ============================================================================
-// MPFS Parser - For Medicare Physician Fee Schedule
+// MPFS Parser - STREAMING version with cell-based access for memory efficiency
 // ============================================================================
 
-function parseMpfsData(data: unknown[][], year: number = 2026): { records: unknown[]; meta: { headerRow: number; columns: string[]; sampleCodes: string[] } } {
-  const records: unknown[] = [];
+async function parseAndImportMpfsStreaming(
+  sheet: XLSX.WorkSheet,
+  supabase: any,
+  year: number,
+  dryRun: boolean
+): Promise<{
+  ok: boolean;
+  totalRows: number;
+  validRows: number;
+  imported: number;
+  skipped: number;
+  headerRow: number;
+  columns: string[];
+  sampleCodes: string[];
+  batchesCompleted: number;
+  errors: string[];
+}> {
+  const BATCH_SIZE = 500;
+  const LOG_INTERVAL = 2000;
+  
+  const range = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
+  if (!range) {
+    return { ok: false, totalRows: 0, validRows: 0, imported: 0, skipped: 0, headerRow: -1, columns: [], sampleCodes: [], batchesCompleted: 0, errors: ['No data range in sheet'] };
+  }
+  
+  const totalRows = range.e.r - range.s.r + 1;
+  console.log(`[MPFS Streaming] Sheet range: ${sheet['!ref']}, total rows: ${totalRows}`);
+  
+  // Find header row by scanning first 50 rows for "HCPCS"
   let headerRowIndex = -1;
   const colMap: ColumnMap = {};
-  const sampleCodes: string[] = [];
-
-  console.log(`[MPFS Parser] Searching for header in ${Math.min(50, data.length)} rows`);
   
-  // Find header row - look for HCPCS column
-  for (let i = 0; i < Math.min(50, data.length); i++) {
-    const row = data[i];
-    if (!Array.isArray(row)) continue;
-    
-    for (let j = 0; j < row.length; j++) {
-      const cell = row[j];
-      if (typeof cell === 'string') {
-        const normalized = normalizeHeader(cell);
-        const upper = cell.toUpperCase().trim();
-        
-        if (normalized === 'hcpcs' || upper === 'HCPCS') {
-          headerRowIndex = i;
-          console.log(`[MPFS Parser] Found header at row ${i + 1} (0-indexed: ${i})`);
+  for (let r = range.s.r; r <= Math.min(range.s.r + 50, range.e.r); r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const val = getCellValue(sheet, c, r);
+      if (typeof val === 'string') {
+        const upper = val.toUpperCase().trim();
+        if (upper === 'HCPCS') {
+          headerRowIndex = r;
+          console.log(`[MPFS Streaming] Found header at row ${r + 1} (0-indexed: ${r})`);
           
-          // Build column map
-          row.forEach((headerCell, idx) => {
-            if (typeof headerCell === 'string') {
-              const hNormalized = normalizeHeader(headerCell);
-              const hUpper = headerCell.toUpperCase().trim();
+          // Build column map from this row
+          for (let cc = range.s.c; cc <= range.e.c; cc++) {
+            const headerVal = getCellValue(sheet, cc, r);
+            if (typeof headerVal === 'string') {
+              const normalized = normalizeHeader(headerVal);
+              const upperH = headerVal.toUpperCase().trim();
               
-              if (hNormalized === 'hcpcs' || hUpper === 'HCPCS') colMap['hcpcs'] = idx;
-              else if (hNormalized === 'mod' || hUpper === 'MOD') colMap['modifier'] = idx;
-              else if (hNormalized === 'description' || hUpper === 'DESCRIPTION') colMap['description'] = idx;
-              else if (hNormalized === 'status' || hUpper === 'STATUS') colMap['status'] = idx;
-              else if (hNormalized === 'workrvu' || hNormalized.includes('work') && hNormalized.includes('rvu')) colMap['work_rvu'] = idx;
-              else if (hNormalized === 'nonfacpervu' || hNormalized.includes('nonfac') && hNormalized.includes('pe')) colMap['nonfac_pe_rvu'] = idx;
-              else if (hNormalized === 'facpervu' || hNormalized.includes('fac') && hNormalized.includes('pe') && !hNormalized.includes('nonfac')) colMap['fac_pe_rvu'] = idx;
-              else if (hNormalized === 'mprvu' || hNormalized.includes('mp') && hNormalized.includes('rvu')) colMap['mp_rvu'] = idx;
-              else if (hNormalized === 'nonfacfee' || (hNormalized.includes('nonfac') && hNormalized.includes('fee'))) colMap['nonfac_fee'] = idx;
-              else if (hNormalized === 'facfee' || (hNormalized.includes('fac') && hNormalized.includes('fee') && !hNormalized.includes('nonfac'))) colMap['fac_fee'] = idx;
-              else if (hNormalized === 'conversionfactor' || hNormalized.includes('conversion')) colMap['conversion_factor'] = idx;
-              else if (hNormalized === 'pctc') colMap['pctc'] = idx;
-              else if (hNormalized === 'globaldays' || hNormalized.includes('global')) colMap['global_days'] = idx;
-              else if (hNormalized.includes('multsurg') || hNormalized.includes('multiple')) colMap['mult_surgery_indicator'] = idx;
+              if (upperH === 'HCPCS') colMap['hcpcs'] = cc;
+              else if (normalized === 'mod' || upperH === 'MOD') colMap['modifier'] = cc;
+              else if (normalized === 'description' || upperH === 'DESCRIPTION') colMap['description'] = cc;
+              else if (normalized === 'status' || upperH === 'STATUS') colMap['status'] = cc;
+              else if (normalized.includes('workrvu') || (normalized.includes('work') && normalized.includes('rvu'))) colMap['work_rvu'] = cc;
+              else if (normalized.includes('nonfacpe') || (normalized.includes('nonfac') && normalized.includes('pe'))) colMap['nonfac_pe_rvu'] = cc;
+              else if ((normalized.includes('facpe') || (normalized.includes('fac') && normalized.includes('pe'))) && !normalized.includes('nonfac')) colMap['fac_pe_rvu'] = cc;
+              else if (normalized.includes('mprvu') || (normalized.includes('mp') && normalized.includes('rvu'))) colMap['mp_rvu'] = cc;
+              else if (normalized.includes('nonfacfee') || (normalized.includes('nonfac') && normalized.includes('fee'))) colMap['nonfac_fee'] = cc;
+              else if ((normalized.includes('facfee') || (normalized.includes('fac') && normalized.includes('fee'))) && !normalized.includes('nonfac')) colMap['fac_fee'] = cc;
+              else if (normalized.includes('conversion')) colMap['conversion_factor'] = cc;
+              else if (normalized === 'pctc') colMap['pctc'] = cc;
+              else if (normalized.includes('global')) colMap['global_days'] = cc;
+              else if (normalized.includes('multsurg') || normalized.includes('multiple')) colMap['mult_surgery_indicator'] = cc;
             }
-          });
+          }
           break;
         }
       }
     }
     if (headerRowIndex >= 0) break;
   }
-
+  
   if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
-    console.log(`[MPFS Parser] Could not find header. Data sample:`, data.slice(0, 10));
-    return { records: [], meta: { headerRow: -1, columns: [], sampleCodes: [] } };
+    return { ok: false, totalRows, validRows: 0, imported: 0, skipped: 0, headerRow: -1, columns: [], sampleCodes: [], batchesCompleted: 0, errors: ['Could not find HCPCS header row'] };
   }
   
-  console.log(`[MPFS Parser] Column map:`, JSON.stringify(colMap));
-
-  // Parse data rows
-  for (let i = headerRowIndex + 1; i < data.length; i++) {
-    const row = data[i];
-    if (!Array.isArray(row)) continue;
+  console.log(`[MPFS Streaming] Column map:`, JSON.stringify(colMap));
+  
+  // Stream through ALL rows - NO LIMITS
+  let batch: unknown[] = [];
+  let validRows = 0;
+  let skipped = 0;
+  let imported = 0;
+  let batchesCompleted = 0;
+  const errors: string[] = [];
+  const sampleCodes: string[] = [];
+  
+  for (let r = headerRowIndex + 1; r <= range.e.r; r++) {
+    const rowNum = r - headerRowIndex;
+    if (rowNum % LOG_INTERVAL === 0) {
+      console.log(`[MPFS Streaming] Processing row ${rowNum}/${totalRows - headerRowIndex - 1}, ${validRows} valid, ${batchesCompleted} batches`);
+    }
     
-    const rawHcpcs = row[colMap['hcpcs']];
+    const rawHcpcs = getCellValue(sheet, colMap['hcpcs'], r);
     const hcpcs = normalizeHcpcsCode(rawHcpcs);
     
-    if (!hcpcs) continue;
+    if (!hcpcs) {
+      skipped++;
+      continue;
+    }
     
     if (sampleCodes.length < 20) {
       sampleCodes.push(hcpcs);
     }
     
-    const workRvu = parseNumeric(row[colMap['work_rvu']]);
-    const nonfacPeRvu = parseNumeric(row[colMap['nonfac_pe_rvu']]);
-    const facPeRvu = parseNumeric(row[colMap['fac_pe_rvu']]);
-    const mpRvu = parseNumeric(row[colMap['mp_rvu']]);
-    const conversionFactor = parseNumeric(row[colMap['conversion_factor']]) || 34.6062;
+    const workRvu = parseNumeric(getCellValue(sheet, colMap['work_rvu'], r));
+    const nonfacPeRvu = parseNumeric(getCellValue(sheet, colMap['nonfac_pe_rvu'], r));
+    const facPeRvu = parseNumeric(getCellValue(sheet, colMap['fac_pe_rvu'], r));
+    const mpRvu = parseNumeric(getCellValue(sheet, colMap['mp_rvu'], r));
+    const conversionFactor = parseNumeric(getCellValue(sheet, colMap['conversion_factor'], r)) || 34.6062;
     
     // Use pre-calculated fees if available, otherwise calculate
-    let nonfacFee = parseNumeric(row[colMap['nonfac_fee']]);
-    let facFee = parseNumeric(row[colMap['fac_fee']]);
+    let nonfacFee = parseNumeric(getCellValue(sheet, colMap['nonfac_fee'], r));
+    let facFee = parseNumeric(getCellValue(sheet, colMap['fac_fee'], r));
     
     // Calculate fees if not provided
     if (nonfacFee === null && workRvu !== null && nonfacPeRvu !== null && mpRvu !== null) {
@@ -1224,12 +1255,12 @@ function parseMpfsData(data: unknown[][], year: number = 2026): { records: unkno
       facFee = Math.round((workRvu + facPeRvu + mpRvu) * conversionFactor * 100) / 100;
     }
     
-    records.push({
+    const record = {
       year,
       hcpcs,
-      modifier: parseString(row[colMap['modifier']]) || '',
-      description: parseString(row[colMap['description']]),
-      status: parseString(row[colMap['status']]),
+      modifier: parseString(getCellValue(sheet, colMap['modifier'], r)) || '',
+      description: parseString(getCellValue(sheet, colMap['description'], r)),
+      status: parseString(getCellValue(sheet, colMap['status'], r)),
       work_rvu: workRvu,
       nonfac_pe_rvu: nonfacPeRvu,
       fac_pe_rvu: facPeRvu,
@@ -1237,24 +1268,68 @@ function parseMpfsData(data: unknown[][], year: number = 2026): { records: unkno
       nonfac_fee: nonfacFee,
       fac_fee: facFee,
       conversion_factor: conversionFactor,
-      pctc: parseString(row[colMap['pctc']]),
-      global_days: parseString(row[colMap['global_days']]),
-      mult_surgery_indicator: parseString(row[colMap['mult_surgery_indicator']]),
+      pctc: parseString(getCellValue(sheet, colMap['pctc'], r)),
+      global_days: parseString(getCellValue(sheet, colMap['global_days'], r)),
+      mult_surgery_indicator: parseString(getCellValue(sheet, colMap['mult_surgery_indicator'], r)),
       qp_status: 'nonQP',
       source: 'CMS MPFS'
-    });
+    };
+    
+    batch.push(record);
+    validRows++;
+    
+    if (batch.length >= BATCH_SIZE) {
+      if (!dryRun) {
+        const { error } = await supabase
+          .from('mpfs_benchmarks')
+          .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+        
+        if (error) {
+          errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
+        } else {
+          imported += batch.length;
+        }
+      }
+      batchesCompleted++;
+      batch = [];
+      
+      // Memory cleanup hint
+      if (batchesCompleted % 10 === 0) {
+        console.log(`[MPFS Streaming] Batch ${batchesCompleted} complete, ${imported} imported so far`);
+      }
+    }
   }
   
-  console.log(`[MPFS Parser] Parsed ${records.length} records`);
-  console.log(`[MPFS Parser] Sample codes:`, sampleCodes);
-
-  return { 
-    records, 
-    meta: { 
-      headerRow: headerRowIndex, 
-      columns: Object.keys(colMap),
-      sampleCodes
-    } 
+  // Upsert remaining batch
+  if (batch.length > 0) {
+    if (!dryRun) {
+      const { error } = await supabase
+        .from('mpfs_benchmarks')
+        .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+      
+      if (error) {
+        errors.push(`Final batch: ${error.message}`);
+      } else {
+        imported += batch.length;
+      }
+    }
+    batchesCompleted++;
+  }
+  
+  console.log(`[MPFS Streaming] Complete: ${validRows} valid, ${imported} imported, ${skipped} skipped, ${batchesCompleted} batches`);
+  console.log(`[MPFS Streaming] Sample codes:`, sampleCodes.slice(0, 10));
+  
+  return {
+    ok: errors.length === 0,
+    totalRows,
+    validRows,
+    imported: dryRun ? 0 : imported,
+    skipped,
+    headerRow: headerRowIndex,
+    columns: Object.keys(colMap),
+    sampleCodes,
+    batchesCompleted,
+    errors
   };
 }
 
@@ -1503,59 +1578,41 @@ serve(async (req) => {
       }
 
       case "mpfs": {
-        const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
+        // Use streaming parser to avoid memory exhaustion on large MPFS files (16k+ rows)
+        console.log(`[admin-import] Using streaming parser for MPFS`);
+        const workbook = XLSX.read(new Uint8Array(fileBuffer), { 
+          type: "array",
+          // Memory optimization: don't parse styles/formulas
+          cellStyles: false,
+          cellFormula: false,
+          cellHTML: false
+        });
         const sheetName = findBestSheet(workbook, ["MPFS", "Fee Schedule", "RVU"]);
         const sheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
         
-        const { records, meta } = parseMpfsData(data, year || 2026);
+        const result = await parseAndImportMpfsStreaming(sheet, supabase, year || 2026, dryRun);
         
-        if (records.length === 0) {
-          response = {
-            ok: false,
-            errorCode: "MPFS_PARSE_FAILED",
-            message: "Could not detect header row or no valid HCPCS codes found",
-            details: {
-              totalRowsRead: data.length,
-              validRows: 0,
-              imported: 0,
-              skipped: 0,
-              sheetName,
-              headerRowIndex: meta.headerRow,
-              columnsDetected: meta.columns,
-              sampleRows: data.slice(0, 5)
-            }
-          };
-        } else {
-          const { imported, errors } = await batchUpsert(
-            supabase, 
-            "mpfs_benchmarks", 
-            records, 
-            "hcpcs,modifier,year",
-            dryRun
-          );
-          
-          response = {
-            ok: errors.length === 0,
-            message: dryRun 
-              ? `Dry run complete: ${records.length} valid MPFS records found`
-              : `Imported ${imported} MPFS records`,
-            details: {
-              totalRowsRead: data.length,
-              validRows: records.length,
-              imported: dryRun ? 0 : imported,
-              skipped: records.length - imported,
-              sheetName,
-              headerRowIndex: meta.headerRow,
-              columnsDetected: meta.columns,
-              sampleRows: meta.sampleCodes.map(code => ({ hcpcs: code }))
-            }
-          };
-          
-          if (errors.length > 0) {
-            response.errorCode = "PARTIAL_IMPORT";
-            response.message = errors.join("; ");
+        response = {
+          ok: result.ok && result.errors.length === 0,
+          message: dryRun 
+            ? `Dry run complete: ${result.validRows} valid MPFS records found`
+            : `Imported ${result.imported} MPFS records`,
+          details: {
+            totalRowsRead: result.totalRows,
+            validRows: result.validRows,
+            imported: result.imported,
+            skipped: result.skipped,
+            sheetName,
+            headerRowIndex: result.headerRow,
+            columnsDetected: result.columns,
+            batchesCompleted: result.batchesCompleted,
+            sampleRows: result.sampleCodes.map((code: string) => ({ hcpcs: code }))
           }
+        };
+        
+        if (result.errors.length > 0) {
+          response.errorCode = "PARTIAL_IMPORT";
+          response.message = result.errors.slice(0, 5).join("; ");
         }
         break;
       }
