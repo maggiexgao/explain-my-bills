@@ -51,7 +51,11 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
     if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error("Missing Supabase configuration");
+      console.error("[record-analysis-gaps] Configuration error: Database credentials missing");
+      return new Response(
+        JSON.stringify({ ok: false, error: "Service temporarily unavailable" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
     
     const supabase = createClient(supabaseUrl, serviceRoleKey);

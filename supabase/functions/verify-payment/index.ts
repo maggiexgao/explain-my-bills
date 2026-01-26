@@ -17,7 +17,11 @@ serve(async (req) => {
     
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
-      throw new Error("STRIPE_SECRET_KEY is not set");
+      console.error("[VERIFY-PAYMENT] Configuration error: Payment service key missing");
+      return new Response(
+        JSON.stringify({ error: "Payment verification service unavailable.", verified: false }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { sessionId } = await req.json();
