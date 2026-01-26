@@ -6,6 +6,8 @@
  * - Dry run toggle
  * - Progress display with elapsed time
  * - Structured error display with expandable details
+ * - Database status display
+ * - Data verification modal
  * - Unified admin context for auth
  */
 
@@ -29,6 +31,30 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminContextStandalone } from '@/hooks/useAdminContext';
+import { DatasetStatusDisplay } from './DatasetStatusDisplay';
+import { VerifyDataModal } from './VerifyDataModal';
+
+// Map dataType to table name for status display
+const DATA_TYPE_TO_TABLE: Record<string, 'mpfs_benchmarks' | 'opps_addendum_b' | 'clfs_fee_schedule' | 
+  'dmepos_fee_schedule' | 'dmepen_fee_schedule' | 'gpci_localities' | 'zip_to_locality'> = {
+  mpfs: 'mpfs_benchmarks',
+  opps: 'opps_addendum_b',
+  clfs: 'clfs_fee_schedule',
+  dmepos: 'dmepos_fee_schedule',
+  dmepen: 'dmepen_fee_schedule',
+  gpci: 'gpci_localities',
+  'zip-crosswalk': 'zip_to_locality'
+};
+
+const MIN_EXPECTED_ROWS: Record<string, number> = {
+  mpfs: 10000,
+  opps: 5000,
+  clfs: 1000,
+  dmepos: 1000,
+  dmepen: 100,
+  gpci: 100,
+  'zip-crosswalk': 30000
+};
 
 type ImportStatus = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
 
@@ -89,6 +115,10 @@ export function ImportCard({
   const [progress, setProgress] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [statusRefreshTrigger, setStatusRefreshTrigger] = useState(0);
+  
+  const tableName = DATA_TYPE_TO_TABLE[dataType];
+  const minExpectedRows = MIN_EXPECTED_ROWS[dataType] || 100;
   
   // Use standalone admin context (works without provider)
   const adminCtx = useAdminContextStandalone();
@@ -266,6 +296,7 @@ export function ImportCard({
 
       if (data.ok) {
         setStatus('success');
+        setStatusRefreshTrigger(prev => prev + 1); // Refresh dataset status
         if (!dryRun && onImportComplete) {
           onImportComplete();
         }
@@ -349,6 +380,15 @@ export function ImportCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Database Status Display */}
+        {tableName && (
+          <DatasetStatusDisplay 
+            tableName={tableName}
+            minExpectedRows={minExpectedRows}
+            refreshTrigger={statusRefreshTrigger}
+          />
+        )}
+
         {/* Source Info */}
         {sourceInfo && (
           <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
@@ -544,6 +584,11 @@ export function ImportCard({
           </div>
 
           <div className="flex-1 flex gap-2 justify-end">
+            {/* Verify Data Button */}
+            {tableName && !isProcessing && (
+              <VerifyDataModal tableName={tableName} displayName={title} />
+            )}
+            
             {isProcessing ? (
               <Button variant="destructive" size="sm" onClick={handleCancel}>
                 Cancel

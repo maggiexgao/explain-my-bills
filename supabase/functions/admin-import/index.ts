@@ -219,6 +219,47 @@ interface ColumnMap {
 // Helper Functions
 // ============================================================================
 
+/**
+ * Log an import operation to the import_logs table
+ * Uses direct REST API to avoid type issues
+ */
+async function logImport(
+  supabaseUrl: string,
+  serviceKey: string,
+  datasetName: string,
+  fileName: string | null,
+  rowsImported: number,
+  rowsSkipped: number,
+  status: 'success' | 'partial' | 'failed',
+  errorMessage: string | null = null
+): Promise<void> {
+  try {
+    const response = await fetch(`${supabaseUrl}/rest/v1/import_logs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        dataset_name: datasetName,
+        file_name: fileName,
+        rows_imported: rowsImported,
+        rows_skipped: rowsSkipped,
+        status,
+        error_message: errorMessage
+      })
+    });
+    if (!response.ok) {
+      console.warn(`[admin-import] Log insert failed: ${response.status}`);
+    } else {
+      console.log(`[admin-import] Logged import: ${datasetName} - ${rowsImported} rows (${status})`);
+    }
+  } catch (e) {
+    console.warn('[admin-import] Failed to log import:', e);
+  }
+}
 function parseNumeric(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number') return isNaN(value) ? null : value;
@@ -2183,6 +2224,34 @@ serve(async (req) => {
           errorCode: "INVALID_DATA_TYPE",
           message: `Unknown data type: ${dataType}. Supported: opps, mpfs, dmepos, dmepen, clfs, gpci, zip-crosswalk`
         };
+    }
+
+    // Log import to history (only for actual imports, not dry runs)
+    if (!dryRun && response.ok && response.details?.imported) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      await logImport(
+        supabaseUrl,
+        supabaseServiceKey,
+        dataType,
+        fileName || null,
+        response.details.imported,
+        response.details.skipped || 0,
+        response.details.skipped && response.details.skipped > 0 ? 'partial' : 'success'
+      );
+    } else if (!dryRun && !response.ok) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      await logImport(
+        supabaseUrl,
+        supabaseServiceKey,
+        dataType,
+        fileName || null,
+        response.details?.imported || 0,
+        response.details?.skipped || 0,
+        'failed',
+        response.message
+      );
     }
 
     return new Response(JSON.stringify(response), {
