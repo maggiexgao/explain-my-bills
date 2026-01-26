@@ -70,6 +70,64 @@ export function DatasetValidationCard() {
   /**
    * Run validation for a single dataset
    */
+  /**
+   * Get the RPC column name for a given table and code column
+   * The RPC only accepts 'hcpcs', 'locality_num', 'zip5', or 'state_abbr'
+   */
+  const getRpcCodeColumn = (tableName: string, codeColumn: string): string => {
+    // Map table-specific columns to RPC-accepted column names
+    const columnMapping: Record<string, string> = {
+      'gpci_localities': 'locality_num',
+      'zip_to_locality': 'zip5',
+      'gpci_state_avg_2026': 'state_abbr',
+    };
+    return columnMapping[tableName] || 'hcpcs';
+  };
+
+  /**
+   * Get distinct code count using the RPC function
+   * Falls back to sample-based counting if RPC fails
+   */
+  const getDistinctCodeCount = async (tableName: string, codeColumn: string): Promise<number> => {
+    const rpcColumn = getRpcCodeColumn(tableName, codeColumn);
+    
+    // RPC only supports specific tables
+    const supportedTables = [
+      'mpfs_benchmarks', 'opps_addendum_b', 'clfs_fee_schedule',
+      'dmepos_fee_schedule', 'dmepen_fee_schedule', 'gpci_localities', 'zip_to_locality'
+    ];
+    
+    if (!supportedTables.includes(tableName)) {
+      // For unsupported tables (like gpci_state_avg_2026), use direct query
+      console.log(`[Validation] Table ${tableName} not in RPC whitelist, using direct query`);
+      const { data, error } = await supabase
+        .from(tableName as any)
+        .select(codeColumn);
+      
+      if (error || !data) return 0;
+      return new Set(data.map((r: any) => r[codeColumn]).filter(Boolean)).size;
+    }
+    
+    try {
+      console.log(`[Validation] Calling RPC count_distinct_codes for ${tableName}.${rpcColumn}`);
+      const { data, error } = await supabase.rpc('count_distinct_codes', {
+        p_table_name: tableName,
+        p_code_column: rpcColumn
+      });
+      
+      if (error) {
+        console.error(`[Validation] RPC error for ${tableName}:`, error);
+        return 0;
+      }
+      
+      console.log(`[Validation] RPC returned ${data} for ${tableName}`);
+      return data || 0;
+    } catch (err) {
+      console.error(`[Validation] RPC exception for ${tableName}:`, err);
+      return 0;
+    }
+  };
+
   const validateDataset = async (config: DatasetInfo): Promise<ValidationResult> => {
     const checks: ValidationCheck[] = [];
     let rowCount = 0;
@@ -115,17 +173,20 @@ export function DatasetValidationCard() {
 
       // For datasets with a code column, run detailed analysis
       if (config.codeColumn) {
-        // Fetch sample (up to 50k for accuracy)
-        const sampleSize = Math.min(rowCount, 50000);
+        // Use RPC for accurate distinct code count (not limited by sample)
+        distinctCodes = await getDistinctCodeCount(config.tableName, config.codeColumn);
+        
+        // Fetch a smaller sample for prefix analysis and sample codes display
+        // This is just for UI display, not for counting
         const sampleResult = await supabase
           .from(config.tableName as any)
           .select(config.codeColumn)
-          .limit(sampleSize);
+          .limit(5000);
 
         if (sampleResult.data && sampleResult.data.length > 0) {
           const analysis = analyzeCodeColumn(sampleResult.data, config.codeColumn, config);
           
-          distinctCodes = analysis.distinctCount;
+          // Use RPC count for distinctCodes (already set above), but get other stats from sample
           sampleCodes = analysis.sampleCodes;
           topPrefixes = analysis.prefixBreakdown;
 
