@@ -1,6 +1,7 @@
 /**
  * DatasetStatusDisplay Component
  * Shows what data is currently loaded in a database table
+ * Displays: row count, codes detected, last import date, sample codes
  */
 
 import { useState, useEffect } from 'react';
@@ -13,12 +14,14 @@ import {
   Loader2, 
   Database,
   Clock,
-  RefreshCw
+  RefreshCw,
+  Hash
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DatasetStatus {
   rowCount: number;
+  codesDetected: number;
   lastImportedAt: string | null;
   sampleCodes: string[];
   loading: boolean;
@@ -44,6 +47,16 @@ const tableColumnMap: Record<string, string> = {
   zip_to_locality: 'zip5'
 };
 
+const tableToDatasetName: Record<string, string> = {
+  mpfs_benchmarks: 'mpfs',
+  opps_addendum_b: 'opps',
+  clfs_fee_schedule: 'clfs',
+  dmepos_fee_schedule: 'dmepos',
+  dmepen_fee_schedule: 'dmepen',
+  gpci_localities: 'gpci',
+  zip_to_locality: 'zip-crosswalk'
+};
+
 export function DatasetStatusDisplay({ 
   tableName, 
   codeColumn,
@@ -52,6 +65,7 @@ export function DatasetStatusDisplay({
 }: DatasetStatusDisplayProps) {
   const [status, setStatus] = useState<DatasetStatus>({
     rowCount: 0,
+    codesDetected: 0,
     lastImportedAt: null,
     sampleCodes: [],
     loading: true,
@@ -59,33 +73,64 @@ export function DatasetStatusDisplay({
   });
 
   const column = codeColumn || tableColumnMap[tableName] || 'hcpcs';
+  const datasetName = tableToDatasetName[tableName];
 
   const fetchStatus = async () => {
     setStatus(prev => ({ ...prev, loading: true, error: null }));
 
     try {
+      // Get row count
       const { count, error: countError } = await supabase
         .from(tableName)
         .select('*', { count: 'exact', head: true });
 
       if (countError) throw countError;
 
+      // Get sample codes (up to 1000 for distinct count accuracy)
       const { data: samples, error: sampleError } = await supabase
         .from(tableName)
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(1000);
 
       if (sampleError) throw sampleError;
 
-      const sampleCodes = [...new Set((samples || []).map((s) => String((s as Record<string, unknown>)[column] || '')))]
-        .filter(Boolean)
-        .slice(0, 5);
+      // Calculate distinct codes from sample
+      const allCodes = (samples || []).map((s) => String((s as Record<string, unknown>)[column] || '')).filter(Boolean);
+      const distinctCodes = new Set(allCodes);
+      const codesDetected = distinctCodes.size;
+      
+      // Get sample codes (first 5 unique)
+      const sampleCodes = [...distinctCodes].slice(0, 5);
 
-      const lastImportedAt = (samples?.[0] as Record<string, unknown>)?.created_at as string || null;
+      // Get last import from import_logs table (more accurate than created_at)
+      let lastImportedAt: string | null = null;
+      try {
+        const { data: lastImport } = await supabase
+          .from('import_logs')
+          .select('imported_at, rows_imported, status')
+          .eq('dataset_name', datasetName)
+          .eq('status', 'success')
+          .order('imported_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (lastImport?.imported_at) {
+          lastImportedAt = lastImport.imported_at;
+        }
+      } catch {
+        // Fallback to created_at from table if import_logs fails
+        lastImportedAt = (samples?.[0] as Record<string, unknown>)?.created_at as string || null;
+      }
+
+      // If no import log, use the most recent created_at
+      if (!lastImportedAt && samples?.[0]) {
+        lastImportedAt = (samples[0] as Record<string, unknown>)?.created_at as string || null;
+      }
 
       setStatus({
         rowCount: count || 0,
+        codesDetected,
         lastImportedAt,
         sampleCodes,
         loading: false,
@@ -145,7 +190,8 @@ export function DatasetStatusDisplay({
   }
 
   return (
-    <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+    <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {getStatusIndicator()}
@@ -162,15 +208,32 @@ export function DatasetStatusDisplay({
         </div>
       </div>
 
+      {/* Metrics Grid - Valid Rows & Codes Detected */}
       {!status.loading && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          <span className="text-muted-foreground">Rows:</span>
-          <span className="font-mono font-medium">{status.rowCount.toLocaleString()}</span>
-          <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />Last Import:</span>
-          <span className="font-mono">{formatDate(status.lastImportedAt)}</span>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-background/50 rounded-lg p-2 border border-border/50">
+            <div className="text-xs text-muted-foreground">Valid Rows</div>
+            <div className="text-lg font-bold font-mono">{status.rowCount.toLocaleString()}</div>
+          </div>
+          <div className="bg-background/50 rounded-lg p-2 border border-border/50">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Hash className="h-3 w-3" />
+              Codes Detected
+            </div>
+            <div className="text-lg font-bold font-mono">{status.codesDetected.toLocaleString()}</div>
+          </div>
         </div>
       )}
 
+      {/* Last Import */}
+      {!status.loading && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          <span>Last Import: {formatDate(status.lastImportedAt)}</span>
+        </div>
+      )}
+
+      {/* Sample Codes */}
       {!status.loading && status.sampleCodes.length > 0 && (
         <div className="pt-1 border-t border-border/50">
           <div className="text-xs text-muted-foreground mb-1">Sample codes:</div>
@@ -182,8 +245,17 @@ export function DatasetStatusDisplay({
         </div>
       )}
 
+      {/* Empty State */}
       {!status.loading && status.rowCount === 0 && (
         <div className="text-xs text-muted-foreground italic">No data loaded. Upload a file to import.</div>
+      )}
+
+      {/* Data Complete Indicator */}
+      {!status.loading && status.rowCount >= minExpectedRows && (
+        <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 rounded p-2">
+          <CheckCircle2 className="h-3 w-3" />
+          <span>Data appears complete</span>
+        </div>
       )}
     </div>
   );
