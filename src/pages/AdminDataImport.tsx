@@ -207,6 +207,19 @@ function AdminDataImportContent() {
         {/* Coverage Metrics */}
         <CoverageMetricsCard refreshTrigger={adminContext.refreshCount} />
 
+        {/* MPFS Import */}
+        <ImportCard
+          title="MPFS (Physician Fee Schedule)"
+          description="Medicare Physician Fee Schedule — RVUs and national payment rates"
+          dataType="mpfs"
+          sourceInfo={{
+            source: "CMS MPFS 2026 (mpfs_2026_nonqp_national.xlsx)",
+            columns: "HCPCS, MOD, Description, Work RVU, PE RVU, MP RVU, Fee",
+            purpose: "Primary reference for physician/professional services pricing"
+          }}
+          onImportComplete={handleImportComplete}
+        />
+
         {/* GPCI Import */}
         <ImportCard
           title="GPCI Localities"

@@ -16,7 +16,9 @@
  * - CSV fast-path for large files
  * - Structured error responses
  * - Service role for bypassing RLS
- * - JWT authentication required for security
+ * - Dev bypass for preview environments
+ * 
+ * CRITICAL: HCPCS codes are ALWAYS treated as strings - never parseInt/Number!
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -38,7 +40,6 @@ function isDevBypassAllowedByOrigin(req: Request): boolean {
   const referer = req.headers.get('Referer') || '';
   const host = req.headers.get('Host') || '';
   
-  // Check all possible sources for origin hints
   const checkSource = origin || referer || host;
   
   console.log(`[admin-import] Origin check - Origin: "${origin}", Referer: "${referer}", Host: "${host}"`);
@@ -46,10 +47,10 @@ function isDevBypassAllowedByOrigin(req: Request): boolean {
   const allowedPatterns = [
     'lovable.dev',
     'lovable.app',
-    'lovableproject.com',  // Lovable project preview URLs
+    'lovableproject.com',
     'localhost',
     '127.0.0.1',
-    'preview--',  // Lovable preview URLs with prefix
+    'preview--',
   ];
   
   const isAllowed = allowedPatterns.some(pattern => checkSource.toLowerCase().includes(pattern));
@@ -69,7 +70,6 @@ async function verifyAdminAuth(req: Request): Promise<{
   reason?: string;
   debugInfo?: Record<string, unknown>;
 }> {
-  // Collect debug info for better error messages
   const url = new URL(req.url);
   const bypassParam = url.searchParams.get('bypass');
   const devBypassHeader = req.headers.get('X-Dev-Bypass');
@@ -80,24 +80,19 @@ async function verifyAdminAuth(req: Request): Promise<{
     hasBypassParam: !!bypassParam,
     hasBypassHeader: !!devBypassHeader,
     hasAuthHeader: !!authHeader,
-    origin: origin.substring(0, 100), // Truncate for safety
+    origin: origin.substring(0, 100),
   };
   
   // DEV BYPASS: Check for development bypass FIRST
-  // Bypass is enabled when:
-  // 1. DEV_BYPASS_ENABLED env var is explicitly "true", OR
-  // 2. Request comes from lovable.dev/lovable.app/lovableproject.com/localhost origins
   const devBypassExplicitlyEnabled = Deno.env.get('DEV_BYPASS_ENABLED') === 'true';
   const devBypassByOrigin = isDevBypassAllowedByOrigin(req);
   const devBypassEnabled = devBypassExplicitlyEnabled || devBypassByOrigin;
-  const devBypassToken = Deno.env.get('DEV_BYPASS_TOKEN') || 'admin123'; // Default token for dev
+  const devBypassToken = Deno.env.get('DEV_BYPASS_TOKEN') || 'admin123';
   
-  // Check bypass token from query param OR header
   const bypassTokenProvided = bypassParam || devBypassHeader;
   const tokenMatches = bypassTokenProvided === devBypassToken;
   
   if (bypassTokenProvided) {
-    // User is attempting bypass
     if (!devBypassEnabled) {
       console.log(`[admin-import] Bypass attempted but not allowed - origin not in allowlist`);
       return { 
@@ -118,7 +113,6 @@ async function verifyAdminAuth(req: Request): Promise<{
       };
     }
     
-    // Bypass is valid!
     console.log(`[admin-import] DEV BYPASS ACTIVE (explicit=${devBypassExplicitlyEnabled}, origin=${devBypassByOrigin}) - allowing admin access without auth`);
     return { authorized: true, userId: 'dev-bypass', debugInfo };
   }
@@ -147,7 +141,6 @@ async function verifyAdminAuth(req: Request): Promise<{
   });
 
   try {
-    // Use getClaims to validate the JWT token
     const token = authHeader.replace('Bearer ', '');
     const { data, error } = await supabase.auth.getClaims(token);
     
@@ -158,7 +151,6 @@ async function verifyAdminAuth(req: Request): Promise<{
 
     const userId = data.claims.sub;
     
-    // Check if user has admin role in user_roles table
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseServiceKey) {
       console.error('[admin-import] Missing service role key');
@@ -174,9 +166,6 @@ async function verifyAdminAuth(req: Request): Promise<{
       .maybeSingle();
 
     if (roleError) {
-      console.error('[admin-import] Role lookup error:', roleError.message);
-      // If user_roles table doesn't exist yet, fall back to allowing any authenticated user
-      // This is a graceful degradation for initial setup
       console.warn('[admin-import] Allowing authenticated user - user_roles table may not exist');
       return { authorized: true, userId };
     }
@@ -234,7 +223,6 @@ function parseNumeric(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number') return isNaN(value) ? null : value;
   if (typeof value === 'string') {
-    // Remove $, commas, parentheses
     const cleaned = value.replace(/[$,()]/g, '').trim();
     if (cleaned === '' || cleaned === '-' || cleaned.toLowerCase() === 'n/a' || 
         cleaned.toLowerCase() === 'not found') return null;
@@ -247,7 +235,6 @@ function parseNumeric(value: unknown): number | null {
 function parseString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const str = String(value).trim();
-  // Remove unicode whitespace and normalize
   const normalized = str.replace(/[\u00A0\u2007\u202F\uFEFF]/g, ' ').trim();
   return normalized === '' ? null : normalized;
 }
@@ -256,41 +243,61 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-/**
- * Get cell value from sheet using cell address (e.g., "A1")
- */
 function getCellValue(sheet: XLSX.WorkSheet, col: number, row: number): unknown {
   const addr = XLSX.utils.encode_cell({ c: col, r: row });
   const cell = sheet[addr];
   if (!cell) return null;
-  // Return the formatted value if available, otherwise the raw value
   return cell.w !== undefined ? cell.w : cell.v;
 }
 
 /**
- * Validate if a value looks like a valid HCPCS code
- * CRITICAL: NEVER use parseInt/Number on HCPCS codes!
+ * CRITICAL: Normalize HCPCS code to string format
+ * NEVER use parseInt/Number on HCPCS codes!
+ * 
+ * Valid patterns:
+ * - 5 digits: 99284, 80053, 00100
+ * - Letter + 4 digits: E0114, J1885, A0428, G0378
+ * - 4 digits + letter: 0001U (PLA codes)
+ */
+function normalizeHcpcsCode(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  
+  // CRITICAL: Always convert to string first!
+  let str = String(value).trim().toUpperCase();
+  
+  // Remove common prefixes
+  str = str
+    .replace(/^CPT[\s:.\-]*/i, '')
+    .replace(/^HCPCS[\s:.\-]*/i, '')
+    .replace(/^CODE[\s:.\-]*/i, '')
+    .replace(/^#/, '')
+    .replace(/[^\w]/g, '')
+    .trim();
+  
+  if (str === '' || str.length < 4 || str.length > 7) return null;
+  
+  // If it's purely numeric and less than 5 digits, pad with leading zeros
+  if (/^\d+$/.test(str) && str.length < 5) {
+    str = str.padStart(5, '0');
+  }
+  
+  // Take first 5 characters for standard codes
+  const code = str.substring(0, 5);
+  
+  // Validate format: must be 5 alphanumeric characters
+  if (!/^[A-Z0-9]{5}$/i.test(code)) return null;
+  
+  return code;
+}
+
+/**
+ * Validate if a value looks like a valid HCPCS code format
  */
 function isValidHcpcsCode(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   const str = String(value).trim().toUpperCase();
   if (str.length !== 5) return false;
   return /^[A-Z0-9]{5}$/.test(str);
-}
-
-/**
- * Normalize HCPCS code to canonical format
- */
-function normalizeHcpcsCode(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  const str = String(value).trim().toUpperCase();
-  if (str === '' || str.length < 4 || str.length > 7) return null;
-  if (str.includes(' ')) return null;
-  const cleaned = str.replace(/[^A-Z0-9]/g, '').substring(0, 5);
-  if (isValidHcpcsCode(cleaned)) {
-    return cleaned;
-  }
-  return null;
 }
 
 // ============================================================================
@@ -310,7 +317,7 @@ function parseCSV(text: string): string[][] {
     if (inQuotes) {
       if (char === '"' && nextChar === '"') {
         currentField += '"';
-        i++; // Skip next quote
+        i++;
       } else if (char === '"') {
         inQuotes = false;
       } else {
@@ -329,14 +336,13 @@ function parseCSV(text: string): string[][] {
         }
         currentRow = [];
         currentField = '';
-        if (char === '\r') i++; // Skip \n in \r\n
+        if (char === '\r') i++;
       } else if (char !== '\r') {
         currentField += char;
       }
     }
   }
   
-  // Push last field/row
   if (currentField || currentRow.length > 0) {
     currentRow.push(currentField.trim());
     if (currentRow.some(f => f !== '')) {
@@ -349,6 +355,7 @@ function parseCSV(text: string): string[][] {
 
 // ============================================================================
 // Memory-Efficient OPPS Parser (Cell-Based Access with Streaming Upserts)
+// NO LIMITS - processes ALL rows
 // ============================================================================
 
 async function parseAndImportOppsStreaming(
@@ -369,9 +376,8 @@ async function parseAndImportOppsStreaming(
   errors: string[];
 }> {
   const BATCH_SIZE = 500;
-  const LOG_INTERVAL = 5000;
+  const LOG_INTERVAL = 2000;
   
-  // Get sheet range
   const range = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
   if (!range) {
     return { ok: false, totalRows: 0, validRows: 0, imported: 0, skipped: 0, headerRow: -1, columns: [], sampleCodes: [], batchesCompleted: 0, errors: ['No data range in sheet'] };
@@ -393,7 +399,6 @@ async function parseAndImportOppsStreaming(
           headerRowIndex = r;
           console.log(`[OPPS Parser] Found header at row ${r + 1} (0-indexed: ${r})`);
           
-          // Build column map from this row
           for (let cc = range.s.c; cc <= range.e.c; cc++) {
             const headerVal = getCellValue(sheet, cc, r);
             if (typeof headerVal === 'string') {
@@ -424,7 +429,7 @@ async function parseAndImportOppsStreaming(
   
   console.log(`[OPPS Parser] Column map:`, JSON.stringify(colMap));
   
-  // Stream through rows, building batches and upserting
+  // Stream through ALL rows - NO LIMITS
   let batch: unknown[] = [];
   let validRows = 0;
   let skipped = 0;
@@ -434,13 +439,11 @@ async function parseAndImportOppsStreaming(
   const sampleCodes: string[] = [];
   
   for (let r = headerRowIndex + 1; r <= range.e.r; r++) {
-    // Log progress periodically
     const rowNum = r - headerRowIndex;
     if (rowNum % LOG_INTERVAL === 0) {
-      console.log(`[OPPS Parser] Processed ${rowNum} rows, ${validRows} valid, ${batchesCompleted} batches completed`);
+      console.log(`[OPPS Parser] Processing row ${rowNum}/${totalRows - headerRowIndex - 1}, ${validRows} valid, ${batchesCompleted} batches`);
     }
     
-    // Get HCPCS value
     const rawHcpcs = getCellValue(sheet, colMap['hcpcs'], r);
     const hcpcs = normalizeHcpcsCode(rawHcpcs);
     
@@ -449,19 +452,27 @@ async function parseAndImportOppsStreaming(
       continue;
     }
     
-    // Collect sample codes
-    if (sampleCodes.length < 10) {
+    if (sampleCodes.length < 20) {
       sampleCodes.push(hcpcs);
     }
     
-    // Build record
+    // Get payment rate - calculate from relative weight if not available
+    let paymentRate = parseNumeric(getCellValue(sheet, colMap['payment_rate'], r));
+    const relativeWeight = parseNumeric(getCellValue(sheet, colMap['relative_weight'], r));
+    
+    // If payment_rate is null but relative_weight exists, calculate it
+    // 2025 OPPS conversion factor is approximately $89.46
+    if (paymentRate === null && relativeWeight !== null) {
+      paymentRate = Math.round(relativeWeight * 89.46 * 100) / 100;
+    }
+    
     const record = {
       year,
       hcpcs,
       apc: parseString(getCellValue(sheet, colMap['apc'], r)),
       status_indicator: parseString(getCellValue(sheet, colMap['status_indicator'], r)),
-      payment_rate: parseNumeric(getCellValue(sheet, colMap['payment_rate'], r)),
-      relative_weight: parseNumeric(getCellValue(sheet, colMap['relative_weight'], r)),
+      payment_rate: paymentRate,
+      relative_weight: relativeWeight,
       short_desc: parseString(getCellValue(sheet, colMap['short_desc'], r)),
       long_desc: parseString(getCellValue(sheet, colMap['long_desc'], r)),
       national_unadjusted_copayment: parseNumeric(getCellValue(sheet, colMap['national_copay'], r)),
@@ -472,7 +483,6 @@ async function parseAndImportOppsStreaming(
     batch.push(record);
     validRows++;
     
-    // Upsert when batch is full
     if (batch.length >= BATCH_SIZE) {
       if (!dryRun) {
         const { error } = await supabase
@@ -507,7 +517,7 @@ async function parseAndImportOppsStreaming(
   }
   
   console.log(`[OPPS Parser] Complete: ${validRows} valid, ${imported} imported, ${skipped} skipped, ${batchesCompleted} batches`);
-  console.log(`[OPPS Parser] Sample codes:`, sampleCodes);
+  console.log(`[OPPS Parser] Sample codes:`, sampleCodes.slice(0, 10));
   
   return {
     ok: errors.length === 0,
@@ -545,12 +555,11 @@ async function parseAndImportOppsCSV(
   errors: string[];
 }> {
   const BATCH_SIZE = 500;
-  const LOG_INTERVAL = 5000;
+  const LOG_INTERVAL = 2000;
   
   const totalRows = csvData.length;
   console.log(`[OPPS CSV Parser] Total rows: ${totalRows}`);
   
-  // Find header row
   let headerRowIndex = -1;
   const colMap: ColumnMap = {};
   
@@ -594,7 +603,6 @@ async function parseAndImportOppsCSV(
   
   console.log(`[OPPS CSV Parser] Column map:`, JSON.stringify(colMap));
   
-  // Stream through rows
   let batch: unknown[] = [];
   let validRows = 0;
   let skipped = 0;
@@ -617,8 +625,15 @@ async function parseAndImportOppsCSV(
       continue;
     }
     
-    if (sampleCodes.length < 10) {
+    if (sampleCodes.length < 20) {
       sampleCodes.push(hcpcs);
+    }
+    
+    // Calculate payment rate from relative weight if needed
+    let paymentRate = parseNumeric(row[colMap['payment_rate']]);
+    const relativeWeight = parseNumeric(row[colMap['relative_weight']]);
+    if (paymentRate === null && relativeWeight !== null) {
+      paymentRate = Math.round(relativeWeight * 89.46 * 100) / 100;
     }
     
     const record = {
@@ -626,8 +641,8 @@ async function parseAndImportOppsCSV(
       hcpcs,
       apc: parseString(row[colMap['apc']]),
       status_indicator: parseString(row[colMap['status_indicator']]),
-      payment_rate: parseNumeric(row[colMap['payment_rate']]),
-      relative_weight: parseNumeric(row[colMap['relative_weight']]),
+      payment_rate: paymentRate,
+      relative_weight: relativeWeight,
       short_desc: parseString(row[colMap['short_desc']]),
       long_desc: parseString(row[colMap['long_desc']]),
       national_unadjusted_copayment: parseNumeric(row[colMap['national_copay']]),
@@ -655,7 +670,6 @@ async function parseAndImportOppsCSV(
     }
   }
   
-  // Final batch
   if (batch.length > 0) {
     if (!dryRun) {
       const { error } = await supabase
@@ -688,7 +702,7 @@ async function parseAndImportOppsCSV(
 }
 
 // ============================================================================
-// DMEPOS Parser
+// DMEPOS Parser - Fixed HCPCS string handling
 // ============================================================================
 
 const US_STATES = [
@@ -715,7 +729,7 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
   const colMap: ColumnMap = {};
   const stateColumns: Array<{ colIndex: number; state: string; isRental: boolean }> = [];
 
-  // Find header row
+  // Find header row - DMEPOS typically has header at row 6-7
   for (let i = 0; i < Math.min(30, data.length); i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
@@ -726,6 +740,7 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
     
     if (hcpcsColIndex >= 0) {
       headerRowIndex = i;
+      console.log(`[DMEPOS Parser] Found header at row ${i + 1} (0-indexed: ${i})`);
       
       row.forEach((cell, idx) => {
         if (typeof cell === 'string') {
@@ -741,7 +756,6 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
           else if (normalized === 'floor') colMap['floor'] = idx;
           else if (normalized === 'description' || normalized === 'desc') colMap['description'] = idx;
           
-          // Check for state column like "CA (NR)"
           const stateInfo = parseStateColumn(cell.trim());
           if (stateInfo) {
             stateColumns.push({ colIndex: idx, ...stateInfo });
@@ -753,18 +767,32 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
   }
 
   if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
+    console.log(`[DMEPOS Parser] Could not find header. Checked ${Math.min(30, data.length)} rows.`);
     return { records: [], meta: { headerRow: -1, columns: [], stateColumns: 0 } };
   }
+  
+  console.log(`[DMEPOS Parser] Column map:`, JSON.stringify(colMap));
+  console.log(`[DMEPOS Parser] State columns found: ${stateColumns.length}`);
 
+  const sampleCodes: string[] = [];
+  
   // Parse data rows
   for (let i = headerRowIndex + 1; i < data.length; i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
     
-    const hcpcs = parseString(row[colMap['hcpcs']]);
-    if (!hcpcs || hcpcs.length < 4) continue;
+    // CRITICAL: Use normalizeHcpcsCode to properly handle HCPCS as strings!
+    const rawHcpcs = row[colMap['hcpcs']];
+    const normalizedHcpcs = normalizeHcpcsCode(rawHcpcs);
     
-    const normalizedHcpcs = hcpcs.toUpperCase().trim();
+    if (!normalizedHcpcs) {
+      continue;
+    }
+    
+    if (sampleCodes.length < 20) {
+      sampleCodes.push(normalizedHcpcs);
+    }
+    
     const modifier = parseString(row[colMap['modifier']]);
     const modifier2 = parseString(row[colMap['modifier2']]);
     const jurisdiction = parseString(row[colMap['jurisdiction']]);
@@ -773,7 +801,6 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
     const floor = parseNumeric(row[colMap['floor']]);
     const shortDesc = parseString(row[colMap['description']]);
     
-    // If we have state columns, create one record per state with a fee
     if (stateColumns.length > 0) {
       const stateData: Record<string, { fee: number | null; rental: number | null }> = {};
       
@@ -789,7 +816,6 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
         }
       }
       
-      // Create records for states with fees
       for (const [state, fees] of Object.entries(stateData)) {
         if (fees.fee !== null || fees.rental !== null) {
           records.push({
@@ -810,7 +836,6 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
         }
       }
     } else {
-      // No state columns - create single record with ceiling/floor as fee
       records.push({
         year,
         hcpcs: normalizedHcpcs,
@@ -828,6 +853,9 @@ function parseDmeposData(data: unknown[][], year: number = 2026, sourceFile: str
       });
     }
   }
+  
+  console.log(`[DMEPOS Parser] Parsed ${records.length} records`);
+  console.log(`[DMEPOS Parser] Sample codes:`, sampleCodes);
 
   return { 
     records, 
@@ -848,7 +876,6 @@ function parseGpciData(data: unknown[][]): { records: unknown[]; meta: { headerR
   let headerRowIndex = -1;
   const colMap: ColumnMap = {};
 
-  // Find header row
   for (let i = 0; i < Math.min(20, data.length); i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
@@ -885,7 +912,6 @@ function parseGpciData(data: unknown[][]): { records: unknown[]; meta: { headerR
     return { records: [], meta: { headerRow: -1, columns: [] } };
   }
 
-  // Parse data rows
   for (let i = headerRowIndex + 1; i < data.length; i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
@@ -929,7 +955,6 @@ function parseZipCrosswalkData(data: unknown[][]): { records: unknown[]; meta: {
   let headerRowIndex = -1;
   const colMap: ColumnMap = {};
 
-  // Find header row
   for (let i = 0; i < Math.min(20, data.length); i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
@@ -968,7 +993,6 @@ function parseZipCrosswalkData(data: unknown[][]): { records: unknown[]; meta: {
     return { records: [], meta: { headerRow: -1, columns: [] } };
   }
 
-  // Parse data rows - deduplicate by zip5
   const seenZips = new Set<string>();
   
   for (let i = headerRowIndex + 1; i < data.length; i++) {
@@ -978,11 +1002,9 @@ function parseZipCrosswalkData(data: unknown[][]): { records: unknown[]; meta: {
     let zipRaw = parseString(row[colMap['zip5']]);
     if (!zipRaw) continue;
     
-    // Normalize ZIP - pad to 5 digits
     const zip5 = zipRaw.replace(/\D/g, '').padStart(5, '0').slice(0, 5);
     if (zip5.length !== 5) continue;
     
-    // Skip duplicates
     if (seenZips.has(zip5)) continue;
     seenZips.add(zip5);
     
@@ -1011,81 +1033,234 @@ function parseZipCrosswalkData(data: unknown[][]): { records: unknown[]; meta: {
 }
 
 // ============================================================================
-// CLFS (Clinical Lab Fee Schedule) Parser
+// CLFS (Clinical Lab Fee Schedule) Parser - Fixed for header at row 4
 // ============================================================================
 
-function parseClfsData(data: unknown[][], year: number = 2026): { records: unknown[]; meta: { headerRow: number; columns: string[] } } {
+function parseClfsData(data: unknown[][], year: number = 2026): { records: unknown[]; meta: { headerRow: number; columns: string[]; sampleCodes: string[] } } {
   const records: unknown[] = [];
   let headerRowIndex = -1;
   const colMap: ColumnMap = {};
+  const sampleCodes: string[] = [];
 
-  // Find header row - look for HCPCS and payment-related columns
-  const expectedHeaders = ['hcpcs', 'hcpcscode', 'code', 'payment', 'paymentamount', 'rate', 'nationalamount'];
+  console.log(`[CLFS Parser] Searching for header in ${Math.min(50, data.length)} rows`);
   
+  // Find header row - look for HCPCS column
   for (let i = 0; i < Math.min(50, data.length); i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
     
-    let matchCount = 0;
-    row.forEach((cell) => {
+    // Check each cell for HCPCS
+    for (let j = 0; j < row.length; j++) {
+      const cell = row[j];
       if (typeof cell === 'string') {
         const normalized = normalizeHeader(cell);
-        if (expectedHeaders.includes(normalized) || normalized.includes('hcpcs') || normalized.includes('code')) {
-          matchCount++;
+        const upper = cell.toUpperCase().trim();
+        
+        // Look for HCPCS header
+        if (normalized === 'hcpcs' || upper === 'HCPCS' || upper === 'HCPCS CODE' || normalized.includes('hcpcs')) {
+          headerRowIndex = i;
+          console.log(`[CLFS Parser] Found header at row ${i + 1} (0-indexed: ${i})`);
+          
+          // Build column map from this row
+          row.forEach((headerCell, idx) => {
+            if (typeof headerCell === 'string') {
+              const hNormalized = normalizeHeader(headerCell);
+              const hUpper = headerCell.toUpperCase().trim();
+              
+              if (hNormalized === 'hcpcs' || hUpper === 'HCPCS') colMap['hcpcs'] = idx;
+              else if (hNormalized === 'rate' || hUpper === 'RATE') colMap['payment_amount'] = idx;
+              else if (hNormalized === 'shortdesc' || hUpper === 'SHORTDESC') colMap['short_desc'] = idx;
+              else if (hNormalized === 'longdesc' || hUpper === 'LONGDESC') colMap['long_desc'] = idx;
+              else if (hNormalized === 'mod' || hUpper === 'MOD') colMap['modifier'] = idx;
+              else if (hNormalized.includes('payment') || hNormalized.includes('amount')) colMap['payment_amount'] = idx;
+              else if (hNormalized.includes('shortdesc') || hNormalized === 'shortdescriptor') colMap['short_desc'] = idx;
+              else if (hNormalized.includes('longdesc') || hNormalized === 'descriptor' || hNormalized === 'description') colMap['long_desc'] = idx;
+            }
+          });
+          break;
         }
       }
-    });
-    
-    if (matchCount >= 2) {
-      headerRowIndex = i;
-      
-      // Build column map with flexible matching
-      row.forEach((cell, idx) => {
-        if (typeof cell === 'string') {
-          const normalized = normalizeHeader(cell);
-          if (normalized.includes('hcpcs') || normalized === 'code') colMap['hcpcs'] = idx;
-          else if (normalized.includes('shortdesc') || normalized === 'shortdescriptor') colMap['short_desc'] = idx;
-          else if (normalized.includes('longdesc') || normalized === 'descriptor' || normalized === 'description') colMap['long_desc'] = idx;
-          else if (normalized.includes('payment') || normalized.includes('amount') || normalized === 'rate' || normalized.includes('national')) colMap['payment_amount'] = idx;
-        }
-      });
-      break;
     }
+    if (headerRowIndex >= 0) break;
   }
 
   if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
-    return { records: [], meta: { headerRow: -1, columns: [] } };
+    console.log(`[CLFS Parser] Could not find header. Data sample:`, data.slice(0, 10));
+    return { records: [], meta: { headerRow: -1, columns: [], sampleCodes: [] } };
   }
+  
+  console.log(`[CLFS Parser] Column map:`, JSON.stringify(colMap));
 
   // Parse data rows
   for (let i = headerRowIndex + 1; i < data.length; i++) {
     const row = data[i];
     if (!Array.isArray(row)) continue;
     
-    const hcpcs = parseString(row[colMap['hcpcs']]);
-    if (!hcpcs || hcpcs.length < 4) continue;
+    // CRITICAL: Use normalizeHcpcsCode to handle codes as strings!
+    const rawHcpcs = row[colMap['hcpcs']];
+    const hcpcs = normalizeHcpcsCode(rawHcpcs);
     
-    // Lab codes typically start with 8 (80000-89999) or certain other patterns
-    const normalizedHcpcs = hcpcs.toUpperCase().trim();
+    if (!hcpcs) continue;
+    
+    if (sampleCodes.length < 20) {
+      sampleCodes.push(hcpcs);
+    }
     
     records.push({
       year,
-      hcpcs: normalizedHcpcs,
+      hcpcs,
       payment_amount: parseNumeric(row[colMap['payment_amount']]),
       short_desc: parseString(row[colMap['short_desc']]),
       long_desc: parseString(row[colMap['long_desc']]),
       source_file: 'CLFS_' + year
     });
   }
+  
+  console.log(`[CLFS Parser] Parsed ${records.length} records`);
+  console.log(`[CLFS Parser] Sample codes:`, sampleCodes);
 
   return { 
     records, 
     meta: { 
       headerRow: headerRowIndex, 
-      columns: Object.keys(colMap) 
+      columns: Object.keys(colMap),
+      sampleCodes
     } 
   };
 }
+
+// ============================================================================
+// MPFS Parser - For Medicare Physician Fee Schedule
+// ============================================================================
+
+function parseMpfsData(data: unknown[][], year: number = 2026): { records: unknown[]; meta: { headerRow: number; columns: string[]; sampleCodes: string[] } } {
+  const records: unknown[] = [];
+  let headerRowIndex = -1;
+  const colMap: ColumnMap = {};
+  const sampleCodes: string[] = [];
+
+  console.log(`[MPFS Parser] Searching for header in ${Math.min(50, data.length)} rows`);
+  
+  // Find header row - look for HCPCS column
+  for (let i = 0; i < Math.min(50, data.length); i++) {
+    const row = data[i];
+    if (!Array.isArray(row)) continue;
+    
+    for (let j = 0; j < row.length; j++) {
+      const cell = row[j];
+      if (typeof cell === 'string') {
+        const normalized = normalizeHeader(cell);
+        const upper = cell.toUpperCase().trim();
+        
+        if (normalized === 'hcpcs' || upper === 'HCPCS') {
+          headerRowIndex = i;
+          console.log(`[MPFS Parser] Found header at row ${i + 1} (0-indexed: ${i})`);
+          
+          // Build column map
+          row.forEach((headerCell, idx) => {
+            if (typeof headerCell === 'string') {
+              const hNormalized = normalizeHeader(headerCell);
+              const hUpper = headerCell.toUpperCase().trim();
+              
+              if (hNormalized === 'hcpcs' || hUpper === 'HCPCS') colMap['hcpcs'] = idx;
+              else if (hNormalized === 'mod' || hUpper === 'MOD') colMap['modifier'] = idx;
+              else if (hNormalized === 'description' || hUpper === 'DESCRIPTION') colMap['description'] = idx;
+              else if (hNormalized === 'status' || hUpper === 'STATUS') colMap['status'] = idx;
+              else if (hNormalized === 'workrvu' || hNormalized.includes('work') && hNormalized.includes('rvu')) colMap['work_rvu'] = idx;
+              else if (hNormalized === 'nonfacpervu' || hNormalized.includes('nonfac') && hNormalized.includes('pe')) colMap['nonfac_pe_rvu'] = idx;
+              else if (hNormalized === 'facpervu' || hNormalized.includes('fac') && hNormalized.includes('pe') && !hNormalized.includes('nonfac')) colMap['fac_pe_rvu'] = idx;
+              else if (hNormalized === 'mprvu' || hNormalized.includes('mp') && hNormalized.includes('rvu')) colMap['mp_rvu'] = idx;
+              else if (hNormalized === 'nonfacfee' || (hNormalized.includes('nonfac') && hNormalized.includes('fee'))) colMap['nonfac_fee'] = idx;
+              else if (hNormalized === 'facfee' || (hNormalized.includes('fac') && hNormalized.includes('fee') && !hNormalized.includes('nonfac'))) colMap['fac_fee'] = idx;
+              else if (hNormalized === 'conversionfactor' || hNormalized.includes('conversion')) colMap['conversion_factor'] = idx;
+              else if (hNormalized === 'pctc') colMap['pctc'] = idx;
+              else if (hNormalized === 'globaldays' || hNormalized.includes('global')) colMap['global_days'] = idx;
+              else if (hNormalized.includes('multsurg') || hNormalized.includes('multiple')) colMap['mult_surgery_indicator'] = idx;
+            }
+          });
+          break;
+        }
+      }
+    }
+    if (headerRowIndex >= 0) break;
+  }
+
+  if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
+    console.log(`[MPFS Parser] Could not find header. Data sample:`, data.slice(0, 10));
+    return { records: [], meta: { headerRow: -1, columns: [], sampleCodes: [] } };
+  }
+  
+  console.log(`[MPFS Parser] Column map:`, JSON.stringify(colMap));
+
+  // Parse data rows
+  for (let i = headerRowIndex + 1; i < data.length; i++) {
+    const row = data[i];
+    if (!Array.isArray(row)) continue;
+    
+    const rawHcpcs = row[colMap['hcpcs']];
+    const hcpcs = normalizeHcpcsCode(rawHcpcs);
+    
+    if (!hcpcs) continue;
+    
+    if (sampleCodes.length < 20) {
+      sampleCodes.push(hcpcs);
+    }
+    
+    const workRvu = parseNumeric(row[colMap['work_rvu']]);
+    const nonfacPeRvu = parseNumeric(row[colMap['nonfac_pe_rvu']]);
+    const facPeRvu = parseNumeric(row[colMap['fac_pe_rvu']]);
+    const mpRvu = parseNumeric(row[colMap['mp_rvu']]);
+    const conversionFactor = parseNumeric(row[colMap['conversion_factor']]) || 34.6062;
+    
+    // Use pre-calculated fees if available, otherwise calculate
+    let nonfacFee = parseNumeric(row[colMap['nonfac_fee']]);
+    let facFee = parseNumeric(row[colMap['fac_fee']]);
+    
+    // Calculate fees if not provided
+    if (nonfacFee === null && workRvu !== null && nonfacPeRvu !== null && mpRvu !== null) {
+      nonfacFee = Math.round((workRvu + nonfacPeRvu + mpRvu) * conversionFactor * 100) / 100;
+    }
+    if (facFee === null && workRvu !== null && facPeRvu !== null && mpRvu !== null) {
+      facFee = Math.round((workRvu + facPeRvu + mpRvu) * conversionFactor * 100) / 100;
+    }
+    
+    records.push({
+      year,
+      hcpcs,
+      modifier: parseString(row[colMap['modifier']]) || '',
+      description: parseString(row[colMap['description']]),
+      status: parseString(row[colMap['status']]),
+      work_rvu: workRvu,
+      nonfac_pe_rvu: nonfacPeRvu,
+      fac_pe_rvu: facPeRvu,
+      mp_rvu: mpRvu,
+      nonfac_fee: nonfacFee,
+      fac_fee: facFee,
+      conversion_factor: conversionFactor,
+      pctc: parseString(row[colMap['pctc']]),
+      global_days: parseString(row[colMap['global_days']]),
+      mult_surgery_indicator: parseString(row[colMap['mult_surgery_indicator']]),
+      qp_status: 'nonQP',
+      source: 'CMS MPFS'
+    });
+  }
+  
+  console.log(`[MPFS Parser] Parsed ${records.length} records`);
+  console.log(`[MPFS Parser] Sample codes:`, sampleCodes);
+
+  return { 
+    records, 
+    meta: { 
+      headerRow: headerRowIndex, 
+      columns: Object.keys(colMap),
+      sampleCodes
+    } 
+  };
+}
+
+// ============================================================================
+// Batch Upsert Helper
+// ============================================================================
 
 async function batchUpsert(
   supabase: any,
@@ -1104,6 +1279,10 @@ async function batchUpsert(
 
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
     const batch = records.slice(i, i + BATCH_SIZE);
+    
+    if ((i / BATCH_SIZE) % 10 === 0) {
+      console.log(`[batchUpsert] ${tableName}: Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)}`);
+    }
     
     const { error } = await supabase
       .from(tableName)
@@ -1129,7 +1308,6 @@ async function batchUpsert(
 function findBestSheet(workbook: XLSX.WorkBook, hints: string[]): string {
   const sheetNames = workbook.SheetNames;
   
-  // First try to find sheet by name hint
   for (const hint of hints) {
     const match = sheetNames.find(name => 
       name.toLowerCase().includes(hint.toLowerCase())
@@ -1137,7 +1315,6 @@ function findBestSheet(workbook: XLSX.WorkBook, hints: string[]): string {
     if (match) return match;
   }
   
-  // Fall back to sheet with most rows
   let bestSheet = sheetNames[0];
   let maxRows = 0;
   
@@ -1159,12 +1336,10 @@ function findBestSheet(workbook: XLSX.WorkBook, hints: string[]): string {
 // ============================================================================
 
 serve(async (req) => {
-  // Handle CORS preflight - return 200 with all CORS headers
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
-  // Verify admin authentication
   const authResult = await verifyAdminAuth(req);
   if (!authResult.authorized) {
     console.warn(`[admin-import] Unauthorized access attempt: ${authResult.error} (reason: ${authResult.reason})`);
@@ -1189,7 +1364,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check content type for file upload vs JSON
     const contentType = req.headers.get("content-type") || "";
     
     let dataType: string;
@@ -1199,7 +1373,6 @@ serve(async (req) => {
     let fileName = '';
 
     if (contentType.includes("multipart/form-data")) {
-      // Handle file upload
       const formData = await req.formData();
       dataType = formData.get("dataType") as string;
       dryRun = formData.get("dryRun") === "true";
@@ -1211,7 +1384,6 @@ serve(async (req) => {
         fileName = file.name.toLowerCase();
       }
     } else {
-      // Handle JSON request (for self-test, etc.)
       const body: ImportRequest = await req.json();
       dataType = body.dataType;
       dryRun = body.dryRun || false;
@@ -1220,7 +1392,6 @@ serve(async (req) => {
 
     // Self-test endpoint
     if (dataType === "self-test") {
-      // Test database connectivity
       const { count, error } = await supabase
         .from("mpfs_benchmarks")
         .select("*", { count: "exact", head: true });
@@ -1249,7 +1420,6 @@ serve(async (req) => {
       });
     }
 
-    // Require file for import operations
     if (!fileBuffer) {
       return new Response(JSON.stringify({
         ok: false,
@@ -1262,17 +1432,13 @@ serve(async (req) => {
     }
 
     let response: ImportResponse;
-
-    // Check if this is a CSV file (for OPPS optimization)
     const isCSV = fileName.endsWith('.csv');
     
     console.log(`[admin-import] Processing ${fileName}, dataType=${dataType}, dryRun=${dryRun}, isCSV=${isCSV}`);
 
-    // Route to appropriate parser
     switch (dataType) {
       case "opps": {
         if (isCSV) {
-          // CSV fast-path for OPPS
           console.log(`[admin-import] Using CSV fast-path for OPPS`);
           const text = new TextDecoder().decode(new Uint8Array(fileBuffer));
           const csvData = parseCSV(text);
@@ -1301,7 +1467,6 @@ serve(async (req) => {
             response.message = result.errors.join("; ");
           }
         } else {
-          // XLSX with memory-efficient cell-based parsing
           console.log(`[admin-import] Using cell-based XLSX parser for OPPS`);
           const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
           const sheetName = findBestSheet(workbook, ["Addendum B", "AddB"]);
@@ -1332,6 +1497,64 @@ serve(async (req) => {
           if (result.errors.length > 0) {
             response.errorCode = "PARTIAL_IMPORT";
             response.message = result.errors.join("; ");
+          }
+        }
+        break;
+      }
+
+      case "mpfs": {
+        const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: "array" });
+        const sheetName = findBestSheet(workbook, ["MPFS", "Fee Schedule", "RVU"]);
+        const sheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+        
+        const { records, meta } = parseMpfsData(data, year || 2026);
+        
+        if (records.length === 0) {
+          response = {
+            ok: false,
+            errorCode: "MPFS_PARSE_FAILED",
+            message: "Could not detect header row or no valid HCPCS codes found",
+            details: {
+              totalRowsRead: data.length,
+              validRows: 0,
+              imported: 0,
+              skipped: 0,
+              sheetName,
+              headerRowIndex: meta.headerRow,
+              columnsDetected: meta.columns,
+              sampleRows: data.slice(0, 5)
+            }
+          };
+        } else {
+          const { imported, errors } = await batchUpsert(
+            supabase, 
+            "mpfs_benchmarks", 
+            records, 
+            "hcpcs,modifier,year",
+            dryRun
+          );
+          
+          response = {
+            ok: errors.length === 0,
+            message: dryRun 
+              ? `Dry run complete: ${records.length} valid MPFS records found`
+              : `Imported ${imported} MPFS records`,
+            details: {
+              totalRowsRead: data.length,
+              validRows: records.length,
+              imported: dryRun ? 0 : imported,
+              skipped: records.length - imported,
+              sheetName,
+              headerRowIndex: meta.headerRow,
+              columnsDetected: meta.columns,
+              sampleRows: meta.sampleCodes.map(code => ({ hcpcs: code }))
+            }
+          };
+          
+          if (errors.length > 0) {
+            response.errorCode = "PARTIAL_IMPORT";
+            response.message = errors.join("; ");
           }
         }
         break;
@@ -1561,7 +1784,7 @@ serve(async (req) => {
               sheetName,
               headerRowIndex: meta.headerRow,
               columnsDetected: meta.columns,
-              sampleRows: records.slice(0, 10)
+              sampleRows: meta.sampleCodes.map(code => ({ hcpcs: code }))
             }
           };
           
@@ -1577,7 +1800,7 @@ serve(async (req) => {
         response = {
           ok: false,
           errorCode: "INVALID_DATA_TYPE",
-          message: `Unknown data type: ${dataType}. Supported: opps, dmepos, dmepen, clfs, gpci, zip-crosswalk`
+          message: `Unknown data type: ${dataType}. Supported: opps, mpfs, dmepos, dmepen, clfs, gpci, zip-crosswalk`
         };
     }
 
