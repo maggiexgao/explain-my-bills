@@ -15,7 +15,8 @@ import {
   Database,
   Clock,
   RefreshCw,
-  Hash
+  Hash,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -34,33 +35,31 @@ interface DatasetStatusDisplayProps {
              'zip_to_locality';
   codeColumn?: string;
   minExpectedRows?: number;
+  minExpectedCodes?: number;
   refreshTrigger?: number;
 }
 
-const tableColumnMap: Record<string, string> = {
-  mpfs_benchmarks: 'hcpcs',
-  opps_addendum_b: 'hcpcs',
-  clfs_fee_schedule: 'hcpcs',
-  dmepos_fee_schedule: 'hcpcs',
-  dmepen_fee_schedule: 'hcpcs',
-  gpci_localities: 'locality_num',
-  zip_to_locality: 'zip5'
-};
-
-const tableToDatasetName: Record<string, string> = {
-  mpfs_benchmarks: 'mpfs',
-  opps_addendum_b: 'opps',
-  clfs_fee_schedule: 'clfs',
-  dmepos_fee_schedule: 'dmepos',
-  dmepen_fee_schedule: 'dmepen',
-  gpci_localities: 'gpci',
-  zip_to_locality: 'zip-crosswalk'
+// Map table names to their code columns and expected counts
+const tableConfig: Record<string, { 
+  codeColumn: string; 
+  datasetName: string;
+  codeLabel: string;
+  minExpectedCodes: number;
+}> = {
+  mpfs_benchmarks: { codeColumn: 'hcpcs', datasetName: 'mpfs', codeLabel: 'Codes', minExpectedCodes: 15000 },
+  opps_addendum_b: { codeColumn: 'hcpcs', datasetName: 'opps', codeLabel: 'Codes', minExpectedCodes: 15000 },
+  clfs_fee_schedule: { codeColumn: 'hcpcs', datasetName: 'clfs', codeLabel: 'Codes', minExpectedCodes: 1500 },
+  dmepos_fee_schedule: { codeColumn: 'hcpcs', datasetName: 'dmepos', codeLabel: 'Codes', minExpectedCodes: 2000 },
+  dmepen_fee_schedule: { codeColumn: 'hcpcs', datasetName: 'dmepen', codeLabel: 'Codes', minExpectedCodes: 30 },
+  gpci_localities: { codeColumn: 'locality_num', datasetName: 'gpci', codeLabel: 'Localities', minExpectedCodes: 100 },
+  zip_to_locality: { codeColumn: 'zip5', datasetName: 'zip-crosswalk', codeLabel: 'ZIP Codes', minExpectedCodes: 40000 }
 };
 
 export function DatasetStatusDisplay({ 
   tableName, 
   codeColumn,
   minExpectedRows = 100,
+  minExpectedCodes,
   refreshTrigger = 0
 }: DatasetStatusDisplayProps) {
   const [status, setStatus] = useState<DatasetStatus>({
@@ -72,8 +71,11 @@ export function DatasetStatusDisplay({
     error: null
   });
 
-  const column = codeColumn || tableColumnMap[tableName] || 'hcpcs';
-  const datasetName = tableToDatasetName[tableName];
+  const config = tableConfig[tableName];
+  const column = codeColumn || config?.codeColumn || 'hcpcs';
+  const datasetName = config?.datasetName || tableName;
+  const codeLabel = config?.codeLabel || 'Codes';
+  const expectedMinCodes = minExpectedCodes ?? config?.minExpectedCodes ?? 100;
 
   const fetchStatus = async () => {
     setStatus(prev => ({ ...prev, loading: true, error: null }));
@@ -86,24 +88,43 @@ export function DatasetStatusDisplay({
 
       if (countError) throw countError;
 
-      // Get sample codes (up to 1000 for distinct count accuracy)
-      const { data: samples, error: sampleError } = await supabase
+      // Get distinct code count using RPC function (no limit!)
+      let codesDetected = 0;
+      try {
+        const { data: distinctCount, error: rpcError } = await supabase
+          .rpc('count_distinct_codes', { 
+            p_table_name: tableName,
+            p_code_column: column
+          });
+        
+        if (rpcError) {
+          console.warn(`RPC count failed for ${tableName}, falling back to manual count:`, rpcError);
+          // Fallback: fetch all codes (no limit) and count distinct
+          codesDetected = await manualCodeCount(tableName, column);
+        } else {
+          codesDetected = distinctCount || 0;
+        }
+      } catch (rpcErr) {
+        console.warn(`RPC not available, using manual count for ${tableName}`);
+        codesDetected = await manualCodeCount(tableName, column);
+      }
+
+      // Get sample codes (just 5 for display) - this can use a small limit
+      const { data: samples } = await supabase
         .from(tableName)
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(1000);
+        .limit(100);
 
-      if (sampleError) throw sampleError;
+      // Extract unique sample codes from the small sample
+      const sampleCodesSet = new Set<string>();
+      (samples || []).forEach((s) => {
+        const code = String((s as Record<string, unknown>)[column] || '');
+        if (code) sampleCodesSet.add(code);
+      });
+      const sampleCodes = [...sampleCodesSet].slice(0, 5);
 
-      // Calculate distinct codes from sample
-      const allCodes = (samples || []).map((s) => String((s as Record<string, unknown>)[column] || '')).filter(Boolean);
-      const distinctCodes = new Set(allCodes);
-      const codesDetected = distinctCodes.size;
-      
-      // Get sample codes (first 5 unique)
-      const sampleCodes = [...distinctCodes].slice(0, 5);
-
-      // Get last import from import_logs table (more accurate than created_at)
+      // Get last import from import_logs table
       let lastImportedAt: string | null = null;
       try {
         const { data: lastImport } = await supabase
@@ -146,6 +167,37 @@ export function DatasetStatusDisplay({
     }
   };
 
+  // Manual fallback for counting distinct codes (no limit!)
+  const manualCodeCount = async (table: string, col: string): Promise<number> => {
+    try {
+      // Fetch ALL codes - no limit! Use the typed table name for supabase
+      const typedTable = table as typeof tableName;
+      const { data, error } = await supabase
+        .from(typedTable)
+        .select('*');
+      
+      if (error || !data) {
+        console.error(`Manual count failed for ${table}:`, error);
+        return 0;
+      }
+      
+      // Count distinct non-null codes
+      const distinctCodes = new Set(
+        data
+          .map(row => {
+            const rowData = row as unknown as Record<string, unknown>;
+            return rowData[col];
+          })
+          .filter(code => code !== null && code !== undefined && code !== '')
+      );
+      
+      return distinctCodes.size;
+    } catch (err) {
+      console.error(`Manual count exception for ${table}:`, err);
+      return 0;
+    }
+  };
+
   useEffect(() => {
     fetchStatus();
   }, [tableName, refreshTrigger]);
@@ -176,6 +228,11 @@ export function DatasetStatusDisplay({
     if (status.rowCount === 0) return <Badge variant="destructive" className="text-xs">Empty</Badge>;
     if (status.rowCount < minExpectedRows) return <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">Partial</Badge>;
     return <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">Complete</Badge>;
+  };
+
+  const isCodeCountSuspicious = (): boolean => {
+    if (status.codesDetected === 0) return false;
+    return status.codesDetected < expectedMinCodes * 0.5;
   };
 
   if (status.error) {
@@ -218,9 +275,15 @@ export function DatasetStatusDisplay({
           <div className="bg-background/50 rounded-lg p-2 border border-border/50">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
               <Hash className="h-3 w-3" />
-              Codes Detected
+              {codeLabel} Detected
             </div>
             <div className="text-lg font-bold font-mono">{status.codesDetected.toLocaleString()}</div>
+            {isCodeCountSuspicious() && (
+              <div className="flex items-center gap-1 text-amber-600 text-[10px] mt-1">
+                <AlertTriangle className="h-3 w-3" />
+                <span>Expected ~{expectedMinCodes.toLocaleString()}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -236,7 +299,7 @@ export function DatasetStatusDisplay({
       {/* Sample Codes */}
       {!status.loading && status.sampleCodes.length > 0 && (
         <div className="pt-1 border-t border-border/50">
-          <div className="text-xs text-muted-foreground mb-1">Sample codes:</div>
+          <div className="text-xs text-muted-foreground mb-1">Sample {codeLabel.toLowerCase()}:</div>
           <div className="flex flex-wrap gap-1">
             {status.sampleCodes.map((code) => (
               <Badge key={code} variant="outline" className="text-[10px] font-mono px-1.5 py-0">{code}</Badge>
@@ -251,7 +314,7 @@ export function DatasetStatusDisplay({
       )}
 
       {/* Data Complete Indicator */}
-      {!status.loading && status.rowCount >= minExpectedRows && (
+      {!status.loading && status.rowCount >= minExpectedRows && status.codesDetected >= expectedMinCodes * 0.5 && (
         <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 rounded p-2">
           <CheckCircle2 className="h-3 w-3" />
           <span>Data appears complete</span>
