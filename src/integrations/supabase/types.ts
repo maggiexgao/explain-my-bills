@@ -641,6 +641,10 @@ export type Database = {
           state_abbr: string
         }[]
       }
+      count_distinct_codes: {
+        Args: { p_code_column?: string; p_table_name: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
