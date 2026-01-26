@@ -40,8 +40,9 @@ interface DatasetStatusDisplayProps {
 }
 
 // Map table names to their code columns and expected counts
+// IMPORTANT: p_code_column values must match what's validated in count_distinct_codes RPC
 const tableConfig: Record<string, { 
-  codeColumn: string; 
+  codeColumn: string;  // Must be 'hcpcs', 'locality_num', or 'zip5' for RPC
   datasetName: string;
   codeLabel: string;
   minExpectedCodes: number;
@@ -89,8 +90,10 @@ export function DatasetStatusDisplay({
       if (countError) throw countError;
 
       // Get distinct code count using RPC function (no limit!)
+      // The RPC function count_distinct_codes is SECURITY DEFINER so it can count without RLS restrictions
       let codesDetected = 0;
       try {
+        console.log(`[DatasetStatus] Calling RPC count_distinct_codes for ${tableName}.${column}`);
         const { data: distinctCount, error: rpcError } = await supabase
           .rpc('count_distinct_codes', { 
             p_table_name: tableName,
@@ -98,14 +101,16 @@ export function DatasetStatusDisplay({
           });
         
         if (rpcError) {
-          console.warn(`RPC count failed for ${tableName}, falling back to manual count:`, rpcError);
+          console.error(`[DatasetStatus] RPC error for ${tableName}:`, rpcError);
           // Fallback: fetch all codes (no limit) and count distinct
+          // This may be capped by RLS/pagination but better than nothing
           codesDetected = await manualCodeCount(tableName, column);
         } else {
+          console.log(`[DatasetStatus] RPC returned ${distinctCount} for ${tableName}`);
           codesDetected = distinctCount || 0;
         }
       } catch (rpcErr) {
-        console.warn(`RPC not available, using manual count for ${tableName}`);
+        console.error(`[DatasetStatus] RPC exception for ${tableName}:`, rpcErr);
         codesDetected = await manualCodeCount(tableName, column);
       }
 
