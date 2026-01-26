@@ -374,6 +374,45 @@ export type Database = {
         }
         Relationships: []
       }
+      import_logs: {
+        Row: {
+          dataset_name: string
+          error_message: string | null
+          file_name: string | null
+          id: string
+          imported_at: string
+          imported_by: string | null
+          rows_before_dedup: number | null
+          rows_imported: number | null
+          rows_skipped: number | null
+          status: string
+        }
+        Insert: {
+          dataset_name: string
+          error_message?: string | null
+          file_name?: string | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          rows_before_dedup?: number | null
+          rows_imported?: number | null
+          rows_skipped?: number | null
+          status?: string
+        }
+        Update: {
+          dataset_name?: string
+          error_message?: string | null
+          file_name?: string | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          rows_before_dedup?: number | null
+          rows_imported?: number | null
+          rows_skipped?: number | null
+          status?: string
+        }
+        Relationships: []
+      }
       mpfs_benchmarks: {
         Row: {
           conversion_factor: number | null
