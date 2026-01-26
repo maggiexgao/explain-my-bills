@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { ImportCard } from '@/components/admin/ImportCard';
 import { CoverageMetricsCard } from '@/components/admin/CoverageMetricsCard';
 import { DatasetValidationCard } from '@/components/admin/DatasetValidationCard';
+import { ImportHistorySection } from '@/components/admin/ImportHistorySection';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -310,6 +311,9 @@ function AdminDataImportContent() {
             </CollapsibleContent>
           </Card>
         </Collapsible>
+
+        {/* Import History */}
+        <ImportHistorySection refreshTrigger={adminContext.refreshCount} limit={10} />
 
         {/* Dataset Validation */}
         <DatasetValidationCard key={`validation-${adminContext.refreshCount}`} />
