@@ -1334,8 +1334,192 @@ async function parseAndImportMpfsStreaming(
 }
 
 // ============================================================================
-// Batch Upsert Helper
+// MPFS CSV Parser - Memory efficient for large files
 // ============================================================================
+
+async function parseAndImportMpfsCsv(
+  csvData: string[][],
+  supabase: any,
+  year: number,
+  dryRun: boolean
+): Promise<{
+  ok: boolean;
+  totalRows: number;
+  validRows: number;
+  imported: number;
+  skipped: number;
+  headerRow: number;
+  columns: string[];
+  sampleCodes: string[];
+  batchesCompleted: number;
+  errors: string[];
+}> {
+  const BATCH_SIZE = 500;
+  const LOG_INTERVAL = 2000;
+  
+  const totalRows = csvData.length;
+  console.log(`[MPFS CSV] Total rows: ${totalRows}`);
+  
+  let headerRowIndex = -1;
+  const colMap: ColumnMap = {};
+  
+  // Find header row
+  for (let i = 0; i < Math.min(50, csvData.length); i++) {
+    const row = csvData[i];
+    const hcpcsColIdx = row.findIndex(cell => {
+      if (typeof cell === 'string') {
+        const upper = cell.toUpperCase().trim();
+        return upper === 'HCPCS';
+      }
+      return false;
+    });
+    
+    if (hcpcsColIdx >= 0) {
+      headerRowIndex = i;
+      console.log(`[MPFS CSV] Found header at row ${i + 1}`);
+      
+      row.forEach((cell, idx) => {
+        if (typeof cell === 'string') {
+          const normalized = normalizeHeader(cell);
+          const upper = cell.toUpperCase().trim();
+          
+          if (upper === 'HCPCS') colMap['hcpcs'] = idx;
+          else if (normalized === 'mod' || upper === 'MOD') colMap['modifier'] = idx;
+          else if (normalized === 'description' || upper === 'DESCRIPTION') colMap['description'] = idx;
+          else if (normalized === 'status' || upper === 'STATUS') colMap['status'] = idx;
+          else if (normalized.includes('workrvu') || normalized === 'work_rvu') colMap['work_rvu'] = idx;
+          else if (normalized.includes('nonfacpervu') || normalized === 'nonfac_pe_rvu') colMap['nonfac_pe_rvu'] = idx;
+          else if (normalized.includes('facpervu') || normalized === 'fac_pe_rvu') colMap['fac_pe_rvu'] = idx;
+          else if (normalized.includes('mprvu') || normalized === 'mp_rvu') colMap['mp_rvu'] = idx;
+          else if (normalized.includes('nonfacfee') || normalized === 'nonfac_fee') colMap['nonfac_fee'] = idx;
+          else if (normalized.includes('facfee') || normalized === 'fac_fee') colMap['fac_fee'] = idx;
+          else if (normalized.includes('conversion')) colMap['conversion_factor'] = idx;
+          else if (normalized === 'pctc') colMap['pctc'] = idx;
+          else if (normalized.includes('global')) colMap['global_days'] = idx;
+        }
+      });
+      break;
+    }
+  }
+  
+  if (headerRowIndex < 0 || colMap['hcpcs'] === undefined) {
+    return { ok: false, totalRows, validRows: 0, imported: 0, skipped: 0, headerRow: -1, columns: [], sampleCodes: [], batchesCompleted: 0, errors: ['Could not find HCPCS header row'] };
+  }
+  
+  console.log(`[MPFS CSV] Column map:`, JSON.stringify(colMap));
+  
+  let batch: unknown[] = [];
+  let validRows = 0;
+  let skipped = 0;
+  let imported = 0;
+  let batchesCompleted = 0;
+  const errors: string[] = [];
+  const sampleCodes: string[] = [];
+  
+  for (let i = headerRowIndex + 1; i < csvData.length; i++) {
+    const row = csvData[i];
+    const rowNum = i - headerRowIndex;
+    
+    if (rowNum % LOG_INTERVAL === 0) {
+      console.log(`[MPFS CSV] Processed ${rowNum} rows, ${validRows} valid`);
+    }
+    
+    const hcpcs = normalizeHcpcsCode(row[colMap['hcpcs']]);
+    if (!hcpcs) {
+      skipped++;
+      continue;
+    }
+    
+    if (sampleCodes.length < 20) {
+      sampleCodes.push(hcpcs);
+    }
+    
+    const workRvu = parseNumeric(row[colMap['work_rvu']]);
+    const nonfacPeRvu = parseNumeric(row[colMap['nonfac_pe_rvu']]);
+    const facPeRvu = parseNumeric(row[colMap['fac_pe_rvu']]);
+    const mpRvu = parseNumeric(row[colMap['mp_rvu']]);
+    const conversionFactor = parseNumeric(row[colMap['conversion_factor']]) || 34.6062;
+    
+    let nonfacFee = parseNumeric(row[colMap['nonfac_fee']]);
+    let facFee = parseNumeric(row[colMap['fac_fee']]);
+    
+    if (nonfacFee === null && workRvu !== null && nonfacPeRvu !== null && mpRvu !== null) {
+      nonfacFee = Math.round((workRvu + nonfacPeRvu + mpRvu) * conversionFactor * 100) / 100;
+    }
+    if (facFee === null && workRvu !== null && facPeRvu !== null && mpRvu !== null) {
+      facFee = Math.round((workRvu + facPeRvu + mpRvu) * conversionFactor * 100) / 100;
+    }
+    
+    const record = {
+      year,
+      hcpcs,
+      modifier: parseString(row[colMap['modifier']]) || '',
+      description: parseString(row[colMap['description']]),
+      status: parseString(row[colMap['status']]),
+      work_rvu: workRvu,
+      nonfac_pe_rvu: nonfacPeRvu,
+      fac_pe_rvu: facPeRvu,
+      mp_rvu: mpRvu,
+      nonfac_fee: nonfacFee,
+      fac_fee: facFee,
+      conversion_factor: conversionFactor,
+      pctc: parseString(row[colMap['pctc']]),
+      global_days: parseString(row[colMap['global_days']]),
+      qp_status: 'nonQP',
+      source: 'CMS MPFS'
+    };
+    
+    batch.push(record);
+    validRows++;
+    
+    if (batch.length >= BATCH_SIZE) {
+      if (!dryRun) {
+        const { error } = await supabase
+          .from('mpfs_benchmarks')
+          .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+        
+        if (error) {
+          errors.push(`Batch ${batchesCompleted + 1}: ${error.message}`);
+        } else {
+          imported += batch.length;
+        }
+      }
+      batchesCompleted++;
+      batch = [];
+    }
+  }
+  
+  if (batch.length > 0) {
+    if (!dryRun) {
+      const { error } = await supabase
+        .from('mpfs_benchmarks')
+        .upsert(batch, { onConflict: 'hcpcs,modifier,year', ignoreDuplicates: false });
+      
+      if (error) {
+        errors.push(`Final batch: ${error.message}`);
+      } else {
+        imported += batch.length;
+      }
+    }
+    batchesCompleted++;
+  }
+  
+  console.log(`[MPFS CSV] Complete: ${validRows} valid, ${imported} imported`);
+  
+  return {
+    ok: errors.length === 0,
+    totalRows,
+    validRows,
+    imported: dryRun ? 0 : imported,
+    skipped,
+    headerRow: headerRowIndex,
+    columns: Object.keys(colMap),
+    sampleCodes,
+    batchesCompleted,
+    errors
+  };
+}
+
 
 async function batchUpsert(
   supabase: any,
@@ -1578,41 +1762,111 @@ serve(async (req) => {
       }
 
       case "mpfs": {
-        // Use streaming parser to avoid memory exhaustion on large MPFS files (16k+ rows)
-        console.log(`[admin-import] Using streaming parser for MPFS`);
-        const workbook = XLSX.read(new Uint8Array(fileBuffer), { 
-          type: "array",
-          // Memory optimization: don't parse styles/formulas
-          cellStyles: false,
-          cellFormula: false,
-          cellHTML: false
-        });
-        const sheetName = findBestSheet(workbook, ["MPFS", "Fee Schedule", "RVU"]);
-        const sheet = workbook.Sheets[sheetName];
-        
-        const result = await parseAndImportMpfsStreaming(sheet, supabase, year || 2026, dryRun);
-        
-        response = {
-          ok: result.ok && result.errors.length === 0,
-          message: dryRun 
-            ? `Dry run complete: ${result.validRows} valid MPFS records found`
-            : `Imported ${result.imported} MPFS records`,
-          details: {
-            totalRowsRead: result.totalRows,
-            validRows: result.validRows,
-            imported: result.imported,
-            skipped: result.skipped,
-            sheetName,
-            headerRowIndex: result.headerRow,
-            columnsDetected: result.columns,
-            batchesCompleted: result.batchesCompleted,
-            sampleRows: result.sampleCodes.map((code: string) => ({ hcpcs: code }))
+        // MPFS files are too large for XLSX.read() - use CSV streaming instead
+        // Check if file is already CSV
+        if (isCSV) {
+          console.log(`[admin-import] Using CSV streaming for MPFS`);
+          const text = new TextDecoder().decode(new Uint8Array(fileBuffer));
+          const csvData = parseCSV(text);
+          
+          const result = await parseAndImportMpfsCsv(csvData, supabase, year || 2026, dryRun);
+          
+          response = {
+            ok: result.ok && result.errors.length === 0,
+            message: dryRun 
+              ? `Dry run complete: ${result.validRows} valid MPFS records found`
+              : `Imported ${result.imported} MPFS records`,
+            details: {
+              totalRowsRead: result.totalRows,
+              validRows: result.validRows,
+              imported: result.imported,
+              skipped: result.skipped,
+              headerRowIndex: result.headerRow,
+              columnsDetected: result.columns,
+              batchesCompleted: result.batchesCompleted,
+              sampleRows: result.sampleCodes.map((code: string) => ({ hcpcs: code }))
+            }
+          };
+          
+          if (result.errors.length > 0) {
+            response.errorCode = "PARTIAL_IMPORT";
+            response.message = result.errors.slice(0, 5).join("; ");
           }
-        };
-        
-        if (result.errors.length > 0) {
-          response.errorCode = "PARTIAL_IMPORT";
-          response.message = result.errors.slice(0, 5).join("; ");
+        } else {
+          // For XLSX files larger than ~5000 rows, we hit memory limits
+          // Return an error asking user to convert to CSV first
+          const bufferSizeKB = Math.round(fileBuffer.byteLength / 1024);
+          console.log(`[admin-import] MPFS XLSX file size: ${bufferSizeKB}KB - checking if too large`);
+          
+          // If file is over 500KB, it's likely too large for XLSX parsing
+          if (bufferSizeKB > 500) {
+            response = {
+              ok: false,
+              errorCode: "FILE_TOO_LARGE",
+              message: `MPFS file (${bufferSizeKB}KB) is too large for XLSX parsing. Please convert to CSV format first, then re-upload. You can open the XLSX in Excel/Google Sheets and export as CSV.`,
+              details: {
+                totalRowsRead: 0,
+                validRows: 0,
+                imported: 0,
+                skipped: 0,
+                sampleRows: []
+              }
+            };
+          } else {
+            // Try small XLSX files
+            try {
+              console.log(`[admin-import] Attempting XLSX parse for small MPFS file`);
+              const workbook = XLSX.read(new Uint8Array(fileBuffer), { 
+                type: "array",
+                cellStyles: false,
+                cellFormula: false,
+                cellHTML: false,
+                sheetRows: 10000 // Limit rows to prevent OOM
+              });
+              const sheetName = findBestSheet(workbook, ["MPFS", "Fee Schedule", "RVU"]);
+              const sheet = workbook.Sheets[sheetName];
+              
+              const result = await parseAndImportMpfsStreaming(sheet, supabase, year || 2026, dryRun);
+              
+              response = {
+                ok: result.ok && result.errors.length === 0,
+                message: dryRun 
+                  ? `Dry run complete: ${result.validRows} valid MPFS records found`
+                  : `Imported ${result.imported} MPFS records`,
+                details: {
+                  totalRowsRead: result.totalRows,
+                  validRows: result.validRows,
+                  imported: result.imported,
+                  skipped: result.skipped,
+                  sheetName,
+                  headerRowIndex: result.headerRow,
+                  columnsDetected: result.columns,
+                  batchesCompleted: result.batchesCompleted,
+                  sampleRows: result.sampleCodes.map((code: string) => ({ hcpcs: code }))
+                }
+              };
+              
+              if (result.errors.length > 0) {
+                response.errorCode = "PARTIAL_IMPORT";
+                response.message = result.errors.slice(0, 5).join("; ");
+              }
+            } catch (xlsxError: unknown) {
+              const errMsg = xlsxError instanceof Error ? xlsxError.message : String(xlsxError);
+              console.error(`[admin-import] XLSX parse failed:`, errMsg);
+              response = {
+                ok: false,
+                errorCode: "XLSX_PARSE_FAILED",
+                message: `XLSX parsing failed (likely memory limit). Please convert to CSV: ${errMsg.slice(0, 200)}`,
+                details: {
+                  totalRowsRead: 0,
+                  validRows: 0,
+                  imported: 0,
+                  skipped: 0,
+                  sampleRows: []
+                }
+              };
+            }
+          }
         }
         break;
       }
