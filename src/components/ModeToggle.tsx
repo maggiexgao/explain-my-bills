@@ -10,14 +10,14 @@ interface ModeToggleProps {
 const modes = [
   {
     value: 'bill' as const,
-    label: 'bill analysis',
-    subtitle: 'understand your medical bills.',
+    label: 'Bill Analysis',
+    subtitle: 'Understand your medical bills.',
     icon: FileText,
   },
   {
     value: 'medical_document' as const,
-    label: 'medical document',
-    subtitle: 'understand your visit notes and test results.',
+    label: 'Medical Document',
+    subtitle: 'Understand your visit notes and test results.',
     icon: Stethoscope,
   },
 ];
@@ -59,7 +59,7 @@ export function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
       </div>
       
       {/* Subtitle for active mode */}
-      <p className="text-center text-xs text-muted-foreground/70 mt-2 animate-fade-in lowercase">
+      <p className="text-center text-xs text-muted-foreground/70 mt-2 animate-fade-in">
         {modes.find(m => m.value === mode)?.subtitle}
       </p>
     </div>

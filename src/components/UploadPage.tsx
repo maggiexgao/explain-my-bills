@@ -84,7 +84,7 @@ export function UploadPage({
         { icon: Shield, label: 'State protections', color: 'text-purple' },
         { icon: Lock, label: 'Private', color: 'text-teal' },
       ],
-      buttonText: t('upload.analyze'),
+      buttonText: 'Analyze Bill',
     },
     medical_document: {
       subtitle: 'Understand your visit notes, test results, and paperwork.',
